@@ -9,8 +9,12 @@ let package = Package(
     ],
     products: [
         .executable(
-            name: "MurmureSpike",
-            targets: ["MurmureSpike"]
+            name: "Murmure",
+            targets: ["Murmure"]
+        ),
+        .library(
+            name: "MurmureCore",
+            targets: ["MurmureCore"]
         )
     ],
     dependencies: [
@@ -20,9 +24,13 @@ let package = Package(
         )
     ],
     targets: [
+        .target(
+            name: "MurmureCore"
+        ),
         .executableTarget(
-            name: "MurmureSpike",
+            name: "Murmure",
             dependencies: [
+                "MurmureCore",
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts")
             ]
         )

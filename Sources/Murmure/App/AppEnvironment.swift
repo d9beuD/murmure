@@ -1,0 +1,11 @@
+import MurmureCore
+
+@MainActor
+enum LiveEnvironment {
+    static func make() -> AppEnvironment {
+        AppEnvironment(
+            audioRecorder: AudioRecorder(),
+            textDelivery: TextDelivery()
+        )
+    }
+}

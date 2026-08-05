@@ -9,7 +9,7 @@ J0 doit valider les capacités système qui peuvent remettre en cause l'architec
 
 ## Implémentation de spike
 
-Le dépôt contient un Swift Package exécutable nommé `MurmureSpike` avec :
+Le dépôt contenait initialement un Swift Package exécutable nommé `MurmureSpike`, depuis refactoré en cible `Murmure`, avec :
 
 - `MenuBarExtra` et scène `Settings` SwiftUI ;
 - deux modes de déclenchement ;
@@ -46,7 +46,7 @@ La décision App Sandbox reste ouverte jusqu'à la validation du point 8. La liv
 
 ```shell
 swift build
-swift run MurmureSpike
+swift run Murmure
 ```
 
 Les commandes `swift run` nécessitent un contexte macOS graphique pour afficher la barre des menus ; elles ne sont pas adaptées à un runner CI sans session utilisateur.
