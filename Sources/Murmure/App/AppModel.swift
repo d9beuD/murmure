@@ -8,16 +8,30 @@ final class AppModel {
     let coordinator: DictationCoordinator
     let hotkeys: HotkeyService
     private let textDelivery: any TextDelivering
+    private let preferencesStore: any PreferencesStoring
+    let keychain: KeychainStore
 
     var mode: TriggerMode = .pushToTalk
+    var preferences: AppPreferences
+    var sttAPIKey = ""
+    var cleanupAPIKey = ""
     private(set) var lastAudioURL: URL?
 
     private var globalShortcutIsDown = false
 
-    init(environment: AppEnvironment) {
+    init(
+        environment: AppEnvironment,
+        preferencesStore: any PreferencesStoring = UserDefaultsPreferencesStore(),
+        keychain: KeychainStore = KeychainStore()
+    ) {
         coordinator = DictationCoordinator(environment: environment)
         hotkeys = HotkeyService()
         textDelivery = environment.textDelivery
+        self.preferencesStore = preferencesStore
+        self.keychain = keychain
+        preferences = preferencesStore.preferences
+        sttAPIKey = (try? keychain.read(profileID: preferences.stt.id)) ?? ""
+        cleanupAPIKey = (try? keychain.read(profileID: preferences.cleanupProvider.id)) ?? ""
 
         hotkeys.onKeyDown = { [weak self] in
             self?.handleKeyDown()
@@ -26,6 +40,17 @@ final class AppModel {
         hotkeys.onKeyUp = { [weak self] in
             self?.handleKeyUp()
         }
+    }
+
+    func savePreferences() {
+        preferencesStore.save(preferences)
+        try? keychain.save(sttAPIKey, profileID: preferences.stt.id)
+        try? keychain.save(cleanupAPIKey, profileID: preferences.cleanupProvider.id)
+    }
+
+    func resetCleanupPrompt() {
+        preferences.cleanupPrompt = AppPreferences.defaultCleanupPrompt
+        savePreferences()
     }
 
     var state: DictationState { coordinator.state }
