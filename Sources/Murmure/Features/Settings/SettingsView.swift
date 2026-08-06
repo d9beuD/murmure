@@ -1,3 +1,4 @@
+import AppKit
 import KeyboardShortcuts
 import MurmureCore
 import SwiftUI
@@ -74,6 +75,7 @@ struct SettingsView: View {
         .onChange(of: model.preferences) { _, _ in model.savePreferences() }
         .onChange(of: model.sttAPIKey) { _, _ in model.savePreferences() }
         .onChange(of: model.cleanupAPIKey) { _, _ in model.savePreferences() }
+        .background(SettingsWindowFocus())
     }
 
     @ViewBuilder
@@ -86,6 +88,23 @@ struct SettingsView: View {
             Label("Le modèle est obligatoire.", systemImage: "exclamationmark.triangle")
                 .foregroundStyle(.orange)
                 .font(.caption)
+        }
+    }
+}
+
+/// A menubar-only app is not automatically activated when its Settings scene opens.
+/// Make the SwiftUI Settings window key so its title bar is active and it appears above
+/// the window that launched it.
+private struct SettingsWindowFocus: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
         }
     }
 }
