@@ -12,7 +12,7 @@ struct MurmureApp: App {
         MenuBarExtra("Murmure", systemImage: "waveform") {
             MenuContent(model: model)
         }
-        .menuBarExtraStyle(.window)
+        .menuBarExtraStyle(.menu)
 
         Window("Réglages de Murmure", id: "settings") {
             SettingsView(model: model)
