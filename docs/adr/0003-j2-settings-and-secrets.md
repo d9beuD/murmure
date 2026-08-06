@@ -4,7 +4,7 @@ Statut : implémenté, validation interactive Xcode en attente
 
 ## Décision
 
-Les configurations STT et TTT sont des valeurs `Codable` dans `MurmureCore`. `AppPreferences` porte un numéro de schéma (actuellement 3, depuis l'ajout du mode de déclenchement) et est encodé en une seule valeur JSON dans `UserDefaults`. Une version inconnue est ignorée et revient aux valeurs par défaut ; les migrations futures auront un point d'entrée unique.
+Les configurations STT et TTT sont des valeurs `Codable` dans `MurmureCore`. `AppPreferences` porte un numéro de schéma (actuellement 4, depuis l’ajout des préférences J7) et est encodé en une seule valeur JSON dans `UserDefaults`. Une version inconnue est ignorée et revient aux valeurs par défaut ; les migrations futures auront un point d'entrée unique.
 
 Les clés API ne font pas partie de `AppPreferences`. `KeychainStore` les stocke comme un mot de passe générique unique sous le service `com.d9beuD.Murmure`; son contenu JSON associe le UUID de chaque connexion à sa clé. Une clé vide est retirée de ce contenu. Les erreurs du Trousseau sont réduites à un statut système et ne révèlent jamais la valeur.
 

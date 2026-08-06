@@ -97,7 +97,7 @@ public struct ProviderConfiguration: Codable, Equatable, Sendable, Identifiable 
 }
 
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 3
+    public static let currentSchemaVersion = 4
     public var schemaVersion: Int
     public var stt: ProviderConfiguration
     public var sttLanguage: String
@@ -109,6 +109,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var cleanupPrompt: String
     public var cleanupFailurePolicy: CleanupFailurePolicy
     public var outputMode: OutputMode
+    public var launchAtLogin: Bool
+    public var playFeedbackSounds: Bool
+    public var hasCompletedOnboarding: Bool
 
     public init(
         schemaVersion: Int = AppPreferences.currentSchemaVersion,
@@ -121,7 +124,10 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         cleanupFormat: CleanupAPIFormat = .responses,
         cleanupPrompt: String = AppPreferences.defaultCleanupPrompt,
         cleanupFailurePolicy: CleanupFailurePolicy = .useRawTranscript,
-        outputMode: OutputMode = .clipboard
+        outputMode: OutputMode = .clipboard,
+        launchAtLogin: Bool = false,
+        playFeedbackSounds: Bool = true,
+        hasCompletedOnboarding: Bool = false
     ) {
         self.schemaVersion = schemaVersion
         self.stt = stt
@@ -134,17 +140,21 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.cleanupPrompt = cleanupPrompt
         self.cleanupFailurePolicy = cleanupFailurePolicy
         self.outputMode = outputMode
+        self.launchAtLogin = launchAtLogin
+        self.playFeedbackSounds = playFeedbackSounds
+        self.hasCompletedOnboarding = hasCompletedOnboarding
     }
 
     public static let defaultCleanupPrompt = "Nettoie la transcription sans en changer le sens. Corrige la ponctuation, les fautes et les hésitations. Retourne uniquement le texte final."
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, stt, sttLanguage, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompt, cleanupFailurePolicy, outputMode
+        case schemaVersion, stt, sttLanguage, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompt, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
+        let decodedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
+        schemaVersion = decodedSchemaVersion
         stt = try container.decodeIfPresent(ProviderConfiguration.self, forKey: .stt) ?? .openAITranscription
         sttLanguage = try container.decodeIfPresent(String.self, forKey: .sttLanguage) ?? ""
         sttPrompt = try container.decodeIfPresent(String.self, forKey: .sttPrompt) ?? ""
@@ -155,6 +165,11 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         cleanupPrompt = try container.decodeIfPresent(String.self, forKey: .cleanupPrompt) ?? Self.defaultCleanupPrompt
         cleanupFailurePolicy = try container.decodeIfPresent(CleanupFailurePolicy.self, forKey: .cleanupFailurePolicy) ?? .useRawTranscript
         outputMode = try container.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .clipboard
+        launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+        playFeedbackSounds = try container.decodeIfPresent(Bool.self, forKey: .playFeedbackSounds) ?? true
+        // Existing installations predate onboarding and must not be interrupted
+        // with it after updating to J7. A clean install uses the initializer.
+        hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? (decodedSchemaVersion < Self.currentSchemaVersion)
     }
 }
 
@@ -289,6 +304,8 @@ public final class DictationCoordinator {
     private var recordingStartedAt: Date?
 
     public var onRecordingTimeout: (() -> Void)?
+    public var onRecordingStarted: (() -> Void)?
+    public var onRecordingStopped: (() -> Void)?
 
     public init(environment: AppEnvironment) {
         self.environment = environment
@@ -313,6 +330,7 @@ public final class DictationCoordinator {
             do {
                 try self.environment.audioRecorder.start()
                 self.environment.logStore.log("Recording started")
+                self.onRecordingStarted?()
                 self.recordingStartedAt = Date()
                 self.state = .recording
                 self.recordingWatchdog?.cancel()
@@ -367,6 +385,7 @@ public final class DictationCoordinator {
         }
         lastAudioURL = environment.audioRecorder.stop()
         environment.logStore.log("Record ended")
+        onRecordingStopped?()
         guard let audioURL = lastAudioURL else {
             let message = "Aucun fichier audio n’a été produit."
             environment.logStore.log("Error: \(message)")

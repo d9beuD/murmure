@@ -4,7 +4,7 @@ Murmure est une application macOS de dictée vocale destinée à vivre dans la b
 
 ## État du projet
 
-Le jalon J6 fournit une fondation Swift 6 ciblant macOS 26, avec :
+Le jalon J7 fournit une application Swift 6 ciblant macOS 26, avec :
 
 - cible exécutable `Murmure` ;
 - bibliothèque de domaine `MurmureCore` ;
@@ -29,8 +29,36 @@ Le jalon J6 fournit une fondation Swift 6 ciblant macOS 26, avec :
 - fallback vers la transcription brute en cas d’échec TTT ;
 - livraison automatique dans le presse-papiers ou le champ actif ;
 - insertion Accessibility sécurisée avec repli contrôlé.
+- assistant de premier lancement entièrement en français ;
+- test de connexion STT explicite avec un court enregistrement ;
+- statut et demandes des permissions Microphone et Accessibilité ;
+- lancement optionnel à l’ouverture de session et feedbacks sonores ;
+- aide accessible depuis la barre des menus.
 
-La gestion complète de l’onboarding et des permissions reste prévue pour J7.
+## Première configuration
+
+Au premier lancement, Murmure ouvre un guide qui permet de configurer un
+fournisseur STT, de choisir un raccourci global, de tester la connexion et de
+choisir le mode de sortie. Tous ces réglages restent modifiables depuis
+**Réglages** dans la barre des menus.
+
+Le test STT demande le microphone, enregistre une courte phrase, puis envoie
+le fichier audio au fournisseur configuré. Il n’est jamais effectué en arrière-plan.
+
+Le mode **Insérer automatiquement** demande l’autorisation Accessibilité. En
+son absence — et pour les champs sécurisés — Murmure copie toujours le résultat
+dans le presse-papiers à la place.
+
+## Confidentialité
+
+- Les clés API sont conservées dans le Trousseau macOS, jamais dans
+  `UserDefaults` ni dans les logs.
+- L’audio est créé dans le répertoire temporaire de macOS puis supprimé après
+  chaque transcription, réussite, erreur ou annulation.
+- Murmure n’exploite aucun compte ni serveur propre : l’audio et, si activé, la
+  transcription sont envoyés seulement aux endpoints STT et TTT choisis.
+- La fenêtre Logs ne conserve ses événements qu’en mémoire et n’affiche ni
+  secret, ni audio, ni transcription, ni prompt.
 
 ## Développement local
 
@@ -45,6 +73,13 @@ Le script construit un vrai bundle `Murmure.app`, applique `Info.plist`, le sign
 
 Le handler du raccourci global est installé après le démarrage de la boucle d'événements macOS, afin que les raccourcis mémorisés restent actifs après une relance.
 
+## Démarrage à la connexion
+
+L’option est disponible dans **Réglages > Général**. macOS peut demander une
+autorisation ou exiger que l’application soit installée comme un bundle signé ;
+le script de développement n’est pas le mode de distribution final.
+
 ## Licence
 
 Murmure est distribué sous licence MIT. Voir [LICENSE](LICENSE).
+Les notices des dépendances sont disponibles dans [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

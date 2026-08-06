@@ -4,6 +4,8 @@ import MurmureCore
 @main
 struct MurmureApp: App {
     @State private var model: AppModel
+    @State private var didOpenOnboarding = false
+    @Environment(\.openWindow) private var openWindow
 
     init() {
         _model = State(initialValue: AppModel(environment: LiveEnvironment.make()))
@@ -12,6 +14,11 @@ struct MurmureApp: App {
     var body: some Scene {
         MenuBarExtra("Murmure", systemImage: iconName(for: model.state)) {
             MenuContent(model: model)
+                .task {
+                    guard model.requiresOnboarding, !didOpenOnboarding else { return }
+                    didOpenOnboarding = true
+                    openWindow(id: "onboarding")
+                }
         }
         .menuBarExtraStyle(.menu)
 
@@ -22,6 +29,11 @@ struct MurmureApp: App {
 
         Window("Logs de Murmure", id: "logs") {
             LogsView(logStore: model.logStore)
+        }
+        .defaultLaunchBehavior(.suppressed)
+
+        Window("Bienvenue dans Murmure", id: "onboarding") {
+            OnboardingView(model: model)
         }
         .defaultLaunchBehavior(.suppressed)
     }

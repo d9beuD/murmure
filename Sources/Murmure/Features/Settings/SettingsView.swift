@@ -8,6 +8,19 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("Général") {
+                Toggle("Lancer Murmure à l’ouverture de session", isOn: Binding(
+                    get: { model.launchAtLoginEnabled },
+                    set: { model.setLaunchAtLogin($0) }
+                ))
+                Toggle("Jouer un son au début et à la fin d’une dictée", isOn: $model.preferences.playFeedbackSounds)
+                if let launchAtLoginError = model.launchAtLoginError {
+                    Label(launchAtLoginError, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                }
+            }
+
             Section("Raccourci global") {
                 KeyboardShortcuts.Recorder("Raccourci :", name: .dictation)
 
@@ -38,6 +51,7 @@ struct SettingsView: View {
                     }
                 }
                 validation(for: model.preferences.stt)
+                ConnectionTestControls(model: model)
             }
 
             Section("Nettoyage TTT") {
@@ -73,9 +87,29 @@ struct SettingsView: View {
                     ForEach(OutputMode.allCases) { Text($0.title).tag($0) }
                 }
             }
+
+            Section("Autorisations") {
+                permissionRow("Microphone", status: model.microphonePermission)
+                if model.microphonePermission != .granted {
+                    Button("Autoriser le microphone") { model.requestMicrophonePermission() }
+                }
+                permissionRow("Accessibilité", status: model.accessibilityPermission)
+                if model.accessibilityPermission != .granted {
+                    Button("Autoriser l’insertion automatique") { model.requestAccessibilityPermission() }
+                }
+                Button("Actualiser les autorisations") { model.refreshPermissions() }
+                Text("L’Accessibilité n’est nécessaire que pour le mode d’insertion automatique. Sans elle, Murmure utilise le presse-papiers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("À propos") {
+                Text("Murmure 0.1.0 — licence MIT")
+                Link("Code source sur GitHub", destination: URL(string: "https://github.com/d9beuD/murmure")!)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 560, height: 680)
+        .frame(width: 560, height: 760)
         .padding()
         .onChange(of: model.preferences) { _, _ in model.savePreferences() }
         .onChange(of: model.sttAPIKey) { _, _ in model.savePreferences() }
@@ -94,6 +128,16 @@ struct SettingsView: View {
                 .foregroundStyle(.orange)
                 .font(.caption)
         }
+    }
+
+    private func permissionRow(_ name: String, status: PermissionStatus) -> some View {
+        HStack {
+            Text(name)
+            Spacer()
+            Label(status.title, systemImage: status == .granted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(status == .granted ? .green : .orange)
+        }
+        .accessibilityLabel("\(name) : \(status.title)")
     }
 }
 

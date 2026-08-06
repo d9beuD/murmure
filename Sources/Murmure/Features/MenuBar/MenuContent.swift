@@ -37,6 +37,13 @@ struct MenuContent: View {
             Label("Logs", systemImage: "terminal")
         }
 
+        Button {
+            NSApp.activate(ignoringOtherApps: true)
+            openWindow(id: "onboarding")
+        } label: {
+            Label("Guide de démarrage", systemImage: "questionmark.circle")
+        }
+
         Button("Quitter") {
             NSApplication.shared.terminate(nil)
         }

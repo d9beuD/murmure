@@ -1,3 +1,5 @@
+import ApplicationServices
+import AVFoundation
 import Foundation
 import MurmureCore
 import Observation
@@ -9,6 +11,10 @@ final class AppModel {
     let hotkeys: HotkeyService
     private let textDelivery: any TextDelivering
     private let preferencesStore: any PreferencesStoring
+    private let testAudioRecorder: any AudioRecording
+    private let transcriber: any SpeechTranscribing
+    private let launchAtLoginService = LaunchAtLoginService()
+    private let soundFeedback = SoundFeedback()
     let keychain: KeychainStore
     let logStore: AppLogStore
 
@@ -16,12 +22,18 @@ final class AppModel {
     var preferences: AppPreferences
     var sttAPIKey = ""
     var cleanupAPIKey = ""
+    var connectionTestState: ConnectionTestState = .idle
+    var launchAtLoginError: String?
+    private(set) var permissionsRevision = 0
     var lastAudioURL: URL? { coordinator.lastAudioURL }
 
     var lastTranscript: String? { coordinator.lastTranscript }
 
     private var globalShortcutIsDown = false
     private var lastShortcutEventAt: Date?
+    private var connectionTestSessionID: UUID?
+    private var connectionTestStartedAt: Date?
+    private var connectionTestTask: Task<Void, Never>?
 
     init(
         environment: AppEnvironment,
@@ -31,6 +43,8 @@ final class AppModel {
         coordinator = DictationCoordinator(environment: environment)
         hotkeys = HotkeyService()
         textDelivery = environment.textDelivery
+        testAudioRecorder = environment.audioRecorder
+        transcriber = environment.transcriber
         logStore = environment.logStore
         self.preferencesStore = preferencesStore
         self.keychain = keychain
@@ -48,6 +62,14 @@ final class AppModel {
             self?.stopRecording()
         }
 
+        coordinator.onRecordingStarted = { [weak self] in
+            self?.playFeedback(.recordingStarted)
+        }
+
+        coordinator.onRecordingStopped = { [weak self] in
+            self?.playFeedback(.recordingStopped)
+        }
+
         hotkeys.onKeyDown = { [weak self] in
             self?.handleKeyDown()
         }
@@ -62,6 +84,63 @@ final class AppModel {
         var secrets = [preferences.stt.id: sttAPIKey]
         secrets[preferences.cleanupProvider.id] = cleanupAPIKey
         try? keychain.save(secrets)
+    }
+
+    var requiresOnboarding: Bool { !preferences.hasCompletedOnboarding }
+
+    var microphonePermission: PermissionStatus {
+        _ = permissionsRevision
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted: return .granted
+        case .denied: return .denied
+        case .undetermined: return .notDetermined
+        @unknown default: return .notDetermined
+        }
+    }
+
+    var accessibilityPermission: PermissionStatus {
+        _ = permissionsRevision
+        return AXIsProcessTrusted() ? .granted : .notDetermined
+    }
+
+    var launchAtLoginEnabled: Bool {
+        launchAtLoginService.isEnabled
+    }
+
+    func completeOnboarding() {
+        preferences.hasCompletedOnboarding = true
+        savePreferences()
+    }
+
+    func requestMicrophonePermission() {
+        Task { [weak self] in
+            guard let self else { return }
+            _ = await self.testAudioRecorder.requestPermission()
+            self.refreshPermissions()
+        }
+    }
+
+    func requestAccessibilityPermission() {
+        AXIsProcessTrustedWithOptions([
+            "AXTrustedCheckOptionPrompt": true
+        ] as CFDictionary)
+        refreshPermissions()
+    }
+
+    func refreshPermissions() {
+        permissionsRevision &+= 1
+    }
+
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            try launchAtLoginService.setEnabled(enabled)
+            preferences.launchAtLogin = enabled
+            launchAtLoginError = nil
+            savePreferences()
+        } catch {
+            launchAtLoginError = "Impossible de modifier le lancement à la connexion : \(error.localizedDescription)"
+            logStore.log("Error: lancement à la connexion : \(error.localizedDescription)")
+        }
     }
 
     func resetCleanupPrompt() {
@@ -115,6 +194,7 @@ final class AppModel {
     }
 
     func startRecording() {
+        guard connectionTestState.isInactive else { return }
         if isErrorState {
             coordinator.dismissError()
         }
@@ -146,6 +226,94 @@ final class AppModel {
         coordinator.cancelRecording()
     }
 
+    func startSTTConnectionTest() {
+        guard coordinator.state == .idle, connectionTestState.isInactive else { return }
+        let sessionID = UUID()
+        connectionTestSessionID = sessionID
+        connectionTestState = .requestingPermission
+        Task { [weak self] in
+            guard let self else { return }
+            let granted = await self.testAudioRecorder.requestPermission()
+            guard self.connectionTestSessionID == sessionID else { return }
+            self.refreshPermissions()
+            guard granted else {
+                self.connectionTestSessionID = nil
+                self.connectionTestState = .failed("Accès au microphone refusé. Autorisez Murmure dans Réglages Système.")
+                self.playFeedback(.error)
+                return
+            }
+            do {
+                try self.testAudioRecorder.start()
+                self.connectionTestStartedAt = Date()
+                self.connectionTestState = .recording
+                self.logStore.log("Connection test recording started")
+                self.playFeedback(.recordingStarted)
+            } catch {
+                self.connectionTestSessionID = nil
+                self.connectionTestState = .failed(error.localizedDescription)
+                self.logStore.log("Error: test de connexion : \(error.localizedDescription)")
+                self.playFeedback(.error)
+            }
+        }
+    }
+
+    func finishSTTConnectionTest() {
+        guard case .recording = connectionTestState, let sessionID = connectionTestSessionID else { return }
+        let duration = connectionTestStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+        connectionTestStartedAt = nil
+        guard duration >= DictationTiming.minimumRecordingDuration, let audioURL = testAudioRecorder.stop() else {
+            testAudioRecorder.cancel()
+            connectionTestSessionID = nil
+            connectionTestState = .failed("Enregistrez au moins une courte phrase avant le test.")
+            return
+        }
+        connectionTestState = .testing
+        logStore.log("Connection test recording ended")
+        playFeedback(.recordingStopped)
+        connectionTestTask?.cancel()
+        connectionTestTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                self.testAudioRecorder.deleteLastCapture()
+                if self.connectionTestSessionID == sessionID {
+                    self.connectionTestSessionID = nil
+                }
+            }
+            do {
+                let host = self.preferences.stt.endpointURL?.host ?? self.preferences.stt.baseURL
+                self.logStore.log("Testing STT connection with \(host)")
+                let text = try await self.transcriber.transcribe(
+                    audioURL: audioURL,
+                    configuration: self.preferences.stt,
+                    apiKey: self.sttAPIKey,
+                    prompt: self.preferences.sttPrompt,
+                    language: self.preferences.sttLanguage
+                )
+                guard self.connectionTestSessionID == sessionID else { return }
+                self.connectionTestState = .succeeded(characterCount: text.count)
+                self.logStore.log("STT connection test succeeded (\(text.count) chars)")
+                self.playFeedback(.connectionTestSucceeded)
+            } catch is CancellationError {
+                guard self.connectionTestSessionID == sessionID else { return }
+                self.connectionTestState = .idle
+            } catch {
+                guard self.connectionTestSessionID == sessionID else { return }
+                self.connectionTestState = .failed(error.localizedDescription)
+                self.logStore.log("Error: test de connexion : \(error.localizedDescription)")
+                self.playFeedback(.error)
+            }
+        }
+    }
+
+    func cancelSTTConnectionTest() {
+        connectionTestSessionID = nil
+        connectionTestTask?.cancel()
+        connectionTestTask = nil
+        connectionTestStartedAt = nil
+        testAudioRecorder.cancel()
+        connectionTestState = .idle
+    }
+
     func copyTestText() {
         textDelivery.copy("Murmure — test presse-papiers")
     }
@@ -169,6 +337,52 @@ final class AppModel {
             textDelivery.copyAndPaste(lastTranscript)
         } else {
             textDelivery.copy(lastTranscript)
+        }
+    }
+
+    private func playFeedback(_ event: SoundFeedback.Event) {
+        guard preferences.playFeedbackSounds else { return }
+        soundFeedback.play(event)
+    }
+}
+
+enum PermissionStatus: Equatable {
+    case granted
+    case denied
+    case notDetermined
+
+    var title: String {
+        switch self {
+        case .granted: "Autorisé"
+        case .denied: "Refusé"
+        case .notDetermined: "À autoriser"
+        }
+    }
+}
+
+enum ConnectionTestState: Equatable {
+    case idle
+    case requestingPermission
+    case recording
+    case testing
+    case succeeded(characterCount: Int)
+    case failed(String)
+
+    var isInactive: Bool {
+        switch self {
+        case .idle, .succeeded, .failed: true
+        case .requestingPermission, .recording, .testing: false
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .idle: "Prêt à tester la connexion STT."
+        case .requestingPermission: "Autorisation du microphone…"
+        case .recording: "Enregistrement du test en cours…"
+        case .testing: "Envoi de l’enregistrement au fournisseur…"
+        case .succeeded(let characterCount): "Connexion vérifiée : \(characterCount) caractères reçus."
+        case .failed(let message): message
         }
     }
 }
