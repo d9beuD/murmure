@@ -93,9 +93,10 @@ le script de développement n’est pas le mode de distribution final.
 ## Préparer une release
 
 Sur une machine équipée d’Xcode et d’une identité Developer ID, le script
-`Scripts/release.sh` produit un ZIP et son SHA-256. Il active Hardened Runtime
-et utilise un profil `notarytool` seulement si `MURMURE_NOTARY_PROFILE` est
-fourni. La procédure détaillée est dans [la checklist de release](docs/RELEASE_CHECKLIST.md).
+`Scripts/release.sh` produit un ZIP et son SHA-256. Le workflow GitHub
+**Release** peut être lancé manuellement pour produire un DMG, l’attacher à une
+nouvelle release et, si les secrets sont configurés, le signer puis le
+notariser. La procédure détaillée est dans [la checklist de release](docs/RELEASE_CHECKLIST.md).
 
 ## Licence
 
