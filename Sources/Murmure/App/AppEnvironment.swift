@@ -7,6 +7,7 @@ enum LiveEnvironment {
             audioRecorder: AudioRecorder(),
             textDelivery: TextDelivery(),
             transcriber: OpenAITranscriptionService(),
+            cleaner: OpenAITextCleanupService(),
             logStore: AppLogStore()
         )
     }

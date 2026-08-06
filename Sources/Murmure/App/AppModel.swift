@@ -126,7 +126,13 @@ final class AppModel {
             configuration: preferences.stt,
             apiKey: sttAPIKey,
             prompt: preferences.sttPrompt,
-            language: preferences.sttLanguage
+            language: preferences.sttLanguage,
+            cleanupEnabled: preferences.cleanupEnabled,
+            cleanupConfiguration: preferences.cleanupProvider,
+            cleanupAPIKey: cleanupAPIKey,
+            cleanupFormat: preferences.cleanupFormat,
+            cleanupPrompt: preferences.cleanupPrompt,
+            cleanupFailurePolicy: preferences.cleanupFailurePolicy
         )
     }
 

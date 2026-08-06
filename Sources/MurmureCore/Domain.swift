@@ -233,6 +233,10 @@ public protocol SpeechTranscribing: Sendable {
     func transcribe(audioURL: URL, configuration: ProviderConfiguration, apiKey: String, prompt: String?, language: String?) async throws -> String
 }
 
+public protocol TextCleaning: Sendable {
+    func clean(text: String, configuration: ProviderConfiguration, apiKey: String, format: CleanupAPIFormat, prompt: String) async throws -> String
+}
+
 @MainActor
 public protocol TextDelivering: AnyObject {
     func copy(_ text: String)
@@ -244,17 +248,20 @@ public struct AppEnvironment {
     public let audioRecorder: any AudioRecording
     public let textDelivery: any TextDelivering
     public let transcriber: any SpeechTranscribing
+    public let cleaner: any TextCleaning
     public let logStore: AppLogStore
 
     public init(
         audioRecorder: any AudioRecording,
         textDelivery: any TextDelivering,
         transcriber: any SpeechTranscribing,
+        cleaner: any TextCleaning,
         logStore: AppLogStore
     ) {
         self.audioRecorder = audioRecorder
         self.textDelivery = textDelivery
         self.transcriber = transcriber
+        self.cleaner = cleaner
         self.logStore = logStore
     }
 }
@@ -324,7 +331,18 @@ public final class DictationCoordinator {
         state = .idle
     }
 
-    public func stopRecording(configuration: ProviderConfiguration, apiKey: String, prompt: String?, language: String?) {
+    public func stopRecording(
+        configuration: ProviderConfiguration,
+        apiKey: String,
+        prompt: String?,
+        language: String?,
+        cleanupEnabled: Bool,
+        cleanupConfiguration: ProviderConfiguration,
+        cleanupAPIKey: String,
+        cleanupFormat: CleanupAPIFormat,
+        cleanupPrompt: String,
+        cleanupFailurePolicy: CleanupFailurePolicy
+    ) {
         guard state == .recording else { return }
         recordingWatchdog?.cancel()
         recordingWatchdog = nil
@@ -377,7 +395,39 @@ public final class DictationCoordinator {
                 )
                 guard self.activeSessionID == sessionID else { return }
                 self.environment.logStore.log("Received \(text.count) chars transcription")
-                self.lastTranscript = text
+                var finalText = text
+                if cleanupEnabled {
+                    let cleanupHost = cleanupConfiguration.endpointURL?.host ?? cleanupConfiguration.baseURL
+                    self.environment.logStore.log("Sending transcription to \(cleanupHost)")
+                    do {
+                        let enhancedText = try await self.environment.cleaner.clean(
+                            text: text,
+                            configuration: cleanupConfiguration,
+                            apiKey: cleanupAPIKey,
+                            format: cleanupFormat,
+                            prompt: cleanupPrompt
+                        )
+                        self.environment.logStore.log("Received \(enhancedText.count) chars enhanced transcription")
+                        finalText = enhancedText
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        self.environment.logStore.log("Error: \(error.localizedDescription)")
+                        switch cleanupFailurePolicy {
+                        case .useRawTranscript:
+                            self.environment.logStore.log("Using raw transcription after cleanup error")
+                        case .stop:
+                            guard self.activeSessionID == sessionID else { return }
+                            self.lastTranscript = text
+                            self.activeSessionID = nil
+                            self.lastAudioURL = nil
+                            self.state = .error(error.localizedDescription)
+                            return
+                        }
+                    }
+                }
+                guard self.activeSessionID == sessionID else { return }
+                self.lastTranscript = finalText
                 self.activeSessionID = nil
                 self.lastAudioURL = nil
                 self.state = .idle
