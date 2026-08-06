@@ -6,11 +6,13 @@ Statut : implémenté, validation interactive Xcode en attente
 
 Les configurations STT et TTT sont des valeurs `Codable` dans `MurmureCore`. `AppPreferences` porte un numéro de schéma (actuellement 3, depuis l'ajout du mode de déclenchement) et est encodé en une seule valeur JSON dans `UserDefaults`. Une version inconnue est ignorée et revient aux valeurs par défaut ; les migrations futures auront un point d'entrée unique.
 
-Les clés API ne font pas partie de `AppPreferences`. `KeychainStore` les stocke comme mots de passe génériques, avec le UUID de chaque connexion comme compte et `com.d9beuD.Murmure` comme service. Une clé vide supprime l'entrée. Les erreurs du Trousseau sont réduites à un statut système et ne révèlent jamais la valeur.
+Les clés API ne font pas partie de `AppPreferences`. `KeychainStore` les stocke comme un mot de passe générique unique sous le service `com.d9beuD.Murmure`; son contenu JSON associe le UUID de chaque connexion à sa clé. Une clé vide est retirée de ce contenu. Les erreurs du Trousseau sont réduites à un statut système et ne révèlent jamais la valeur.
 
-Au démarrage, les secrets des profils STT et TTT sont lus par une requête
-groupée (`kSecMatchLimitAll`) afin de ne solliciter le Trousseau qu'une seule
-fois. Les profils absents sont traités comme des clés vides.
+Au démarrage, les secrets des profils STT et TTT sont lus dans une entrée
+Trousseau unique, encodée en JSON, afin de ne solliciter le Trousseau qu'une
+seule fois. Les profils absents sont traités comme des clés vides. Les entrées
+des versions précédentes, qui stockaient une clé par UUID de profil, sont
+relues une dernière fois puis migrées automatiquement vers cette entrée unique.
 
 La vue Settings expose les paramètres STT et TTT, le format Responses ou Chat Completions, le prompt de nettoyage, la politique de repli vers le texte brut, le mode de livraison et les informations d'authentification. Les modifications sont sauvegardées automatiquement ; aucun appel réseau n'est effectué à ce stade.
 

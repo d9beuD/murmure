@@ -59,8 +59,9 @@ final class AppModel {
 
     func savePreferences() {
         preferencesStore.save(preferences)
-        try? keychain.save(sttAPIKey, profileID: preferences.stt.id)
-        try? keychain.save(cleanupAPIKey, profileID: preferences.cleanupProvider.id)
+        var secrets = [preferences.stt.id: sttAPIKey]
+        secrets[preferences.cleanupProvider.id] = cleanupAPIKey
+        try? keychain.save(secrets)
     }
 
     func resetCleanupPrompt() {
