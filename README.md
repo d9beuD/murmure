@@ -4,7 +4,7 @@ Murmure est une application macOS de dictée vocale destinée à vivre dans la b
 
 ## État du projet
 
-Le jalon J7 fournit une application Swift 6 ciblant macOS 26, avec :
+Le jalon J8 fournit une application Swift 6 ciblant macOS 26, avec :
 
 - cible exécutable `Murmure` ;
 - bibliothèque de domaine `MurmureCore` ;
@@ -34,6 +34,10 @@ Le jalon J7 fournit une application Swift 6 ciblant macOS 26, avec :
 - statut et demandes des permissions Microphone et Accessibilité ;
 - lancement optionnel à l’ouverture de session et feedbacks sonores ;
 - aide accessible depuis la barre des menus.
+- transport éphémère qui refuse les redirections inter-origines ;
+- logs d’erreur expurgés des réponses des fournisseurs ;
+- tests de domaine et CI avec avertissements traités comme erreurs ;
+- script de préparation d’une archive signée, notarisable et accompagnée d’un SHA-256.
 
 ## Première configuration
 
@@ -73,11 +77,25 @@ Le script construit un vrai bundle `Murmure.app`, applique `Info.plist`, le sign
 
 Le handler du raccourci global est installé après le démarrage de la boucle d'événements macOS, afin que les raccourcis mémorisés restent actifs après une relance.
 
+Les tests demandent une installation complète de Xcode (les Command Line Tools
+ne fournissent pas XCTest) :
+
+```shell
+swift test -Xswiftc -warnings-as-errors
+```
+
 ## Démarrage à la connexion
 
 L’option est disponible dans **Réglages > Général**. macOS peut demander une
 autorisation ou exiger que l’application soit installée comme un bundle signé ;
 le script de développement n’est pas le mode de distribution final.
+
+## Préparer une release
+
+Sur une machine équipée d’Xcode et d’une identité Developer ID, le script
+`Scripts/release.sh` produit un ZIP et son SHA-256. Il active Hardened Runtime
+et utilise un profil `notarytool` seulement si `MURMURE_NOTARY_PROFILE` est
+fourni. La procédure détaillée est dans [la checklist de release](docs/RELEASE_CHECKLIST.md).
 
 ## Licence
 

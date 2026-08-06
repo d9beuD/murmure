@@ -43,7 +43,7 @@ final class OpenAITranscriptionService: SpeechTranscribing, @unchecked Sendable 
             break
         }
 
-        let (data, response) = try await URLSession(configuration: .ephemeral).data(for: request.withHTTPBody(body))
+        let (data, response) = try await SafeNetworkSession.data(for: request.withHTTPBody(body))
         guard let httpResponse = response as? HTTPURLResponse else { throw TranscriptionError.invalidResponse }
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw TranscriptionError.http(statusCode: httpResponse.statusCode, message: errorMessage(from: data))
@@ -78,7 +78,7 @@ private struct TranscriptionResponse: Decodable { let text: String }
 private struct APIErrorEnvelope: Decodable { let error: APIError }
 private struct APIError: Decodable { let message: String }
 
-enum TranscriptionError: LocalizedError {
+enum TranscriptionError: LocalizedError, LogSafeError {
     case invalidEndpoint
     case invalidHeader
     case missingAPIKey
@@ -98,6 +98,13 @@ enum TranscriptionError: LocalizedError {
         case .http(let statusCode, let message):
             if let message { "Erreur STT (HTTP \(statusCode)) : \(message)" }
             else { "Erreur STT (HTTP \(statusCode))." }
+        }
+    }
+
+    var logMessage: String {
+        switch self {
+        case .http(let statusCode, _): "Échec de la requête STT (HTTP \(statusCode))."
+        default: "Échec de la transcription STT."
         }
     }
 }

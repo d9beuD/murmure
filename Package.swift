@@ -33,6 +33,10 @@ let package = Package(
                 "MurmureCore",
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts")
             ]
+        ),
+        .testTarget(
+            name: "MurmureCoreTests",
+            dependencies: ["MurmureCore"]
         )
     ]
 )

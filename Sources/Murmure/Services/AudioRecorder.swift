@@ -86,10 +86,12 @@ final class AudioRecorder: AudioRecording {
     }
 }
 
-enum RecorderError: LocalizedError {
+enum RecorderError: LocalizedError, LogSafeError {
     case couldNotStart
 
     var errorDescription: String? {
         "Impossible de démarrer l’enregistrement. Vérifiez l’autorisation microphone."
     }
+
+    var logMessage: String { "Impossible de démarrer l’enregistrement." }
 }

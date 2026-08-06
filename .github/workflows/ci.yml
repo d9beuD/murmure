@@ -19,4 +19,12 @@ jobs:
           swift --version
 
       - name: Build
-        run: swift build
+        run: swift build -Xswiftc -warnings-as-errors
+
+      - name: Test
+        run: swift test -Xswiftc -warnings-as-errors
+
+      - name: Audit repository contents
+        run: |
+          ! git ls-files | grep -E '\.(wav|aiff|aif|caf|m4a|mp3|p12|mobileprovision)$'
+          ! git grep -nE 'sk-[A-Za-z0-9]{20,}'

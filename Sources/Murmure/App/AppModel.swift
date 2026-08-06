@@ -139,7 +139,7 @@ final class AppModel {
             savePreferences()
         } catch {
             launchAtLoginError = "Impossible de modifier le lancement à la connexion : \(error.localizedDescription)"
-            logStore.log("Error: lancement à la connexion : \(error.localizedDescription)")
+            logStore.log("Error: impossible de modifier le lancement à la connexion.")
         }
     }
 
@@ -251,7 +251,7 @@ final class AppModel {
             } catch {
                 self.connectionTestSessionID = nil
                 self.connectionTestState = .failed(error.localizedDescription)
-                self.logStore.log("Error: test de connexion : \(error.localizedDescription)")
+                self.logStore.log("Error: test de connexion : \(safeLogMessage(for: error))")
                 self.playFeedback(.error)
             }
         }
@@ -280,7 +280,7 @@ final class AppModel {
                 }
             }
             do {
-                let host = self.preferences.stt.endpointURL?.host ?? self.preferences.stt.baseURL
+                let host = self.preferences.stt.endpointURL?.host ?? "endpoint configuré"
                 self.logStore.log("Testing STT connection with \(host)")
                 let text = try await self.transcriber.transcribe(
                     audioURL: audioURL,
@@ -299,7 +299,7 @@ final class AppModel {
             } catch {
                 guard self.connectionTestSessionID == sessionID else { return }
                 self.connectionTestState = .failed(error.localizedDescription)
-                self.logStore.log("Error: test de connexion : \(error.localizedDescription)")
+                self.logStore.log("Error: test de connexion : \(safeLogMessage(for: error))")
                 self.playFeedback(.error)
             }
         }

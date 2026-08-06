@@ -346,7 +346,7 @@ public final class DictationCoordinator {
             } catch {
                 guard self.activeSessionID == sessionID else { return }
                 self.activeSessionID = nil
-                self.environment.logStore.log("Error: \(error.localizedDescription)")
+                self.environment.logStore.log("Error: \(safeLogMessage(for: error))")
                 self.state = .error(error.localizedDescription)
             }
         }
@@ -412,7 +412,7 @@ public final class DictationCoordinator {
             do {
                 let sizeInBytes = (try? FileManager.default.attributesOfItem(atPath: audioURL.path)[.size] as? NSNumber)?.intValue ?? 0
                 let sizeInKilobytes = Double(sizeInBytes) / 1024
-                let host = configuration.endpointURL?.host ?? configuration.baseURL
+                let host = configuration.endpointURL?.host ?? "endpoint configuré"
                 self.environment.logStore.log(String(format: "Sending %.1f kB to %@", sizeInKilobytes, host))
                 let text = try await self.environment.transcriber.transcribe(
                     audioURL: audioURL,
@@ -425,7 +425,7 @@ public final class DictationCoordinator {
                 self.environment.logStore.log("Received \(text.count) chars transcription")
                 var finalText = text
                 if cleanupEnabled {
-                    let cleanupHost = cleanupConfiguration.endpointURL?.host ?? cleanupConfiguration.baseURL
+                    let cleanupHost = cleanupConfiguration.endpointURL?.host ?? "endpoint configuré"
                     self.environment.logStore.log("Sending transcription to \(cleanupHost)")
                     do {
                         let enhancedText = try await self.environment.cleaner.clean(
@@ -440,7 +440,7 @@ public final class DictationCoordinator {
                     } catch is CancellationError {
                         throw CancellationError()
                     } catch {
-                        self.environment.logStore.log("Error: \(error.localizedDescription)")
+                        self.environment.logStore.log("Error: \(safeLogMessage(for: error))")
                         switch cleanupFailurePolicy {
                         case .useRawTranscript:
                             self.environment.logStore.log("Using raw transcription after cleanup error")
@@ -477,7 +477,7 @@ public final class DictationCoordinator {
                 self.state = .idle
             } catch {
                 guard self.activeSessionID == sessionID else { return }
-                self.environment.logStore.log("Error: \(error.localizedDescription)")
+                self.environment.logStore.log("Error: \(safeLogMessage(for: error))")
                 self.activeSessionID = nil
                 self.lastAudioURL = nil
                 self.state = .error(error.localizedDescription)

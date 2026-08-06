@@ -39,7 +39,7 @@ final class OpenAITextCleanupService: TextCleaning, @unchecked Sendable {
             ))
         }
 
-        let (data, response) = try await URLSession(configuration: .ephemeral).data(for: request)
+        let (data, response) = try await SafeNetworkSession.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw CleanupError.invalidResponse }
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw CleanupError.http(statusCode: httpResponse.statusCode, message: errorMessage(from: data))
@@ -180,7 +180,7 @@ private struct TextPart: Decodable {
 private struct APIErrorEnvelope: Decodable { let error: APIError }
 private struct APIError: Decodable { let message: String }
 
-enum CleanupError: LocalizedError {
+enum CleanupError: LocalizedError, LogSafeError {
     case invalidEndpoint
     case missingAPIKey
     case invalidHeader
@@ -202,6 +202,13 @@ enum CleanupError: LocalizedError {
         case .http(let statusCode, let message):
             if let message { "Erreur TTT (HTTP \(statusCode)) : \(message)" }
             else { "Erreur TTT (HTTP \(statusCode))." }
+        }
+    }
+
+    var logMessage: String {
+        switch self {
+        case .http(let statusCode, _): "Échec de la requête TTT (HTTP \(statusCode))."
+        default: "Échec du nettoyage TTT."
         }
     }
 }
