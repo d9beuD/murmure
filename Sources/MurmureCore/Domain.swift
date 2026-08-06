@@ -274,7 +274,9 @@ public final class DictationCoordinator {
             guard await self.environment.audioRecorder.requestPermission() else {
                 guard self.activeSessionID == sessionID else { return }
                 self.activeSessionID = nil
-                self.state = .error("Accès au microphone refusé. Autorisez Murmure dans Réglages Système.")
+                let message = "Accès au microphone refusé. Autorisez Murmure dans Réglages Système."
+                self.environment.logStore.log("Error: \(message)")
+                self.state = .error(message)
                 return
             }
             guard self.activeSessionID == sessionID, self.state == .requestingPermission else { return }
@@ -296,6 +298,7 @@ public final class DictationCoordinator {
             } catch {
                 guard self.activeSessionID == sessionID else { return }
                 self.activeSessionID = nil
+                self.environment.logStore.log("Error: \(error.localizedDescription)")
                 self.state = .error(error.localizedDescription)
             }
         }
@@ -310,6 +313,7 @@ public final class DictationCoordinator {
         if duration < DictationTiming.minimumRecordingDuration {
             environment.audioRecorder.cancel()
             environment.logStore.log("Record ended")
+            environment.logStore.log("Recording discarded: less than 250 ms")
             activeSessionID = nil
             state = .idle
             return
@@ -317,11 +321,15 @@ public final class DictationCoordinator {
         lastAudioURL = environment.audioRecorder.stop()
         environment.logStore.log("Record ended")
         guard let audioURL = lastAudioURL else {
-            state = .error("Aucun fichier audio n’a été produit.")
+            let message = "Aucun fichier audio n’a été produit."
+            environment.logStore.log("Error: \(message)")
+            state = .error(message)
             return
         }
         guard let sessionID = activeSessionID else {
-            state = .error("Session d’enregistrement introuvable.")
+            let message = "Session d’enregistrement introuvable."
+            environment.logStore.log("Error: \(message)")
+            state = .error(message)
             return
         }
         state = .transcribing
@@ -360,6 +368,7 @@ public final class DictationCoordinator {
                 self.state = .idle
             } catch {
                 guard self.activeSessionID == sessionID else { return }
+                self.environment.logStore.log("Error: \(error.localizedDescription)")
                 self.activeSessionID = nil
                 self.lastAudioURL = nil
                 self.state = .error(error.localizedDescription)

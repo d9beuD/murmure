@@ -14,7 +14,7 @@ struct LogsView: View {
                         ForEach(logStore.entries) { entry in
                             Text(line(for: entry))
                                 .font(.system(size: 12, design: .monospaced))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(entry.message.hasPrefix("Error:") ? .red : .white)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .id(entry.id)
