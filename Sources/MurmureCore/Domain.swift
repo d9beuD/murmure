@@ -76,7 +76,22 @@ public struct ProviderConfiguration: Codable, Equatable, Sendable, Identifiable 
         let base = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let suffix = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard var components = URLComponents(string: base), components.scheme == "https" || components.scheme == "http" else { return nil }
-        components.path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/" + suffix
+        var basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedSuffix = suffix.lowercased()
+
+        // OpenAI-compatible providers commonly expose their API below /v1,
+        // while users usually enter only the host (for example 127.0.0.1:8001).
+        // Keep custom paths untouched and add /v1 only for known OpenAI routes.
+        let knownOpenAIRoute = ["audio/transcriptions", "responses", "chat/completions"].contains(normalizedSuffix)
+        if knownOpenAIRoute, basePath.split(separator: "/").contains("v1") == false,
+           basePath.hasSuffix(suffix) == false {
+            basePath = basePath.isEmpty ? "v1" : "\(basePath)/v1"
+        }
+
+        if basePath.hasSuffix(suffix) == false {
+            basePath = basePath.isEmpty ? suffix : "\(basePath)/\(suffix)"
+        }
+        components.path = "/" + basePath
         return components.url
     }
 }
