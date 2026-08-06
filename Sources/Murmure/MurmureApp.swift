@@ -14,8 +14,9 @@ struct MurmureApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Settings {
+        Window("Réglages de Murmure", id: "settings") {
             SettingsView(model: model)
         }
+        .defaultLaunchBehavior(.suppressed)
     }
 }

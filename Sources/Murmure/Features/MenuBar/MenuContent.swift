@@ -4,6 +4,7 @@ import SwiftUI
 
 struct MenuContent: View {
     @Bindable var model: AppModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -57,7 +58,9 @@ struct MenuContent: View {
 
             Divider()
 
-            SettingsLink {
+            Button {
+                openWindow(id: "settings")
+            } label: {
                 Label("Réglages du raccourci", systemImage: "gear")
             }
 
