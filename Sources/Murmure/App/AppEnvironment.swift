@@ -6,7 +6,8 @@ enum LiveEnvironment {
         AppEnvironment(
             audioRecorder: AudioRecorder(),
             textDelivery: TextDelivery(),
-            transcriber: OpenAITranscriptionService()
+            transcriber: OpenAITranscriptionService(),
+            logStore: AppLogStore()
         )
     }
 }

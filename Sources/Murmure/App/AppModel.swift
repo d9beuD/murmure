@@ -10,6 +10,7 @@ final class AppModel {
     private let textDelivery: any TextDelivering
     private let preferencesStore: any PreferencesStoring
     let keychain: KeychainStore
+    let logStore: AppLogStore
 
     private(set) var mode: TriggerMode
     var preferences: AppPreferences
@@ -30,6 +31,7 @@ final class AppModel {
         coordinator = DictationCoordinator(environment: environment)
         hotkeys = HotkeyService()
         textDelivery = environment.textDelivery
+        logStore = environment.logStore
         self.preferencesStore = preferencesStore
         self.keychain = keychain
         let storedPreferences = preferencesStore.preferences

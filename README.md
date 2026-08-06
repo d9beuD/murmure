@@ -23,7 +23,8 @@ Le jalon J4 fournit une fondation Swift 6 ciblant macOS 26, avec :
 - machine à états protégée contre les sessions obsolètes ;
 - modes push-to-talk et bascule avec debounce ;
 - durée minimale de 250 ms et watchdog de 10 minutes ;
-- annulation sûre pendant l’autorisation microphone ou la transcription.
+- annulation sûre pendant l’autorisation microphone ou la transcription ;
+- fenêtre de logs en direct, uniquement en mémoire.
 
 Le nettoyage TTT n’est pas encore branché (J5).
 

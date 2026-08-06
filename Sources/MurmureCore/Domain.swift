@@ -229,15 +229,18 @@ public struct AppEnvironment {
     public let audioRecorder: any AudioRecording
     public let textDelivery: any TextDelivering
     public let transcriber: any SpeechTranscribing
+    public let logStore: AppLogStore
 
     public init(
         audioRecorder: any AudioRecording,
         textDelivery: any TextDelivering,
-        transcriber: any SpeechTranscribing
+        transcriber: any SpeechTranscribing,
+        logStore: AppLogStore
     ) {
         self.audioRecorder = audioRecorder
         self.textDelivery = textDelivery
         self.transcriber = transcriber
+        self.logStore = logStore
     }
 }
 
@@ -277,6 +280,7 @@ public final class DictationCoordinator {
             guard self.activeSessionID == sessionID, self.state == .requestingPermission else { return }
             do {
                 try self.environment.audioRecorder.start()
+                self.environment.logStore.log("Recording started")
                 self.recordingStartedAt = Date()
                 self.state = .recording
                 self.recordingWatchdog?.cancel()
@@ -305,11 +309,13 @@ public final class DictationCoordinator {
         recordingStartedAt = nil
         if duration < DictationTiming.minimumRecordingDuration {
             environment.audioRecorder.cancel()
+            environment.logStore.log("Record ended")
             activeSessionID = nil
             state = .idle
             return
         }
         lastAudioURL = environment.audioRecorder.stop()
+        environment.logStore.log("Record ended")
         guard let audioURL = lastAudioURL else {
             state = .error("Aucun fichier audio n’a été produit.")
             return
@@ -330,6 +336,10 @@ public final class DictationCoordinator {
                 }
             }
             do {
+                let sizeInBytes = (try? FileManager.default.attributesOfItem(atPath: audioURL.path)[.size] as? NSNumber)?.intValue ?? 0
+                let sizeInKilobytes = Double(sizeInBytes) / 1024
+                let host = configuration.endpointURL?.host ?? configuration.baseURL
+                self.environment.logStore.log(String(format: "Sending %.1f kB to %@", sizeInKilobytes, host))
                 let text = try await self.environment.transcriber.transcribe(
                     audioURL: audioURL,
                     configuration: configuration,
@@ -338,6 +348,7 @@ public final class DictationCoordinator {
                     language: language
                 )
                 guard self.activeSessionID == sessionID else { return }
+                self.environment.logStore.log("Received \(text.count) chars transcription")
                 self.lastTranscript = text
                 self.activeSessionID = nil
                 self.lastAudioURL = nil

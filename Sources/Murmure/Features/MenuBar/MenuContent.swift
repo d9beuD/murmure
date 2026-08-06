@@ -30,6 +30,13 @@ struct MenuContent: View {
             Label("Réglages", systemImage: "gear")
         }
 
+        Button {
+            NSApp.activate(ignoringOtherApps: true)
+            openWindow(id: "logs")
+        } label: {
+            Label("Logs", systemImage: "terminal")
+        }
+
         Button("Quitter") {
             NSApplication.shared.terminate(nil)
         }

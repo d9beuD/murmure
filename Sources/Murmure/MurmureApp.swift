@@ -19,6 +19,11 @@ struct MurmureApp: App {
             SettingsView(model: model)
         }
         .defaultLaunchBehavior(.suppressed)
+
+        Window("Logs de Murmure", id: "logs") {
+            LogsView(logStore: model.logStore)
+        }
+        .defaultLaunchBehavior(.suppressed)
     }
 
     private func iconName(for state: DictationState) -> String {
