@@ -165,6 +165,13 @@ public enum OutputMode: String, CaseIterable, Identifiable, Codable, Sendable {
     public var title: String { self == .clipboard ? "Presse-papiers" : "Insérer automatiquement" }
 }
 
+public enum TextDeliveryResult: Equatable, Sendable {
+    case copied
+    case inserted
+    case fallbackCopied(reason: String)
+    case secureFieldCopied
+}
+
 public extension ProviderConfiguration {
     static let openAITranscription = ProviderConfiguration(name: "OpenAI STT", baseURL: "https://api.openai.com/v1", path: "audio/transcriptions", model: "gpt-transcribe")
     static let openAIResponses = ProviderConfiguration(name: "OpenAI TTT", baseURL: "https://api.openai.com/v1", path: "responses", model: "gpt-5-mini")
@@ -241,6 +248,7 @@ public protocol TextCleaning: Sendable {
 public protocol TextDelivering: AnyObject {
     func copy(_ text: String)
     func copyAndPaste(_ text: String)
+    func deliver(_ text: String, mode: OutputMode) -> TextDeliveryResult
 }
 
 @MainActor
@@ -341,7 +349,8 @@ public final class DictationCoordinator {
         cleanupAPIKey: String,
         cleanupFormat: CleanupAPIFormat,
         cleanupPrompt: String,
-        cleanupFailurePolicy: CleanupFailurePolicy
+        cleanupFailurePolicy: CleanupFailurePolicy,
+        outputMode: OutputMode
     ) {
         guard state == .recording else { return }
         recordingWatchdog?.cancel()
@@ -428,6 +437,17 @@ public final class DictationCoordinator {
                 }
                 guard self.activeSessionID == sessionID else { return }
                 self.lastTranscript = finalText
+                let deliveryResult = self.environment.textDelivery.deliver(finalText, mode: outputMode)
+                switch deliveryResult {
+                case .copied:
+                    self.environment.logStore.log("Delivered transcription to clipboard")
+                case .inserted:
+                    self.environment.logStore.log("Inserted transcription in active field")
+                case .fallbackCopied(let reason):
+                    self.environment.logStore.log("Accessibility unavailable; copied to clipboard (\(reason))")
+                case .secureFieldCopied:
+                    self.environment.logStore.log("Secure field detected; copied to clipboard")
+                }
                 self.activeSessionID = nil
                 self.lastAudioURL = nil
                 self.state = .idle

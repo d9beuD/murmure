@@ -4,7 +4,7 @@ Murmure est une application macOS de dictée vocale destinée à vivre dans la b
 
 ## État du projet
 
-Le jalon J5 fournit une fondation Swift 6 ciblant macOS 26, avec :
+Le jalon J6 fournit une fondation Swift 6 ciblant macOS 26, avec :
 
 - cible exécutable `Murmure` ;
 - bibliothèque de domaine `MurmureCore` ;
@@ -26,9 +26,11 @@ Le jalon J5 fournit une fondation Swift 6 ciblant macOS 26, avec :
 - annulation sûre pendant l’autorisation microphone ou la transcription ;
 - fenêtre de logs en direct, uniquement en mémoire ;
 - nettoyage optionnel par Responses API ou Chat Completions ;
-- fallback vers la transcription brute en cas d’échec TTT.
+- fallback vers la transcription brute en cas d’échec TTT ;
+- livraison automatique dans le presse-papiers ou le champ actif ;
+- insertion Accessibility sécurisée avec repli contrôlé.
 
-La livraison automatique vers le presse-papiers ou l’application active reste prévue pour J6.
+La gestion complète de l’onboarding et des permissions reste prévue pour J7.
 
 ## Développement local
 

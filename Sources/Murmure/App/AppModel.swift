@@ -132,7 +132,8 @@ final class AppModel {
             cleanupAPIKey: cleanupAPIKey,
             cleanupFormat: preferences.cleanupFormat,
             cleanupPrompt: preferences.cleanupPrompt,
-            cleanupFailurePolicy: preferences.cleanupFailurePolicy
+            cleanupFailurePolicy: preferences.cleanupFailurePolicy,
+            outputMode: preferences.outputMode
         )
     }
 
