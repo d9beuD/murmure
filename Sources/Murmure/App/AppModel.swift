@@ -37,8 +37,12 @@ final class AppModel {
         let storedPreferences = preferencesStore.preferences
         preferences = storedPreferences
         mode = storedPreferences.triggerMode
-        sttAPIKey = (try? keychain.read(profileID: storedPreferences.stt.id)) ?? ""
-        cleanupAPIKey = (try? keychain.read(profileID: storedPreferences.cleanupProvider.id)) ?? ""
+        let secrets = (try? keychain.read(profileIDs: [
+            storedPreferences.stt.id,
+            storedPreferences.cleanupProvider.id
+        ])) ?? [:]
+        sttAPIKey = secrets[storedPreferences.stt.id] ?? ""
+        cleanupAPIKey = secrets[storedPreferences.cleanupProvider.id] ?? ""
 
         coordinator.onRecordingTimeout = { [weak self] in
             self?.stopRecording()
