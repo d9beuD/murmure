@@ -25,10 +25,10 @@ Avec Swift 6.3 et un SDK macOS 26 :
 
 ```shell
 swift build
-swift run Murmure
+./Scripts/run-app.sh
 ```
 
-L'exécution graphique et les permissions microphone/Accessibilité doivent être validées dans une session macOS avec Xcode ou un bundle `.app` correctement configuré.
+Le script construit un vrai bundle `Murmure.app`, applique `Info.plist`, le signe localement puis le lance avec LaunchServices. Il faut utiliser ce script pour tester l'interface, les fenêtres, les raccourcis et les permissions. `swift run Murmure` ne produit qu'un exécutable brut sans métadonnées d'application macOS et n'est adapté qu'aux diagnostics élémentaires.
 
 Le handler du raccourci global est installé après le démarrage de la boucle d'événements macOS, afin que les raccourcis mémorisés restent actifs après une relance.
 

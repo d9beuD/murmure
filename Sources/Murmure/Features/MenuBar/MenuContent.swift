@@ -14,6 +14,15 @@ struct MenuContent: View {
             )
             .font(.headline)
 
+            if Bundle.main.bundleURL.pathExtension != "app" {
+                Label(
+                    "Lancement incomplet : utilisez Scripts/run-app.sh",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+
             Picker("Mode", selection: $model.mode) {
                 ForEach(TriggerMode.allCases) { mode in
                     Text(mode.title).tag(mode)
@@ -59,6 +68,7 @@ struct MenuContent: View {
             Divider()
 
             Button {
+                NSApp.activate(ignoringOtherApps: true)
                 openWindow(id: "settings")
             } label: {
                 Label("Réglages du raccourci", systemImage: "gear")

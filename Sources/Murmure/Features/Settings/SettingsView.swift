@@ -103,8 +103,11 @@ private struct SettingsWindowFocus: NSViewRepresentable {
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
+            NSApp.unhide(nil)
             NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+            window.makeMain()
+            window.makeKey()
         }
     }
 }

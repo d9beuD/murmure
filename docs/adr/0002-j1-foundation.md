@@ -37,6 +37,10 @@ La validation des permissions, de l'icône Dock, des événements globaux et de 
 
 `HotkeyService` installe désormais ses handlers au prochain passage de la boucle principale. L'enregistrement Carbon effectué trop tôt pendant l'initialisation SwiftUI peut échouer silencieusement ; ce report garantit que le dispatcher d'événements macOS existe avant la restauration d'un raccourci déjà mémorisé.
 
+## Correctif post-J2 — bundle de développement
+
+`swift run Murmure` lance un Mach-O brut : `Configuration/Info.plist` n'y est pas lié et LaunchServices ne le considère pas comme un bundle d'application. Cela rend notamment l'activation des fenêtres d'une application menubar non fiable. `Scripts/run-app.sh` construit désormais un `Murmure.app`, copie les ressources, applique l'Info.plist, effectue une signature ad hoc et ouvre le bundle avec LaunchServices.
+
 ## Conséquence
 
 J1 est fonctionnellement prêt pour commencer J2, mais la validation de sortie du jalon reste conditionnée à l'installation d'Xcode.app et à la génération de la cible macOS signée.
