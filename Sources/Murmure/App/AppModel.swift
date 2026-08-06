@@ -84,11 +84,11 @@ final class AppModel {
 
         switch mode {
         case .pushToTalk:
-            coordinator.startRecording()
+            startRecording()
         case .toggle:
             if state == .recording {
                 stopRecording()
-            } else if state == .idle {
+            } else if state == .idle || isErrorState {
                 startRecording()
             }
         }
@@ -110,7 +110,15 @@ final class AppModel {
     }
 
     func startRecording() {
+        if isErrorState {
+            coordinator.dismissError()
+        }
         coordinator.startRecording()
+    }
+
+    private var isErrorState: Bool {
+        if case .error = state { return true }
+        return false
     }
 
     func stopRecording() {

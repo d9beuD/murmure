@@ -319,6 +319,11 @@ public final class DictationCoordinator {
         }
     }
 
+    public func dismissError() {
+        guard case .error = state else { return }
+        state = .idle
+    }
+
     public func stopRecording(configuration: ProviderConfiguration, apiKey: String, prompt: String?, language: String?) {
         guard state == .recording else { return }
         recordingWatchdog?.cancel()
