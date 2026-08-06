@@ -30,6 +30,8 @@ swift run Murmure
 
 L'exécution graphique et les permissions microphone/Accessibilité doivent être validées dans une session macOS avec Xcode ou un bundle `.app` correctement configuré.
 
+Le handler du raccourci global est installé après le démarrage de la boucle d'événements macOS, afin que les raccourcis mémorisés restent actifs après une relance.
+
 ## Licence
 
 Murmure est distribué sous licence MIT. Voir [LICENSE](LICENSE).

@@ -11,8 +11,22 @@ extension KeyboardShortcuts.Name {
 final class HotkeyService {
     var onKeyDown: (() -> Void)?
     var onKeyUp: (() -> Void)?
+    private var isInstalled = false
 
     init() {
+        // RegisterEventHotKey can fail silently when called while SwiftUI is still
+        // constructing the application, before the Carbon event dispatcher exists.
+        // Defer installation until the main run loop has started.
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.install()
+        }
+    }
+
+    private func install() {
+        guard !isInstalled else { return }
+        isInstalled = true
+
         KeyboardShortcuts.onKeyDown(for: .dictation) { [weak self] in
             Task { @MainActor in
                 self?.onKeyDown?()

@@ -33,6 +33,10 @@ swift run Murmure                  ✅ démarrage graphique, arrêté manuelleme
 
 La validation des permissions, de l'icône Dock, des événements globaux et de l'insertion inter-applications reste manuelle sur une machine équipée d'Xcode et d'une session macOS graphique.
 
+## Correctif post-J1 — installation différée des raccourcis
+
+`HotkeyService` installe désormais ses handlers au prochain passage de la boucle principale. L'enregistrement Carbon effectué trop tôt pendant l'initialisation SwiftUI peut échouer silencieusement ; ce report garantit que le dispatcher d'événements macOS existe avant la restauration d'un raccourci déjà mémorisé.
+
 ## Conséquence
 
 J1 est fonctionnellement prêt pour commencer J2, mais la validation de sortie du jalon reste conditionnée à l'installation d'Xcode.app et à la génération de la cible macOS signée.
