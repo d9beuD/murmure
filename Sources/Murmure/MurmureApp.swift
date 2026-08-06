@@ -1,4 +1,5 @@
 import SwiftUI
+import MurmureCore
 
 @main
 struct MurmureApp: App {
@@ -9,7 +10,7 @@ struct MurmureApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("Murmure", systemImage: "waveform") {
+        MenuBarExtra("Murmure", systemImage: iconName(for: model.state)) {
             MenuContent(model: model)
         }
         .menuBarExtraStyle(.menu)
@@ -18,5 +19,18 @@ struct MurmureApp: App {
             SettingsView(model: model)
         }
         .defaultLaunchBehavior(.suppressed)
+    }
+
+    private func iconName(for state: DictationState) -> String {
+        switch state {
+        case .recording:
+            "record.circle.fill"
+        case .transcribing:
+            "arrow.triangle.2.circlepath"
+        case .error:
+            "exclamationmark.triangle.fill"
+        default:
+            "waveform"
+        }
     }
 }

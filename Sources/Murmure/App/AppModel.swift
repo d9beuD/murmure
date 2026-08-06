@@ -11,7 +11,7 @@ final class AppModel {
     private let preferencesStore: any PreferencesStoring
     let keychain: KeychainStore
 
-    var mode: TriggerMode = .pushToTalk
+    private(set) var mode: TriggerMode
     var preferences: AppPreferences
     var sttAPIKey = ""
     var cleanupAPIKey = ""
@@ -20,6 +20,7 @@ final class AppModel {
     var lastTranscript: String? { coordinator.lastTranscript }
 
     private var globalShortcutIsDown = false
+    private var lastShortcutEventAt: Date?
 
     init(
         environment: AppEnvironment,
@@ -31,9 +32,15 @@ final class AppModel {
         textDelivery = environment.textDelivery
         self.preferencesStore = preferencesStore
         self.keychain = keychain
-        preferences = preferencesStore.preferences
-        sttAPIKey = (try? keychain.read(profileID: preferences.stt.id)) ?? ""
-        cleanupAPIKey = (try? keychain.read(profileID: preferences.cleanupProvider.id)) ?? ""
+        let storedPreferences = preferencesStore.preferences
+        preferences = storedPreferences
+        mode = storedPreferences.triggerMode
+        sttAPIKey = (try? keychain.read(profileID: storedPreferences.stt.id)) ?? ""
+        cleanupAPIKey = (try? keychain.read(profileID: storedPreferences.cleanupProvider.id)) ?? ""
+
+        coordinator.onRecordingTimeout = { [weak self] in
+            self?.stopRecording()
+        }
 
         hotkeys.onKeyDown = { [weak self] in
             self?.handleKeyDown()
@@ -57,8 +64,20 @@ final class AppModel {
 
     var state: DictationState { coordinator.state }
 
+    func setMode(_ newMode: TriggerMode) {
+        guard state == .idle else { return }
+        mode = newMode
+        preferences.triggerMode = newMode
+        savePreferences()
+    }
+
     func handleKeyDown() {
         guard !globalShortcutIsDown else { return }
+        let now = Date()
+        if let lastShortcutEventAt, now.timeIntervalSince(lastShortcutEventAt) < DictationTiming.shortcutDebounce {
+            return
+        }
+        lastShortcutEventAt = now
         globalShortcutIsDown = true
 
         switch mode {
@@ -76,8 +95,15 @@ final class AppModel {
     func handleKeyUp() {
         globalShortcutIsDown = false
 
-        if mode == .pushToTalk, state == .recording {
-            stopRecording()
+        if mode == .pushToTalk {
+            switch state {
+            case .recording:
+                stopRecording()
+            case .requestingPermission:
+                cancelRecording()
+            default:
+                break
+            }
         }
     }
 

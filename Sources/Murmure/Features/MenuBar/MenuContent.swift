@@ -10,7 +10,7 @@ struct MenuContent: View {
         Menu("Mode") {
             ForEach(TriggerMode.allCases) { mode in
                 Button {
-                    model.mode = mode
+                    model.setMode(mode)
                 } label: {
                     if model.mode == mode {
                         Label(mode.title, systemImage: "checkmark")

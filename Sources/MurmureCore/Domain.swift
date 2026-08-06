@@ -82,11 +82,12 @@ public struct ProviderConfiguration: Codable, Equatable, Sendable, Identifiable 
 }
 
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 2
+    public static let currentSchemaVersion = 3
     public var schemaVersion: Int
     public var stt: ProviderConfiguration
     public var sttLanguage: String
     public var sttPrompt: String
+    public var triggerMode: TriggerMode
     public var cleanupEnabled: Bool
     public var cleanupProvider: ProviderConfiguration
     public var cleanupFormat: CleanupAPIFormat
@@ -99,6 +100,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         stt: ProviderConfiguration = .openAITranscription,
         sttLanguage: String = "",
         sttPrompt: String = "",
+        triggerMode: TriggerMode = .pushToTalk,
         cleanupEnabled: Bool = true,
         cleanupProvider: ProviderConfiguration = .openAIResponses,
         cleanupFormat: CleanupAPIFormat = .responses,
@@ -110,6 +112,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.stt = stt
         self.sttLanguage = sttLanguage
         self.sttPrompt = sttPrompt
+        self.triggerMode = triggerMode
         self.cleanupEnabled = cleanupEnabled
         self.cleanupProvider = cleanupProvider
         self.cleanupFormat = cleanupFormat
@@ -121,7 +124,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public static let defaultCleanupPrompt = "Nettoie la transcription sans en changer le sens. Corrige la ponctuation, les fautes et les hésitations. Retourne uniquement le texte final."
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, stt, sttLanguage, sttPrompt, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompt, cleanupFailurePolicy, outputMode
+        case schemaVersion, stt, sttLanguage, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompt, cleanupFailurePolicy, outputMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -130,6 +133,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         stt = try container.decodeIfPresent(ProviderConfiguration.self, forKey: .stt) ?? .openAITranscription
         sttLanguage = try container.decodeIfPresent(String.self, forKey: .sttLanguage) ?? ""
         sttPrompt = try container.decodeIfPresent(String.self, forKey: .sttPrompt) ?? ""
+        triggerMode = try container.decodeIfPresent(TriggerMode.self, forKey: .triggerMode) ?? .pushToTalk
         cleanupEnabled = try container.decodeIfPresent(Bool.self, forKey: .cleanupEnabled) ?? true
         cleanupProvider = try container.decodeIfPresent(ProviderConfiguration.self, forKey: .cleanupProvider) ?? .openAIResponses
         cleanupFormat = try container.decodeIfPresent(CleanupAPIFormat.self, forKey: .cleanupFormat) ?? .responses
@@ -151,7 +155,7 @@ public extension ProviderConfiguration {
     static let openAIResponses = ProviderConfiguration(name: "OpenAI TTT", baseURL: "https://api.openai.com/v1", path: "responses", model: "gpt-5-mini")
 }
 
-public enum TriggerMode: String, CaseIterable, Identifiable, Sendable {
+public enum TriggerMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case pushToTalk
     case toggle
 
@@ -166,6 +170,12 @@ public enum TriggerMode: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+}
+
+public enum DictationTiming {
+    public static let minimumRecordingDuration: TimeInterval = 0.25
+    public static let maximumRecordingDuration: TimeInterval = 10 * 60
+    public static let shortcutDebounce: TimeInterval = 0.15
 }
 
 public enum DictationState: Equatable, Sendable {
@@ -240,7 +250,12 @@ public final class DictationCoordinator {
 
     private let environment: AppEnvironment
     private var activeSessionID: UUID?
+    private var permissionTask: Task<Void, Never>?
     private var transcriptionTask: Task<Void, Never>?
+    private var recordingWatchdog: Task<Void, Never>?
+    private var recordingStartedAt: Date?
+
+    public var onRecordingTimeout: (() -> Void)?
 
     public init(environment: AppEnvironment) {
         self.environment = environment
@@ -248,17 +263,35 @@ public final class DictationCoordinator {
 
     public func startRecording() {
         guard state == .idle else { return }
+        let sessionID = UUID()
+        activeSessionID = sessionID
         state = .requestingPermission
-        Task { [weak self] in
+        permissionTask = Task { [weak self] in
             guard let self else { return }
             guard await self.environment.audioRecorder.requestPermission() else {
+                guard self.activeSessionID == sessionID else { return }
+                self.activeSessionID = nil
                 self.state = .error("Accès au microphone refusé. Autorisez Murmure dans Réglages Système.")
                 return
             }
+            guard self.activeSessionID == sessionID, self.state == .requestingPermission else { return }
             do {
                 try self.environment.audioRecorder.start()
+                self.recordingStartedAt = Date()
                 self.state = .recording
+                self.recordingWatchdog?.cancel()
+                self.recordingWatchdog = Task { [weak self] in
+                    do {
+                        try await Task.sleep(for: .seconds(DictationTiming.maximumRecordingDuration))
+                    } catch {
+                        return
+                    }
+                    guard let self, self.activeSessionID == sessionID, self.state == .recording else { return }
+                    self.onRecordingTimeout?()
+                }
             } catch {
+                guard self.activeSessionID == sessionID else { return }
+                self.activeSessionID = nil
                 self.state = .error(error.localizedDescription)
             }
         }
@@ -266,20 +299,35 @@ public final class DictationCoordinator {
 
     public func stopRecording(configuration: ProviderConfiguration, apiKey: String, prompt: String?, language: String?) {
         guard state == .recording else { return }
+        recordingWatchdog?.cancel()
+        recordingWatchdog = nil
+        let duration = recordingStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+        recordingStartedAt = nil
+        if duration < DictationTiming.minimumRecordingDuration {
+            environment.audioRecorder.cancel()
+            activeSessionID = nil
+            state = .idle
+            return
+        }
         lastAudioURL = environment.audioRecorder.stop()
         guard let audioURL = lastAudioURL else {
             state = .error("Aucun fichier audio n’a été produit.")
             return
         }
-        let sessionID = UUID()
-        activeSessionID = sessionID
+        guard let sessionID = activeSessionID else {
+            state = .error("Session d’enregistrement introuvable.")
+            return
+        }
         state = .transcribing
         transcriptionTask?.cancel()
         transcriptionTask = Task { [weak self] in
             guard let self else { return }
             defer {
                 try? FileManager.default.removeItem(at: audioURL)
-                if self.activeSessionID == sessionID { self.lastAudioURL = nil }
+                if self.activeSessionID == sessionID {
+                    self.activeSessionID = nil
+                    self.lastAudioURL = nil
+                }
             }
             do {
                 let text = try await self.environment.transcriber.transcribe(
@@ -291,12 +339,18 @@ public final class DictationCoordinator {
                 )
                 guard self.activeSessionID == sessionID else { return }
                 self.lastTranscript = text
+                self.activeSessionID = nil
+                self.lastAudioURL = nil
                 self.state = .idle
             } catch is CancellationError {
                 guard self.activeSessionID == sessionID else { return }
+                self.activeSessionID = nil
+                self.lastAudioURL = nil
                 self.state = .idle
             } catch {
                 guard self.activeSessionID == sessionID else { return }
+                self.activeSessionID = nil
+                self.lastAudioURL = nil
                 self.state = .error(error.localizedDescription)
             }
         }
@@ -304,9 +358,15 @@ public final class DictationCoordinator {
 
     public func cancelRecording() {
         activeSessionID = nil
+        permissionTask?.cancel()
+        permissionTask = nil
+        recordingWatchdog?.cancel()
+        recordingWatchdog = nil
         transcriptionTask?.cancel()
         transcriptionTask = nil
+        recordingStartedAt = nil
         environment.audioRecorder.cancel()
+        lastAudioURL = nil
         state = .idle
     }
 

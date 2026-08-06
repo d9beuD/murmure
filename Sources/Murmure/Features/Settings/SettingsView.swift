@@ -11,7 +11,10 @@ struct SettingsView: View {
             Section("Raccourci global") {
                 KeyboardShortcuts.Recorder("Raccourci :", name: .dictation)
 
-                Picker("Mode", selection: $model.mode) {
+                Picker("Mode", selection: Binding(
+                    get: { model.mode },
+                    set: { model.setMode($0) }
+                )) {
                     ForEach(TriggerMode.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
