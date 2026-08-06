@@ -15,7 +15,9 @@ final class AppModel {
     var preferences: AppPreferences
     var sttAPIKey = ""
     var cleanupAPIKey = ""
-    private(set) var lastAudioURL: URL?
+    var lastAudioURL: URL? { coordinator.lastAudioURL }
+
+    var lastTranscript: String? { coordinator.lastTranscript }
 
     private var globalShortcutIsDown = false
 
@@ -65,7 +67,7 @@ final class AppModel {
         case .toggle:
             if state == .recording {
                 stopRecording()
-            } else {
+            } else if state == .idle {
                 startRecording()
             }
         }
@@ -84,13 +86,16 @@ final class AppModel {
     }
 
     func stopRecording() {
-        coordinator.stopRecording()
-        lastAudioURL = coordinator.lastAudioURL
+        coordinator.stopRecording(
+            configuration: preferences.stt,
+            apiKey: sttAPIKey,
+            prompt: preferences.sttPrompt,
+            language: preferences.sttLanguage
+        )
     }
 
     func cancelRecording() {
         coordinator.cancelRecording()
-        lastAudioURL = nil
     }
 
     func copyTestText() {
@@ -103,6 +108,19 @@ final class AppModel {
 
     func deleteLastCapture() {
         coordinator.deleteLastCapture()
-        lastAudioURL = nil
+    }
+
+    func copyTranscript() {
+        guard let lastTranscript else { return }
+        textDelivery.copy(lastTranscript)
+    }
+
+    func deliverTranscript() {
+        guard let lastTranscript else { return }
+        if preferences.outputMode == .paste {
+            textDelivery.copyAndPaste(lastTranscript)
+        } else {
+            textDelivery.copy(lastTranscript)
+        }
     }
 }

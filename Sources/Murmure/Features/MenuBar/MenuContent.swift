@@ -10,7 +10,7 @@ struct MenuContent: View {
         VStack(alignment: .leading, spacing: 12) {
             Label(
                 model.state.title,
-                systemImage: model.state == .recording ? "record.circle.fill" : "waveform"
+                systemImage: model.state == .recording ? "record.circle.fill" : model.state == .transcribing ? "arrow.triangle.2.circlepath" : "waveform"
             )
             .font(.headline)
 
@@ -39,9 +39,28 @@ struct MenuContent: View {
                 Button("Annuler", role: .cancel) {
                     model.cancelRecording()
                 }
-            } else {
+            } else if model.state == .idle {
                 Button("Démarrer") {
                     model.startRecording()
+                }
+            } else if case .error = model.state {
+                Button("Réessayer") {
+                    model.cancelRecording()
+                    model.startRecording()
+                }
+            }
+
+            if let transcript = model.lastTranscript {
+                Divider()
+                Text("Dernière transcription")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(transcript)
+                    .textSelection(.enabled)
+                    .lineLimit(5)
+                Button("Copier la transcription") { model.copyTranscript() }
+                Button(model.preferences.outputMode == .paste ? "Insérer la transcription" : "Copier et livrer") {
+                    model.deliverTranscript()
                 }
             }
 
@@ -71,7 +90,7 @@ struct MenuContent: View {
                 NSApp.activate(ignoringOtherApps: true)
                 openWindow(id: "settings")
             } label: {
-                Label("Réglages du raccourci", systemImage: "gear")
+                Label("Réglages", systemImage: "gear")
             }
 
             Button("Quitter Murmure") {

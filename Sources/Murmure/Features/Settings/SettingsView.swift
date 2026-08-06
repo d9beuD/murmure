@@ -23,6 +23,8 @@ struct SettingsView: View {
                 TextField("Endpoint", text: $model.preferences.stt.baseURL)
                 TextField("Chemin", text: $model.preferences.stt.path)
                 TextField("Modèle", text: $model.preferences.stt.model)
+                TextField("Langue (optionnel)", text: $model.preferences.sttLanguage)
+                TextField("Prompt de contexte (optionnel)", text: $model.preferences.sttPrompt)
                 Picker("Authentification", selection: $model.preferences.stt.authentication) {
                     ForEach(AuthenticationMode.allCases) { Text($0.title).tag($0) }
                 }

@@ -5,7 +5,8 @@ enum LiveEnvironment {
     static func make() -> AppEnvironment {
         AppEnvironment(
             audioRecorder: AudioRecorder(),
-            textDelivery: TextDelivery()
+            textDelivery: TextDelivery(),
+            transcriber: OpenAITranscriptionService()
         )
     }
 }
