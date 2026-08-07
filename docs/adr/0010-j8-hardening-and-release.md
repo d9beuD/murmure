@@ -1,6 +1,6 @@
 # ADR 0010 — Durcissement et release J8
 
-Statut : implémenté partiellement, signature et validation système bloquées par Xcode
+Statut : implémenté, validation Apple de la première release en attente
 
 ## Décision
 
@@ -21,13 +21,12 @@ formats de secrets, signatures et enregistrements audio connus.
 
 Le script `Scripts/release.sh` construit un bundle Release, applique Hardened
 Runtime, signe avec une identité Developer ID fournie par l’environnement,
-produit un ZIP et un SHA-256, et peut soumettre l’archive à `notarytool` via un
-profil Keychain existant.
+produit un DMG et un SHA-256, et peut soumettre l’archive à `notarytool` via une
+Team API Key App Store Connect reconstruite temporairement.
 
-## Limite actuelle
+## Validation finale restante
 
-Cette machine n’a que les Command Line Tools : `xcodebuild`, `XCTest` et la
-signature Developer ID ne sont pas disponibles. La compilation applicative est
-validée localement ; l’exécution des tests, la signature et la notarisation sont
-documentées dans la checklist de release et doivent être réalisées sur une
-installation Xcode avec les identifiants Apple du mainteneur.
+La compilation stricte et les tests sont validés avec Xcode. La première
+signature et notarisation réelles restent à effectuer avec le certificat
+Developer ID et la Team API Key App Store Connect du mainteneur ; elles sont
+décrites dans la checklist de release.

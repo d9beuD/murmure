@@ -2,49 +2,68 @@
 
 set -euo pipefail
 
-if [[ -z "${MURMURE_SIGNING_IDENTITY:-}" ]]; then
-    print -u2 "Définissez MURMURE_SIGNING_IDENTITY avec votre identité Developer ID Application."
-    exit 1
-fi
+required_variables=(
+    MURMURE_VERSION
+    DEVELOPER_ID_CERTIFICATE_BASE64
+    DEVELOPER_ID_CERTIFICATE_PASSWORD
+    BUILD_KEYCHAIN_PASSWORD
+    APP_STORE_CONNECT_KEY_BASE64
+    APP_STORE_CONNECT_KEY_ID
+    APP_STORE_CONNECT_ISSUER_ID
+)
+
+for variable in "${required_variables[@]}"; do
+    if [[ -z "${(P)variable:-}" ]]; then
+        print -u2 "Variable d’environnement requise : $variable"
+        exit 1
+    fi
+done
 
 script_directory=${0:A:h}
 repository_directory=${script_directory:h}
-binary_directory=$(swift build --package-path "$repository_directory" -c release --show-bin-path)
-application_path="$binary_directory/Murmure.app"
-contents_path="$application_path/Contents"
-release_directory="$repository_directory/.build/release-artifacts"
-archive_path="$release_directory/Murmure-0.1.0-macos.zip"
-checksum_path="$archive_path.sha256"
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/murmure-signing.XXXXXX")
+certificate_path="$temporary_directory/developer-id.p12"
+keychain_path="$temporary_directory/murmure-signing.keychain-db"
+api_key_path="$temporary_directory/AuthKey_$APP_STORE_CONNECT_KEY_ID.p8"
+original_keychains=("${(@f)$(security list-keychains -d user | sed 's/^[[:space:]]*"\(.*\)"$/\1/')}")
 
-if [[ "$application_path" != "$binary_directory/Murmure.app" || "$binary_directory" != *"/.build/"* ]]; then
-    print -u2 "Chemin de bundle inattendu : $application_path"
+cleanup() {
+    security list-keychain -d user -s "${original_keychains[@]}" >/dev/null 2>&1 || true
+    security delete-keychain "$keychain_path" >/dev/null 2>&1 || true
+    /bin/rm -rf -- "$temporary_directory"
+}
+trap cleanup EXIT
+
+printf '%s' "$DEVELOPER_ID_CERTIFICATE_BASE64" | /usr/bin/base64 -D > "$certificate_path"
+security create-keychain -p "$BUILD_KEYCHAIN_PASSWORD" "$keychain_path"
+security set-keychain-settings -lut 21600 "$keychain_path"
+security unlock-keychain -p "$BUILD_KEYCHAIN_PASSWORD" "$keychain_path"
+security import "$certificate_path" -k "$keychain_path" -P "$DEVELOPER_ID_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+security set-key-partition-list -S apple-tool:,apple: -s -k "$BUILD_KEYCHAIN_PASSWORD" "$keychain_path"
+security list-keychain -d user -s "$keychain_path" "${original_keychains[@]}"
+
+signing_identity=$(security find-identity -v -p codesigning "$keychain_path" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1)
+if [[ -z "$signing_identity" ]]; then
+    print -u2 "Aucune identité Developer ID Application valide dans le certificat fourni."
     exit 1
 fi
 
-swift build --package-path "$repository_directory" -c release
-/bin/rm -rf -- "$application_path"
-/bin/mkdir -p "$contents_path/MacOS" "$contents_path/Resources" "$release_directory"
-/usr/bin/install -m 755 "$binary_directory/Murmure" "$contents_path/MacOS/Murmure"
-/bin/cp "$repository_directory/Configuration/Info.plist" "$contents_path/Info.plist"
+export MURMURE_SIGNING_IDENTITY="$signing_identity"
+export MURMURE_BUILD_NUMBER="${MURMURE_BUILD_NUMBER:-1}"
+"$script_directory/build-dmg.sh"
 
-resource_bundle="$binary_directory/KeyboardShortcuts_KeyboardShortcuts.bundle"
-if [[ -d "$resource_bundle" ]]; then
-    /usr/bin/ditto "$resource_bundle" "$contents_path/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle"
-fi
+dmg_path="$repository_directory/.build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg"
+checksum_path="$dmg_path.sha256"
+printf '%s' "$APP_STORE_CONNECT_KEY_BASE64" | /usr/bin/base64 -D > "$api_key_path"
 
-/usr/bin/codesign --force --deep --options runtime --timestamp --sign "$MURMURE_SIGNING_IDENTITY" "$application_path"
-/usr/bin/codesign --verify --deep --strict --verbose=2 "$application_path"
-/usr/bin/ditto -c -k --keepParent "$application_path" "$archive_path"
-/usr/bin/shasum -a 256 "$archive_path" > "$checksum_path"
+xcrun notarytool submit "$dmg_path" \
+    --key "$api_key_path" \
+    --key-id "$APP_STORE_CONNECT_KEY_ID" \
+    --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
+    --wait
+xcrun stapler staple "$dmg_path"
+xcrun stapler validate "$dmg_path"
+/usr/bin/shasum -a 256 "$dmg_path" > "$checksum_path"
 
-if [[ -n "${MURMURE_NOTARY_PROFILE:-}" ]]; then
-    /usr/bin/xcrun notarytool submit "$archive_path" --keychain-profile "$MURMURE_NOTARY_PROFILE" --wait
-    /usr/bin/xcrun stapler staple "$application_path"
-    /usr/bin/ditto -c -k --keepParent "$application_path" "$archive_path"
-    /usr/bin/shasum -a 256 "$archive_path" > "$checksum_path"
-else
-    print "Archive signée créée sans notarisation. Définissez MURMURE_NOTARY_PROFILE pour soumettre à notarytool."
-fi
-
-print "Archive : $archive_path"
+print "DMG notarisé : $dmg_path"
 print "Checksum : $checksum_path"

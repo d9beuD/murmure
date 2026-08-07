@@ -17,12 +17,6 @@ on:
         required: true
         default: true
         type: boolean
-      notarize:
-        description: Signer avec Developer ID et notariser (secrets requis)
-        required: true
-        default: false
-        type: boolean
-
 permissions:
   contents: write
 
@@ -54,50 +48,15 @@ jobs:
           ! git ls-files | grep -E '\.(wav|aiff|aif|caf|m4a|mp3|p12|mobileprovision)$'
           ! git grep -nE 'sk-[A-Za-z0-9]{20,}'
 
-      - name: Install Developer ID certificate
-        if: inputs.notarize
+      - name: Sign, notarize, and build DMG
         env:
-          CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.BUILD_KEYCHAIN_PASSWORD }}
-        run: |
-          test -n "$CERTIFICATE_BASE64"
-          test -n "$CERTIFICATE_PASSWORD"
-          test -n "$KEYCHAIN_PASSWORD"
-          certificate_path="$RUNNER_TEMP/developer-id.p12"
-          keychain_path="$RUNNER_TEMP/murmure-signing.keychain-db"
-          printf '%s' "$CERTIFICATE_BASE64" | base64 -D > "$certificate_path"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
-          security set-keychain-settings -lut 21600 "$keychain_path"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
-          security import "$certificate_path" -k "$keychain_path" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$keychain_path"
-          security list-keychain -d user -s "$keychain_path" login.keychain-db
-          identity=$(security find-identity -v -p codesigning "$keychain_path" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1)
-          test -n "$identity"
-          echo "MURMURE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
-
-      - name: Build DMG
-        run: |
-          export MURMURE_SIGNING_IDENTITY="${MURMURE_SIGNING_IDENTITY:--}"
-          ./Scripts/build-dmg.sh
-
-      - name: Notarize DMG
-        if: inputs.notarize
-        env:
-          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID }}
-        run: |
-          test -n "$APPLE_API_KEY_BASE64"
-          test -n "$APPLE_API_KEY_ID"
-          test -n "$APPLE_ISSUER_ID"
-          api_key_path="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8"
-          printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D > "$api_key_path"
-          dmg_path=".build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg"
-          xcrun notarytool submit "$dmg_path" --key "$api_key_path" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_ISSUER_ID" --wait
-          xcrun stapler staple "$dmg_path"
-          shasum -a 256 "$dmg_path" > "$dmg_path.sha256"
+          DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          BUILD_KEYCHAIN_PASSWORD: ${{ secrets.BUILD_KEYCHAIN_PASSWORD }}
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: ./Scripts/release.sh
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4

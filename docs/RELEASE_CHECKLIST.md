@@ -18,27 +18,34 @@
 
 - [ ] Installer Xcode stable compatible macOS 26.
 - [ ] Configurer une identité `Developer ID Application` dans le Trousseau.
-- [ ] Définir `MURMURE_SIGNING_IDENTITY` puis lancer `./Scripts/release.sh`.
-- [ ] Configurer un profil Keychain `notarytool`, définir
-      `MURMURE_NOTARY_PROFILE`, puis relancer le script.
-- [ ] Vérifier l’archive finale avec `spctl --assess --type execute --verbose`.
-- [ ] Publier le ZIP, son fichier SHA-256, les notes de version et la licence
+- [ ] Définir les six variables de signature et de notarisation ci-dessous,
+      puis lancer `MURMURE_VERSION=0.1.0 ./Scripts/release.sh`.
+- [ ] Vérifier le DMG final avec `spctl --assess --type open --verbose`.
+- [ ] Publier le DMG, son fichier SHA-256, les notes de version et la licence
       MIT sur GitHub Releases.
 
 ## Workflow GitHub Release
 
 Le workflow **Release** se lance manuellement depuis l’onglet *Actions*. Il
-demande une version, puis crée le tag `v<version>`, joint un DMG et son SHA-256
-à la release, et publie les notes générées par GitHub.
+demande une version, puis crée le tag `v<version>`, construit un DMG signé et
+notarisé, joint le DMG et son SHA-256 à la release, et publie les notes générées
+par GitHub.
 
-Sans notarisation, le DMG est signé ad hoc et convient seulement aux essais :
-Gatekeeper ne le considérera pas comme une distribution publique vérifiée.
+La signature et la notarisation sont obligatoires pour une release GitHub : le
+workflow échoue explicitement si l’un des secrets requis manque.
 
-Pour cocher **Notariser**, renseigner ces secrets du dépôt :
+Renseigner ces secrets du dépôt :
 
 - `DEVELOPER_ID_CERTIFICATE_BASE64` : certificat Developer ID Application au
   format `.p12`, encodé en Base64 ;
 - `DEVELOPER_ID_CERTIFICATE_PASSWORD` : mot de passe de ce `.p12` ;
 - `BUILD_KEYCHAIN_PASSWORD` : mot de passe temporaire du Trousseau de CI ;
-- `APPLE_API_KEY_BASE64` : clé App Store Connect `.p8`, encodée en Base64 ;
-- `APPLE_API_KEY_ID` et `APPLE_ISSUER_ID` : identifiants de cette clé.
+- `APP_STORE_CONNECT_KEY_BASE64` : clé Team API App Store Connect `.p8`,
+  encodée en Base64 ;
+- `APP_STORE_CONNECT_KEY_ID` et `APP_STORE_CONNECT_ISSUER_ID` : identifiants
+  de cette clé.
+
+Le script reconstruit la clé `.p8` dans un répertoire temporaire, appelle
+directement `xcrun notarytool submit --key --key-id --issuer`, puis supprime les
+fichiers temporaires et le Trousseau de CI. Il n’utilise ni Apple ID, ni mot de
+passe spécifique, ni profil `notarytool`, ni `altool`.
