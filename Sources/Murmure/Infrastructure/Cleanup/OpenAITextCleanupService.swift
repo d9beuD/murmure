@@ -4,7 +4,7 @@ import MurmureCore
 final class OpenAITextCleanupService: TextCleaning, @unchecked Sendable {
     private let transport: any HTTPTransporting
 
-    init(transport: any HTTPTransporting = SafeNetworkSession()) {
+    init(transport: any HTTPTransporting) {
         self.transport = transport
     }
 

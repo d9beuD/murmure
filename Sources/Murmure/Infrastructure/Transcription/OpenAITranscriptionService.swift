@@ -6,7 +6,7 @@ final class OpenAITranscriptionService: SpeechTranscribing, @unchecked Sendable 
     private let makeBoundary: @Sendable () -> String
 
     init(
-        transport: any HTTPTransporting = SafeNetworkSession(),
+        transport: any HTTPTransporting,
         makeBoundary: @escaping @Sendable () -> String = { "Boundary-\(UUID().uuidString)" }
     ) {
         self.transport = transport

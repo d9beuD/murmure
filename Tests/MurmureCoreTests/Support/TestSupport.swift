@@ -11,15 +11,12 @@ enum StubError: LocalizedError, LogSafeError, Sendable {
 
 @MainActor
 final class RecorderSpy: AudioRecording {
-    var permission = true
     var startError: (any Error)?
     var stopURL: URL?
     private(set) var startCount = 0
     private(set) var stopCount = 0
     private(set) var cancelCount = 0
     private(set) var deleteCount = 0
-
-    func requestPermission() async -> Bool { permission }
 
     func start() throws {
         startCount += 1
@@ -37,11 +34,29 @@ final class RecorderSpy: AudioRecording {
 
 @MainActor
 final class PendingPermissionRecorder: AudioRecording {
-    private var continuation: CheckedContinuation<Bool, Never>?
     private(set) var startCount = 0
     private(set) var cancelCount = 0
 
-    func requestPermission() async -> Bool {
+    func start() throws { startCount += 1 }
+    func stop() -> URL? { nil }
+    func cancel() { cancelCount += 1 }
+    func deleteLastCapture() {}
+}
+
+@MainActor
+final class PermissionSpy: MicrophonePermissionRequesting {
+    var permission = true
+
+    func requestMicrophonePermission() async -> Bool {
+        return permission
+    }
+}
+
+@MainActor
+final class PendingPermissionProvider: MicrophonePermissionRequesting {
+    private var continuation: CheckedContinuation<Bool, Never>?
+
+    func requestMicrophonePermission() async -> Bool {
         await withCheckedContinuation { continuation = $0 }
     }
 
@@ -49,11 +64,19 @@ final class PendingPermissionRecorder: AudioRecording {
         continuation?.resume(returning: granted)
         continuation = nil
     }
+}
 
-    func start() throws { startCount += 1 }
-    func stop() -> URL? { nil }
-    func cancel() { cancelCount += 1 }
-    func deleteLastCapture() {}
+struct TestLogEntry: Equatable, Sendable {
+    let message: String
+}
+
+@MainActor
+final class TestLogStore: LogWriting {
+    private(set) var entries: [TestLogEntry] = []
+
+    func log(_ message: String) {
+        entries.append(TestLogEntry(message: message))
+    }
 }
 
 actor TranscriberSpy: SpeechTranscribing {
@@ -202,17 +225,20 @@ func stopCoordinator(
     cleanupFailurePolicy: CleanupFailurePolicy = .useRawTranscript,
     outputMode: OutputMode = .clipboard
 ) {
-    coordinator.stopRecording(
-        configuration: testSTTConfiguration,
-        apiKey: "stt-secret",
-        prompt: "prompt",
-        language: "fr",
-        cleanupEnabled: cleanupEnabled,
-        cleanupConfiguration: .openAIResponses,
-        cleanupAPIKey: "cleanup-secret",
-        cleanupFormat: .responses,
-        cleanupPrompt: "clean it",
-        cleanupFailurePolicy: cleanupFailurePolicy,
+    coordinator.stopRecording(request: DictationRequest(
+        transcription: TranscriptionRequest(
+            configuration: testSTTConfiguration,
+            apiKey: "stt-secret",
+            prompt: "prompt",
+            language: "fr"
+        ),
+        cleanup: cleanupEnabled ? CleanupRequest(
+            configuration: .openAIResponses,
+            apiKey: "cleanup-secret",
+            format: .responses,
+            prompt: "clean it",
+            failurePolicy: cleanupFailurePolicy
+        ) : nil,
         outputMode: outputMode
-    )
+    ))
 }

@@ -18,20 +18,20 @@ Tests require a full Xcode installation (Command Line Tools alone do not include
 
 ## Package structure
 
-- `Sources/Murmure/` — executable target (SwiftUI app, services, features)
-- `Sources/MurmureCore/` — library target (domain types, protocols, coordinator, persistence, logging)
-- `Sources/MurmureSpike/` — empty spike target (keep it, do not delete)
-- `Tests/MurmureCoreTests/` — unit tests for MurmureCore
-- `Tests/MurmureSpikeTests/` — empty spike tests
+- `Sources/Murmure/` — executable target (app, features, infrastructure adapters)
+- `Sources/MurmureCore/` — library target (domain, application coordination, ports, log safety)
+- `Tests/MurmureCoreTests/` — domain and coordinator tests
+- `Tests/MurmureTests/` — application and infrastructure tests
 - `Configuration/Info.plist` — applied by run/release scripts (not embedded by SPM)
 - `Scripts/` — `run-app.sh`, `build-dmg.sh`, `release.sh`
 
 ## Architecture
 
 - `MenuBarExtra` only, no Dock icon (`LSUIElement = true` in `Configuration/Info.plist`)
-- Entry point: `Sources/Murmure/MurmureApp.swift` (`@main`)
-- `AppModel` (@MainActor, @Observable) → `DictationCoordinator` → injected services
-- All services injected via `AppEnvironment` (protocols in `MurmureCore/Domain.swift`)
+- Entry point: `Sources/Murmure/App/MurmureApp.swift` (`@main`)
+- `CompositionRoot` builds live adapters and `AppDependencies`.
+- `AppModel` (@MainActor, @Observable) → `DictationCoordinator` and `ConnectionTestModel` → injected ports
+- Core dependencies are provided through `DictationDependencies`; app-level adapters remain in `Infrastructure/`.
 - State machine: `DictationState` enum (idle → requestingPermission → recording → transcribing → error)
 - Settings persisted in `UserDefaults` with versioned schema (`AppPreferences.schemaVersion`)
 - API keys stored in macOS Keychain only, never in UserDefaults or logs
@@ -42,13 +42,14 @@ Tests require a full Xcode installation (Command Line Tools alone do not include
 ## Dependencies
 
 - `KeyboardShortcuts` (sindresorhus) — exact 1.10.0, tracked in `Package.resolved`
-- No other third-party dependencies. Networking is native `URLSession`.
+- `Sparkle` — exact 2.9.5, tracked in `Package.resolved`.
+- Networking is native `URLSession`.
 
 ## Conventions
 
 - Swift 6 strict concurrency. All domain types are `Sendable`.
 - Warnings treated as errors in CI (`-Xswiftc -warnings-as-errors`).
-- Protocol-based testability: `AudioRecording`, `SpeechTranscribing`, `TextCleaning`, `TextDelivering`.
+- Protocol-based testability: audio, microphone permission, transcription, cleanup, delivery, persistence, and logging ports.
 - `@MainActor` on UI-facing types and protocols that touch AppKit.
 - No file or audio artifacts committed (`.gitignore` covers `.build/`, `.swiftpm/`, `DerivedData/`).
 - CI audits for tracked audio/secrets: `! git ls-files | grep -E '\.(wav|p12|mobileprovision)$'`

@@ -8,6 +8,8 @@ Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-com
 
 - a `Murmure` executable target;
 - a `MurmureCore` domain library;
+- a composition root that injects shared audio, permission, networking, persistence,
+  delivery, and feedback adapters;
 - `MenuBarExtra` and `Settings` interfaces;
 - injectable coordination;
 - audio capture and clipboard delivery inherited from the J0 spike;
@@ -21,6 +23,7 @@ Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-com
 - JSON and plain-text response parsing with explicit HTTP errors;
 - temporary-file deletion after every transcription;
 - a state machine protected against stale sessions;
+- typed dictation and connection-test failures with safe diagnostic logging;
 - push-to-talk and toggle modes with debounce;
 - a minimum duration of 250 ms and a 10-minute watchdog;
 - safe cancellation while requesting microphone access or transcribing;
@@ -36,7 +39,7 @@ Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-com
 - help available from the menu bar;
 - ephemeral networking that rejects cross-origin redirects;
 - error logs with provider responses redacted;
-- domain tests and CI with warnings treated as errors;
+- domain, application, and infrastructure tests with coverage thresholds in CI;
 - a script that prepares a signed, notarizable archive with a SHA-256 checksum.
 
 ## First-time setup

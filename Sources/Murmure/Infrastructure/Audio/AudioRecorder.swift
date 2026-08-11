@@ -7,27 +7,6 @@ final class AudioRecorder: AudioRecording {
     private var recorder: AVAudioRecorder?
     private(set) var currentURL: URL?
 
-    func requestPermission() async -> Bool {
-        switch AVAudioApplication.shared.recordPermission {
-        case .granted:
-            return true
-        case .denied:
-            return false
-        case .undetermined:
-            return await withCheckedContinuation { continuation in
-                AVAudioApplication.requestRecordPermission { granted in
-                    continuation.resume(returning: granted)
-                }
-            }
-        @unknown default:
-            return await withCheckedContinuation { continuation in
-                AVAudioApplication.requestRecordPermission { granted in
-                    continuation.resume(returning: granted)
-                }
-            }
-        }
-    }
-
     func start() throws {
         guard recorder == nil else { return }
 

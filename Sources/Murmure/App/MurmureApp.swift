@@ -20,7 +20,7 @@ struct MurmureApp: App {
     @Environment(\.openWindow) private var openWindow
 
     init() {
-        _model = State(initialValue: AppModel(environment: LiveEnvironment.make()))
+        _model = State(initialValue: CompositionRoot.makeAppModel())
     }
 
     var body: some Scene {

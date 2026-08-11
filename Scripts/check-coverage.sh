@@ -24,7 +24,7 @@ print_files() {
             if $group == "core" then
                 .filename | contains("/Sources/MurmureCore/")
             else
-                .filename | test("/Sources/Murmure/(App/AppModel|Services/(KeychainStore|OpenAITextCleanupService|OpenAITranscriptionService|SafeNetworkSession))\\.swift$")
+                .filename | test("/Sources/Murmure/(App/AppModel|Features/Settings/ConnectionTestModel|Infrastructure/(Persistence/(KeychainStore|UserDefaultsPreferencesStore)|Cleanup/OpenAITextCleanupService|Transcription/OpenAITranscriptionService|Networking/SafeNetworkSession))\\.swift$")
             end
         )
         | "  \(.filename | sub($root; "")): \(.summary.lines.covered)/\(.summary.lines.count) lines (\(.summary.lines.percent * 100 | round / 100)%)"' \
@@ -45,7 +45,7 @@ check_group() {
               if $group == "core" then
                   .filename | contains("/Sources/MurmureCore/")
               else
-                  .filename | test("/Sources/Murmure/(App/AppModel|Services/(KeychainStore|OpenAITextCleanupService|OpenAITranscriptionService|SafeNetworkSession))\\.swift$")
+                  .filename | test("/Sources/Murmure/(App/AppModel|Features/Settings/ConnectionTestModel|Infrastructure/(Persistence/(KeychainStore|UserDefaultsPreferencesStore)|Cleanup/OpenAITextCleanupService|Transcription/OpenAITranscriptionService|Networking/SafeNetworkSession))\\.swift$")
               end
           )
           | .summary.lines]

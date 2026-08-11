@@ -694,44 +694,37 @@ The latest raw and cleaned text exists only in memory during the session or unti
 
 ```text
 Murmure/
-├── Murmure.xcodeproj
-├── Murmure/
-│   ├── App/
-│   │   ├── MurmureApp.swift
-│   │   ├── AppModel.swift
-│   │   └── AppEnvironment.swift
-│   ├── Domain/
-│   │   ├── DictationState.swift
-│   │   ├── ProviderConfiguration.swift
-│   │   ├── Preferences.swift
-│   │   └── Errors.swift
-│   ├── Coordination/
-│   │   └── DictationCoordinator.swift
-│   ├── Services/
-│   │   ├── Audio/
-│   │   ├── Hotkeys/
-│   │   ├── Networking/
-│   │   ├── Transcription/
-│   │   ├── Cleanup/
-│   │   ├── Delivery/
-│   │   ├── Persistence/
-│   │   └── Permissions/
-│   ├── Features/
-│   │   ├── MenuBar/
-│   │   ├── Settings/
-│   │   └── Onboarding/
-│   ├── Resources/
-│   │   ├── Assets.xcassets
-│   │   ├── Localizable.xcstrings
-│   │   └── PrivacyInfo.xcprivacy
-│   ├── Info.plist
-│   └── Murmure.entitlements
-├── MurmureTests/
-│   ├── Coordination/
-│   ├── Networking/
-│   ├── Persistence/
-│   └── Fixtures/
-├── MurmureUITests/
+├── Package.swift
+├── Sources/
+│   ├── MurmureCore/
+│   │   ├── Domain/
+│   │   ├── Application/
+│   │   ├── Ports/
+│   │   └── Support/
+│   └── Murmure/
+│       ├── App/
+│       │   ├── MurmureApp.swift
+│       │   ├── AppModel.swift
+│       │   ├── AppDependencies.swift
+│       │   └── CompositionRoot.swift
+│       ├── Features/
+│       │   ├── MenuBar/
+│       │   ├── Settings/
+│       │   ├── Onboarding/
+│       │   └── Logs/
+│       └── Infrastructure/
+│           ├── Audio/
+│           ├── Hotkeys/
+│           ├── Networking/
+│           ├── Transcription/
+│           ├── Cleanup/
+│           ├── Delivery/
+│           ├── Persistence/
+│           └── System/
+├── Tests/
+│   ├── MurmureCoreTests/
+│   └── MurmureTests/
+├── Configuration/Info.plist
 ├── docs/
 │   └── adr/
 ├── .github/workflows/
@@ -740,16 +733,16 @@ Murmure/
 └── THIRD_PARTY_NOTICES.md
 ```
 
-A single application target is sufficient for Version 1. Modularity relies on protocols and directories without prematurely multiplying internal packages.
+A single application target remains sufficient. Modularity relies on the two production targets, explicit ports, the composition root, and directories without multiplying internal packages.
 
 ## 17. Testability Protocols
 
 ```swift
 protocol AudioRecording: Sendable { /* start, stop, cancel */ }
+protocol MicrophonePermissionRequesting: Sendable { /* request */ }
 protocol Transcribing: Sendable { /* transcribe */ }
 protocol Cleaning: Sendable { /* clean */ }
 protocol TextDelivering: Sendable { /* deliver */ }
-protocol SecretStoring: Sendable { /* read, write, delete */ }
 protocol HTTPTransporting: Sendable { /* send */ }
 ```
 

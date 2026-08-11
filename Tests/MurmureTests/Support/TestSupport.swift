@@ -12,7 +12,6 @@ enum AppStubError: LocalizedError, LogSafeError, Equatable, Sendable {
 
 @MainActor
 final class AppRecorderSpy: AudioRecording {
-    var permission = true
     var startError: (any Error)?
     var stopURL: URL?
     private(set) var startCount = 0
@@ -20,7 +19,6 @@ final class AppRecorderSpy: AudioRecording {
     private(set) var cancelCount = 0
     private(set) var deleteCount = 0
 
-    func requestPermission() async -> Bool { permission }
     func start() throws {
         startCount += 1
         if let startError { throw startError }
@@ -35,18 +33,8 @@ final class AppRecorderSpy: AudioRecording {
 
 @MainActor
 final class AppPendingPermissionRecorder: AudioRecording {
-    private var continuations: [CheckedContinuation<Bool, Never>] = []
     private(set) var startCount = 0
     private(set) var cancelCount = 0
-
-    func requestPermission() async -> Bool {
-        await withCheckedContinuation { continuations.append($0) }
-    }
-
-    func resolveNextPermission(_ granted: Bool) {
-        guard !continuations.isEmpty else { return }
-        continuations.removeFirst().resume(returning: granted)
-    }
 
     func start() throws { startCount += 1 }
     func stop() -> URL? { nil }
@@ -199,7 +187,23 @@ final class FeedbackSpy: FeedbackPlaying {
 final class PermissionSpy: PermissionProviding {
     var microphonePermission: PermissionStatus = .notDetermined
     var accessibilityPermission: PermissionStatus = .notDetermined
+    var microphoneResult = true
+    var holdMicrophoneRequest = false
+    private var microphoneContinuations: [CheckedContinuation<Bool, Never>] = []
     private(set) var accessibilityRequestCount = 0
+
+    func requestMicrophonePermission() async -> Bool {
+        if holdMicrophoneRequest {
+            return await withCheckedContinuation { microphoneContinuations.append($0) }
+        }
+        return microphoneResult
+    }
+
+    func resolveNextMicrophonePermission(_ granted: Bool) {
+        guard !microphoneContinuations.isEmpty else { return }
+        microphoneContinuations.removeFirst().resume(returning: granted)
+        holdMicrophoneRequest = false
+    }
 
     func requestAccessibilityPermission() { accessibilityRequestCount += 1 }
 }

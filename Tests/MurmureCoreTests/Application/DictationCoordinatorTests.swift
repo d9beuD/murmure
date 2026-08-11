@@ -6,15 +6,16 @@ final class DictationCoordinatorTests: XCTestCase {
     @MainActor
     func testPermissionDeniedAndErrorDismissal() async {
         let recorder = RecorderSpy()
-        recorder.permission = false
-        let context = makeContext(recorder: recorder)
+        let permission = PermissionSpy()
+        permission.permission = false
+        let context = makeContext(recorder: recorder, permission: permission)
 
         context.coordinator.startRecording()
         await waitUntil("permission failure") { context.coordinator.state != .requestingPermission }
 
         XCTAssertEqual(
             context.coordinator.state,
-            .error("Microphone access was denied. Allow Murmure in System Settings.")
+            .error(.microphonePermissionDenied)
         )
         XCTAssertTrue(context.logs.entries.last?.message.hasPrefix("Error: Microphone access") == true)
         context.coordinator.startRecording()
@@ -27,14 +28,15 @@ final class DictationCoordinatorTests: XCTestCase {
 
     @MainActor
     func testCancelWhilePermissionIsPendingIgnoresLateGrant() async {
-        let recorder = PendingPermissionRecorder()
-        let context = makeContext(recorder: recorder)
+        let recorder = RecorderSpy()
+        let permission = PendingPermissionProvider()
+        let context = makeContext(recorder: recorder, permission: permission)
 
         context.coordinator.startRecording()
         XCTAssertEqual(context.coordinator.state, .requestingPermission)
         await Task.yield()
         context.coordinator.cancelRecording()
-        recorder.resolvePermission(true)
+        permission.resolvePermission(true)
         await Task.yield()
 
         XCTAssertEqual(context.coordinator.state, .idle)
@@ -51,7 +53,7 @@ final class DictationCoordinatorTests: XCTestCase {
         context.coordinator.startRecording()
         await waitUntil("start error") { context.coordinator.state != .requestingPermission }
 
-        XCTAssertEqual(context.coordinator.state, .error("Visible failure"))
+        XCTAssertEqual(context.coordinator.state, .error(.recordingFailed(message: "Visible failure")))
         XCTAssertEqual(context.logs.entries.last?.message, "Error: Safe failure")
     }
 
@@ -83,7 +85,7 @@ final class DictationCoordinatorTests: XCTestCase {
         context.clock.advance(by: 1)
         stopCoordinator(context.coordinator)
 
-        XCTAssertEqual(context.coordinator.state, .error("No audio file was produced."))
+        XCTAssertEqual(context.coordinator.state, .error(.audioUnavailable))
         XCTAssertEqual(recorder.stopCount, 1)
     }
 
@@ -93,8 +95,9 @@ final class DictationCoordinatorTests: XCTestCase {
         let audioURL = try temporaryAudioFile()
         recorder.stopURL = audioURL
         let transcriber = TranscriberSpy(result: .success("Hello Murmure"))
+        let cleaner = CleanerSpy()
         let delivery = DeliverySpy()
-        let context = makeContext(recorder: recorder, transcriber: transcriber, delivery: delivery)
+        let context = makeContext(recorder: recorder, transcriber: transcriber, cleaner: cleaner, delivery: delivery)
         var started = 0
         var stopped = 0
         context.coordinator.onRecordingStarted = { started += 1 }
@@ -115,6 +118,8 @@ final class DictationCoordinatorTests: XCTestCase {
         XCTAssertEqual(delivery.deliveries.first?.0, "Hello Murmure")
         XCTAssertEqual(delivery.deliveries.first?.1, .paste)
         XCTAssertEqual(context.coordinator.lastTranscript, "Hello Murmure")
+        let cleanerCalls = await cleaner.calls
+        XCTAssertTrue(cleanerCalls.isEmpty)
         XCTAssertEqual(started, 1)
         XCTAssertEqual(stopped, 1)
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
@@ -156,7 +161,7 @@ final class DictationCoordinatorTests: XCTestCase {
                 XCTAssertEqual(delivery.deliveries.count, 1)
                 XCTAssertTrue(context.logs.entries.contains { $0.message.contains("Using raw transcription") })
             } else {
-                XCTAssertEqual(context.coordinator.state, .error("Visible failure"))
+                XCTAssertEqual(context.coordinator.state, .error(.cleanupFailed(message: "Visible failure")))
                 XCTAssertTrue(delivery.deliveries.isEmpty)
             }
             XCTAssertFalse(context.logs.entries.contains { $0.message.contains("cleanup-secret") })
@@ -173,7 +178,7 @@ final class DictationCoordinatorTests: XCTestCase {
 
         await recordAndStop(context)
 
-        XCTAssertEqual(context.coordinator.state, .error("Visible failure"))
+        XCTAssertEqual(context.coordinator.state, .error(.transcriptionFailed(message: "Visible failure")))
         XCTAssertEqual(context.logs.entries.last?.message, "Error: Safe failure")
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
@@ -264,22 +269,24 @@ final class DictationCoordinatorTests: XCTestCase {
         transcriber: any SpeechTranscribing = TranscriberSpy(),
         cleaner: any TextCleaning = CleanerSpy(),
         delivery: DeliverySpy = DeliverySpy(),
+        permission: any MicrophonePermissionRequesting = PermissionSpy(),
         sleep: @escaping (Duration) async throws -> Void = { duration in
             try await Task.sleep(for: duration)
         }
     ) -> Context {
         let clock = MutableDate()
-        let logs = AppLogStore()
-        let environment = AppEnvironment(
+        let logs = TestLogStore()
+        let dependencies = DictationDependencies(
             audioRecorder: recorder,
+            microphonePermission: permission,
             textDelivery: delivery,
             transcriber: transcriber,
             cleaner: cleaner,
-            logStore: logs
+            logger: logs
         )
         return Context(
             coordinator: DictationCoordinator(
-                environment: environment,
+                dependencies: dependencies,
                 now: { clock.value },
                 sleep: sleep
             ),
@@ -294,6 +301,6 @@ final class DictationCoordinatorTests: XCTestCase {
 private struct Context {
     let coordinator: DictationCoordinator
     let clock: MutableDate
-    let logs: AppLogStore
+    let logs: TestLogStore
     let delivery: DeliverySpy
 }

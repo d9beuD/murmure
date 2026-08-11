@@ -1,0 +1,223 @@
+import Foundation
+import Observation
+
+@MainActor
+@Observable
+public final class DictationCoordinator {
+    public private(set) var state: DictationState = .idle
+    public private(set) var lastAudioURL: URL?
+    public private(set) var lastTranscript: String?
+
+    private let dependencies: DictationDependencies
+    private var activeSessionID: UUID?
+    private var permissionTask: Task<Void, Never>?
+    private var transcriptionTask: Task<Void, Never>?
+    private var recordingWatchdog: Task<Void, Never>?
+    private var recordingStartedAt: Date?
+    private let now: () -> Date
+    private let sleep: (Duration) async throws -> Void
+
+    public var onRecordingTimeout: (() -> Void)?
+    public var onRecordingStarted: (() -> Void)?
+    public var onRecordingStopped: (() -> Void)?
+
+    public convenience init(dependencies: DictationDependencies) {
+        self.init(
+            dependencies: dependencies,
+            now: Date.init,
+            sleep: { duration in try await Task.sleep(for: duration) }
+        )
+    }
+
+    package init(
+        dependencies: DictationDependencies,
+        now: @escaping () -> Date,
+        sleep: @escaping (Duration) async throws -> Void
+    ) {
+        self.dependencies = dependencies
+        self.now = now
+        self.sleep = sleep
+    }
+
+    public func startRecording() {
+        guard state == .idle else { return }
+        let sessionID = UUID()
+        activeSessionID = sessionID
+        state = .requestingPermission
+        permissionTask = Task { [weak self] in
+            guard let self else { return }
+            guard await self.dependencies.microphonePermission.requestMicrophonePermission() else {
+                guard self.activeSessionID == sessionID else { return }
+                self.activeSessionID = nil
+                let message = "Microphone access was denied. Allow Murmure in System Settings."
+                self.dependencies.logger.log("Error: \(message)")
+                self.state = .error(.microphonePermissionDenied)
+                return
+            }
+            guard self.activeSessionID == sessionID, self.state == .requestingPermission else { return }
+            do {
+                try self.dependencies.audioRecorder.start()
+                self.dependencies.logger.log("Recording started")
+                self.onRecordingStarted?()
+                self.recordingStartedAt = self.now()
+                self.state = .recording
+                self.recordingWatchdog?.cancel()
+                let sleep = self.sleep
+                self.recordingWatchdog = Task { [weak self] in
+                    do {
+                        try await sleep(.seconds(DictationTiming.maximumRecordingDuration))
+                    } catch {
+                        return
+                    }
+                    guard let self, self.activeSessionID == sessionID, self.state == .recording else { return }
+                    self.onRecordingTimeout?()
+                }
+            } catch {
+                guard self.activeSessionID == sessionID else { return }
+                self.activeSessionID = nil
+                self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
+                self.state = .error(.recordingFailed(message: error.localizedDescription))
+            }
+        }
+    }
+
+    public func dismissError() {
+        guard case .error = state else { return }
+        state = .idle
+    }
+
+    public func stopRecording(request: DictationRequest) {
+        guard state == .recording else { return }
+        recordingWatchdog?.cancel()
+        recordingWatchdog = nil
+        let duration = recordingStartedAt.map { now().timeIntervalSince($0) } ?? 0
+        recordingStartedAt = nil
+        if duration < DictationTiming.minimumRecordingDuration {
+            dependencies.audioRecorder.cancel()
+            dependencies.logger.log("Record ended")
+            dependencies.logger.log("Recording discarded: less than 250 ms")
+            activeSessionID = nil
+            state = .idle
+            return
+        }
+        lastAudioURL = dependencies.audioRecorder.stop()
+        dependencies.logger.log("Record ended")
+        onRecordingStopped?()
+        guard let audioURL = lastAudioURL else {
+            let message = "No audio file was produced."
+            dependencies.logger.log("Error: \(message)")
+            state = .error(.audioUnavailable)
+            return
+        }
+        guard let sessionID = activeSessionID else {
+            let message = "Recording session not found."
+            dependencies.logger.log("Error: \(message)")
+            state = .error(.sessionUnavailable)
+            return
+        }
+        state = .transcribing
+        transcriptionTask?.cancel()
+        transcriptionTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                try? FileManager.default.removeItem(at: audioURL)
+                if self.activeSessionID == sessionID {
+                    self.activeSessionID = nil
+                    self.lastAudioURL = nil
+                }
+            }
+            do {
+                let sizeInBytes = (try? FileManager.default.attributesOfItem(atPath: audioURL.path)[.size] as? NSNumber)?.intValue ?? 0
+                let sizeInKilobytes = Double(sizeInBytes) / 1024
+                let host = request.transcription.configuration.endpointURL?.host ?? "configured endpoint"
+                self.dependencies.logger.log(String(format: "Sending %.1f kB to %@", sizeInKilobytes, host))
+                let text = try await self.dependencies.transcriber.transcribe(
+                    audioURL: audioURL,
+                    configuration: request.transcription.configuration,
+                    apiKey: request.transcription.apiKey,
+                    prompt: request.transcription.prompt,
+                    language: request.transcription.language
+                )
+                guard self.activeSessionID == sessionID else { return }
+                self.dependencies.logger.log("Received \(text.count) chars transcription")
+                var finalText = text
+                if let cleanup = request.cleanup {
+                    let cleanupHost = cleanup.configuration.endpointURL?.host ?? "configured endpoint"
+                    self.dependencies.logger.log("Sending transcription to \(cleanupHost)")
+                    do {
+                        let enhancedText = try await self.dependencies.cleaner.clean(
+                            text: text,
+                            configuration: cleanup.configuration,
+                            apiKey: cleanup.apiKey,
+                            format: cleanup.format,
+                            prompt: cleanup.prompt
+                        )
+                        self.dependencies.logger.log("Received \(enhancedText.count) chars enhanced transcription")
+                        finalText = enhancedText
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
+                        switch cleanup.failurePolicy {
+                        case .useRawTranscript:
+                            self.dependencies.logger.log("Using raw transcription after cleanup error")
+                        case .stop:
+                            guard self.activeSessionID == sessionID else { return }
+                            self.lastTranscript = text
+                            self.activeSessionID = nil
+                            self.lastAudioURL = nil
+                            self.state = .error(.cleanupFailed(message: error.localizedDescription))
+                            return
+                        }
+                    }
+                }
+                guard self.activeSessionID == sessionID else { return }
+                self.lastTranscript = finalText
+                let deliveryResult = self.dependencies.textDelivery.deliver(finalText, mode: request.outputMode)
+                switch deliveryResult {
+                case .copied:
+                    self.dependencies.logger.log("Delivered transcription to clipboard")
+                case .inserted:
+                    self.dependencies.logger.log("Inserted transcription in active field")
+                case .fallbackCopied(let reason):
+                    self.dependencies.logger.log("Accessibility unavailable; copied to clipboard (\(reason))")
+                case .secureFieldCopied:
+                    self.dependencies.logger.log("Secure field detected; copied to clipboard")
+                }
+                self.activeSessionID = nil
+                self.lastAudioURL = nil
+                self.state = .idle
+            } catch is CancellationError {
+                guard self.activeSessionID == sessionID else { return }
+                self.activeSessionID = nil
+                self.lastAudioURL = nil
+                self.state = .idle
+            } catch {
+                guard self.activeSessionID == sessionID else { return }
+                self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
+                self.activeSessionID = nil
+                self.lastAudioURL = nil
+                self.state = .error(.transcriptionFailed(message: error.localizedDescription))
+            }
+        }
+    }
+
+    public func cancelRecording() {
+        activeSessionID = nil
+        permissionTask?.cancel()
+        permissionTask = nil
+        recordingWatchdog?.cancel()
+        recordingWatchdog = nil
+        transcriptionTask?.cancel()
+        transcriptionTask = nil
+        recordingStartedAt = nil
+        dependencies.audioRecorder.cancel()
+        lastAudioURL = nil
+        state = .idle
+    }
+
+    public func deleteLastCapture() {
+        dependencies.audioRecorder.deleteLastCapture()
+        lastAudioURL = nil
+    }
+}

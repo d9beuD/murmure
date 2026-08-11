@@ -1,23 +1,23 @@
 # ADR 0002 — J1 Foundation
 
-Status: functionally implemented, awaiting interactive Xcode validation
+Status: superseded in part by ADR 0011; runtime validation remains pending
 
 ## Decision
 
 The J1 foundation is implemented with Swift Package Manager and two production targets:
 
-- `MurmureCore`: domain, states, service protocols, and `DictationCoordinator`;
+- `MurmureCore`: domain, application coordination, ports, and log safety;
 - `Murmure`: SwiftUI app, `MenuBarExtra`, `Settings`, and macOS adapters.
 
 This organization allows compilation and testing with the repository CI commands while maintaining clear separation between app UI/adapters and core domain logic. Runtime validation still depends on launching an Xcode-capable, signed macOS application bundle.
 
 ## Dependency injection
 
-`AppEnvironment` injects services into `DictationCoordinator`. The SwiftUI model therefore does not know the details of AVFoundation, networking, persistence, keychain storage, or text delivery.
+The original `AppEnvironment` boundary was later replaced by `DictationDependencies` and an application composition root; see ADR 0011.
 
 ## Metadata
 
-`Configuration/Info.plist` contains the keys required for menu bar presence, including `LSUIElement`, and the microphone request. `Sources/Murmure/MurmureApp.swift` provides the `MenuBarExtra` and `Settings` scenes.
+`Configuration/Info.plist` contains the keys required for menu bar presence, including `LSUIElement`, and the microphone request. `Sources/Murmure/App/MurmureApp.swift` provides the `MenuBarExtra` and `Settings` scenes.
 
 ## Shortcut dependency
 

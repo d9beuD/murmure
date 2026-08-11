@@ -6,15 +6,13 @@ import Observation
 @Observable
 final class AppModel {
     let coordinator: DictationCoordinator
+    private let connectionTest: ConnectionTestModel
     private let hotkeys: any HotkeyHandling
     private let textDelivery: any TextDelivering
     private let preferencesStore: any PreferencesStoring
-    private let testAudioRecorder: any AudioRecording
-    private let transcriber: any SpeechTranscribing
     private let launchAtLoginService: any LaunchAtLoginControlling
     private let soundFeedback: any FeedbackPlaying
     private let permissionProvider: any PermissionProviding
-    private let now: () -> Date
     private let keychain: any SecretStoring
     let logStore: AppLogStore
 
@@ -22,7 +20,7 @@ final class AppModel {
     var preferences: AppPreferences
     var sttAPIKey = ""
     var cleanupAPIKey = ""
-    var connectionTestState: ConnectionTestState = .idle
+    var connectionTestState: ConnectionTestState { connectionTest.state }
     var launchAtLoginError: String?
     private(set) var permissionsRevision = 0
     var lastAudioURL: URL? { coordinator.lastAudioURL }
@@ -31,35 +29,20 @@ final class AppModel {
 
     private var globalShortcutIsDown = false
     private var lastShortcutEventAt: Date?
-    private var connectionTestSessionID: UUID?
-    private var connectionTestStartedAt: Date?
-    private var connectionTestTask: Task<Void, Never>?
+    private let now: () -> Date
 
-    init(
-        environment: AppEnvironment,
-        preferencesStore: any PreferencesStoring = UserDefaultsPreferencesStore(),
-        keychain: any SecretStoring = KeychainStore(),
-        hotkeys: any HotkeyHandling = HotkeyService(),
-        launchAtLoginService: any LaunchAtLoginControlling = LaunchAtLoginService(),
-        soundFeedback: any FeedbackPlaying = SoundFeedback(),
-        permissionProvider: any PermissionProviding = SystemPermissionProvider(),
-        now: @escaping () -> Date = Date.init,
-        sleep: @escaping (Duration) async throws -> Void = { duration in
-            try await Task.sleep(for: duration)
-        }
-    ) {
-        coordinator = DictationCoordinator(environment: environment, now: now, sleep: sleep)
-        self.hotkeys = hotkeys
-        textDelivery = environment.textDelivery
-        testAudioRecorder = environment.audioRecorder
-        transcriber = environment.transcriber
-        logStore = environment.logStore
-        self.preferencesStore = preferencesStore
-        self.keychain = keychain
-        self.launchAtLoginService = launchAtLoginService
-        self.soundFeedback = soundFeedback
-        self.permissionProvider = permissionProvider
-        self.now = now
+    init(dependencies: AppDependencies) {
+        coordinator = dependencies.coordinator
+        connectionTest = dependencies.connectionTest
+        hotkeys = dependencies.hotkeys
+        textDelivery = dependencies.textDelivery
+        logStore = dependencies.logStore
+        preferencesStore = dependencies.preferencesStore
+        keychain = dependencies.keychain
+        launchAtLoginService = dependencies.launchAtLogin
+        soundFeedback = dependencies.feedback
+        permissionProvider = dependencies.permissions
+        now = dependencies.now
         let storedPreferences = preferencesStore.preferences
         preferences = storedPreferences
         mode = storedPreferences.triggerMode
@@ -80,6 +63,21 @@ final class AppModel {
 
         coordinator.onRecordingStopped = { [weak self] in
             self?.playFeedback(.recordingStopped)
+        }
+
+        connectionTest.onEvent = { [weak self] event in
+            switch event {
+            case .recordingStarted:
+                self?.refreshPermissions()
+                self?.playFeedback(.recordingStarted)
+            case .recordingStopped:
+                self?.playFeedback(.recordingStopped)
+            case .succeeded:
+                self?.playFeedback(.connectionTestSucceeded)
+            case .failed:
+                self?.refreshPermissions()
+                self?.playFeedback(.error)
+            }
         }
 
         hotkeys.onKeyDown = { [weak self] in
@@ -122,7 +120,7 @@ final class AppModel {
     func requestMicrophonePermission() {
         Task { [weak self] in
             guard let self else { return }
-            _ = await self.testAudioRecorder.requestPermission()
+            _ = await self.permissionProvider.requestMicrophonePermission()
             self.refreshPermissions()
         }
     }
@@ -212,19 +210,22 @@ final class AppModel {
     }
 
     func stopRecording() {
-        coordinator.stopRecording(
-            configuration: preferences.stt,
-            apiKey: sttAPIKey,
-            prompt: preferences.sttPrompt,
-            language: preferences.sttLanguage,
-            cleanupEnabled: preferences.cleanupEnabled,
-            cleanupConfiguration: preferences.cleanupProvider,
-            cleanupAPIKey: cleanupAPIKey,
-            cleanupFormat: preferences.cleanupFormat,
-            cleanupPrompt: preferences.cleanupPrompt,
-            cleanupFailurePolicy: preferences.cleanupFailurePolicy,
+        coordinator.stopRecording(request: DictationRequest(
+            transcription: TranscriptionRequest(
+                configuration: preferences.stt,
+                apiKey: sttAPIKey,
+                prompt: preferences.sttPrompt,
+                language: preferences.sttLanguage
+            ),
+            cleanup: preferences.cleanupEnabled ? CleanupRequest(
+                configuration: preferences.cleanupProvider,
+                apiKey: cleanupAPIKey,
+                format: preferences.cleanupFormat,
+                prompt: preferences.cleanupPrompt,
+                failurePolicy: preferences.cleanupFailurePolicy
+            ) : nil,
             outputMode: preferences.outputMode
-        )
+        ))
     }
 
     func cancelRecording() {
@@ -233,90 +234,20 @@ final class AppModel {
 
     func startSTTConnectionTest() {
         guard coordinator.state == .idle, connectionTestState.isInactive else { return }
-        let sessionID = UUID()
-        connectionTestSessionID = sessionID
-        connectionTestState = .requestingPermission
-        Task { [weak self] in
-            guard let self else { return }
-            let granted = await self.testAudioRecorder.requestPermission()
-            guard self.connectionTestSessionID == sessionID else { return }
-            self.refreshPermissions()
-            guard granted else {
-                self.connectionTestSessionID = nil
-                self.connectionTestState = .failed("Microphone access was denied. Allow Murmure in System Settings.")
-                self.playFeedback(.error)
-                return
-            }
-            do {
-                try self.testAudioRecorder.start()
-                self.connectionTestStartedAt = self.now()
-                self.connectionTestState = .recording
-                self.logStore.log("Connection test recording started")
-                self.playFeedback(.recordingStarted)
-            } catch {
-                self.connectionTestSessionID = nil
-                self.connectionTestState = .failed(error.localizedDescription)
-                self.logStore.log("Error: connection test: \(safeLogMessage(for: error))")
-                self.playFeedback(.error)
-            }
-        }
+        connectionTest.start()
     }
 
     func finishSTTConnectionTest() {
-        guard case .recording = connectionTestState, let sessionID = connectionTestSessionID else { return }
-        let duration = connectionTestStartedAt.map { now().timeIntervalSince($0) } ?? 0
-        connectionTestStartedAt = nil
-        guard duration >= DictationTiming.minimumRecordingDuration, let audioURL = testAudioRecorder.stop() else {
-            testAudioRecorder.cancel()
-            connectionTestSessionID = nil
-            connectionTestState = .failed("Record at least one short phrase before running the test.")
-            return
-        }
-        connectionTestState = .testing
-        logStore.log("Connection test recording ended")
-        playFeedback(.recordingStopped)
-        connectionTestTask?.cancel()
-        connectionTestTask = Task { [weak self] in
-            guard let self else { return }
-            defer {
-                self.testAudioRecorder.deleteLastCapture()
-                if self.connectionTestSessionID == sessionID {
-                    self.connectionTestSessionID = nil
-                }
-            }
-            do {
-                let host = self.preferences.stt.endpointURL?.host ?? "configured endpoint"
-                self.logStore.log("Testing STT connection with \(host)")
-                let text = try await self.transcriber.transcribe(
-                    audioURL: audioURL,
-                    configuration: self.preferences.stt,
-                    apiKey: self.sttAPIKey,
-                    prompt: self.preferences.sttPrompt,
-                    language: self.preferences.sttLanguage
-                )
-                guard self.connectionTestSessionID == sessionID else { return }
-                self.connectionTestState = .succeeded(characterCount: text.count)
-                self.logStore.log("STT connection test succeeded (\(text.count) chars)")
-                self.playFeedback(.connectionTestSucceeded)
-            } catch is CancellationError {
-                guard self.connectionTestSessionID == sessionID else { return }
-                self.connectionTestState = .idle
-            } catch {
-                guard self.connectionTestSessionID == sessionID else { return }
-                self.connectionTestState = .failed(error.localizedDescription)
-                self.logStore.log("Error: connection test: \(safeLogMessage(for: error))")
-                self.playFeedback(.error)
-            }
-        }
+        connectionTest.finish(request: TranscriptionRequest(
+            configuration: preferences.stt,
+            apiKey: sttAPIKey,
+            prompt: preferences.sttPrompt,
+            language: preferences.sttLanguage
+        ))
     }
 
     func cancelSTTConnectionTest() {
-        connectionTestSessionID = nil
-        connectionTestTask?.cancel()
-        connectionTestTask = nil
-        connectionTestStartedAt = nil
-        testAudioRecorder.cancel()
-        connectionTestState = .idle
+        connectionTest.cancel()
     }
 
     func copyTestText() {
@@ -355,39 +286,4 @@ enum PermissionStatus: Equatable {
     case granted
     case denied
     case notDetermined
-
-    var title: String {
-        switch self {
-        case .granted: "Allowed"
-        case .denied: "Denied"
-        case .notDetermined: "Not allowed yet"
-        }
-    }
-}
-
-enum ConnectionTestState: Equatable {
-    case idle
-    case requestingPermission
-    case recording
-    case testing
-    case succeeded(characterCount: Int)
-    case failed(String)
-
-    var isInactive: Bool {
-        switch self {
-        case .idle, .succeeded, .failed: true
-        case .requestingPermission, .recording, .testing: false
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .idle: "Ready to test the STT connection."
-        case .requestingPermission: "Requesting microphone access…"
-        case .recording: "Recording test audio…"
-        case .testing: "Sending the recording to the provider…"
-        case .succeeded(let characterCount): "Connection verified: received \(characterCount) characters."
-        case .failed(let message): message
-        }
-    }
 }

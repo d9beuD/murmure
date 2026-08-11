@@ -51,10 +51,16 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(PermissionStatus.granted.title, "Allowed")
         XCTAssertEqual(PermissionStatus.denied.title, "Denied")
         XCTAssertEqual(PermissionStatus.notDetermined.title, "Not allowed yet")
+        XCTAssertEqual(AuthenticationMode.allCases.map(\.title), ["Bearer", "API Key", "None"])
+        XCTAssertEqual(CleanupAPIFormat.allCases.map(\.title), ["Responses API", "Chat Completions"])
+        XCTAssertEqual(CleanupFailurePolicy.allCases.map(\.title), ["Use Raw Transcript", "Stop with an Error"])
+        XCTAssertEqual(TriggerMode.allCases.map(\.title), ["Hold to Talk", "Press to Start/Stop"])
+        XCTAssertEqual(OutputMode.allCases.map(\.title), ["Clipboard", "Insert Automatically"])
+        XCTAssertEqual(DictationState.error(.audioUnavailable).title, "No audio file was produced.")
         XCTAssertTrue(ConnectionTestState.idle.isInactive)
         XCTAssertFalse(ConnectionTestState.testing.isInactive)
         XCTAssertEqual(ConnectionTestState.succeeded(characterCount: 12).title, "Connection verified: received 12 characters.")
-        XCTAssertEqual(ConnectionTestState.failed("failure").title, "failure")
+        XCTAssertEqual(ConnectionTestState.failed(.transcriptionFailed(message: "failure")).title, "failure")
     }
 
     @MainActor
@@ -87,14 +93,16 @@ final class AppModelTests: XCTestCase {
 
     @MainActor
     func testPushToTalkKeyUpCancelsPendingPermission() async {
-        let recorder = AppPendingPermissionRecorder()
-        let context = makeContext(recorder: recorder)
+        let recorder = AppRecorderSpy()
+        let permissions = PermissionSpy()
+        permissions.holdMicrophoneRequest = true
+        let context = makeContext(recorder: recorder, permissions: permissions)
 
         context.hotkeys.onKeyDown?()
         await Task.yield()
         XCTAssertEqual(context.model.state, .requestingPermission)
         context.hotkeys.onKeyUp?()
-        recorder.resolveNextPermission(true)
+        permissions.resolveNextMicrophonePermission(true)
         await Task.yield()
 
         XCTAssertEqual(context.model.state, .idle)
@@ -125,13 +133,14 @@ final class AppModelTests: XCTestCase {
     @MainActor
     func testConnectionPermissionAndRecorderFailures() async {
         let deniedRecorder = AppRecorderSpy()
-        deniedRecorder.permission = false
-        let denied = makeContext(recorder: deniedRecorder)
+        let deniedPermissions = PermissionSpy()
+        deniedPermissions.microphoneResult = false
+        let denied = makeContext(recorder: deniedRecorder, permissions: deniedPermissions)
         denied.model.startSTTConnectionTest()
         await appWaitUntil("permission denied") { denied.model.connectionTestState.isInactive }
         XCTAssertEqual(
             denied.model.connectionTestState,
-            .failed("Microphone access was denied. Allow Murmure in System Settings.")
+            .failed(.microphonePermissionDenied)
         )
         XCTAssertEqual(denied.feedback.events, [.error])
 
@@ -140,7 +149,7 @@ final class AppModelTests: XCTestCase {
         let failing = makeContext(recorder: failingRecorder)
         failing.model.startSTTConnectionTest()
         await appWaitUntil("recorder failure") { failing.model.connectionTestState.isInactive }
-        XCTAssertEqual(failing.model.connectionTestState, .failed("Visible app failure"))
+        XCTAssertEqual(failing.model.connectionTestState, .failed(.recordingFailed(message: "Visible app failure")))
         XCTAssertTrue(failing.model.logStore.entries.contains { $0.message == "Error: connection test: Safe app failure" })
     }
 
@@ -156,7 +165,7 @@ final class AppModelTests: XCTestCase {
 
         XCTAssertEqual(
             context.model.connectionTestState,
-            .failed("Record at least one short phrase before running the test.")
+            .failed(.insufficientAudio)
         )
         XCTAssertEqual(recorder.cancelCount, 1)
         let calls = await transcriber.calls
@@ -170,7 +179,7 @@ final class AppModelTests: XCTestCase {
         missing.model.finishSTTConnectionTest()
         XCTAssertEqual(
             missing.model.connectionTestState,
-            .failed("Record at least one short phrase before running the test.")
+            .failed(.insufficientAudio)
         )
     }
 
@@ -216,7 +225,7 @@ final class AppModelTests: XCTestCase {
         failing.clock.advance(by: 1)
         failing.model.finishSTTConnectionTest()
         await appWaitUntil("connection failure") { failing.model.connectionTestState.isInactive }
-        XCTAssertEqual(failing.model.connectionTestState, .failed("Visible app failure"))
+        XCTAssertEqual(failing.model.connectionTestState, .failed(.transcriptionFailed(message: "Visible app failure")))
         XCTAssertTrue(failing.model.logStore.entries.contains { $0.message == "Error: connection test: Safe app failure" })
 
         let pendingRecorder = AppRecorderSpy()
@@ -239,15 +248,17 @@ final class AppModelTests: XCTestCase {
 
     @MainActor
     func testConnectionTestBlocksDictationAndCanBeCancelled() async {
-        let recorder = AppPendingPermissionRecorder()
-        let context = makeContext(recorder: recorder)
+        let recorder = AppRecorderSpy()
+        let permissions = PermissionSpy()
+        permissions.holdMicrophoneRequest = true
+        let context = makeContext(recorder: recorder, permissions: permissions)
 
         context.model.startSTTConnectionTest()
         await Task.yield()
         context.model.startRecording()
         XCTAssertEqual(context.model.state, .idle)
         context.model.cancelSTTConnectionTest()
-        recorder.resolveNextPermission(true)
+        permissions.resolveNextMicrophonePermission(true)
         await Task.yield()
 
         XCTAssertEqual(context.model.connectionTestState, .idle)
@@ -313,10 +324,11 @@ final class AppModelTests: XCTestCase {
     @MainActor
     func testDisabledFeedbackProducesNoSoundEvents() async {
         let recorder = AppRecorderSpy()
-        recorder.permission = false
+        let permissions = PermissionSpy()
+        permissions.microphoneResult = false
         var preferences = AppPreferences()
         preferences.playFeedbackSounds = false
-        let context = makeContext(recorder: recorder, preferences: preferences)
+        let context = makeContext(recorder: recorder, preferences: preferences, permissions: permissions)
 
         context.model.startSTTConnectionTest()
         await appWaitUntil("silent failure") { context.model.connectionTestState.isInactive }
@@ -328,35 +340,50 @@ final class AppModelTests: XCTestCase {
         recorder: any AudioRecording = AppRecorderSpy(),
         transcriber: any SpeechTranscribing = AppTranscriberSpy(),
         preferences: AppPreferences = AppPreferences(),
-        secrets: [UUID: String] = [:]
+        secrets: [UUID: String] = [:],
+        permissions: PermissionSpy = PermissionSpy()
     ) -> AppContext {
         let delivery = AppDeliverySpy()
         let logs = AppLogStore()
-        let environment = AppEnvironment(
+        let dependencies = DictationDependencies(
             audioRecorder: recorder,
+            microphonePermission: permissions,
             textDelivery: delivery,
             transcriber: transcriber,
             cleaner: AppCleanerStub(),
-            logStore: logs
+            logger: logs
         )
         let preferencesStore = PreferencesStoreSpy(preferences: preferences)
         let secretStore = SecretStoreSpy(secrets: secrets)
         let hotkeys = HotkeySpy()
         let launch = LaunchAtLoginSpy()
         let feedback = FeedbackSpy()
-        let permissions = PermissionSpy()
         let clock = AppDate()
-        let model = AppModel(
-            environment: environment,
-            preferencesStore: preferencesStore,
-            keychain: secretStore,
-            hotkeys: hotkeys,
-            launchAtLoginService: launch,
-            soundFeedback: feedback,
-            permissionProvider: permissions,
+        let coordinator = DictationCoordinator(
+            dependencies: dependencies,
             now: { clock.value },
             sleep: { duration in try await Task.sleep(for: duration) }
         )
+        let connectionTest = ConnectionTestModel(
+            audioRecorder: recorder,
+            microphonePermission: permissions,
+            transcriber: transcriber,
+            logger: logs,
+            now: { clock.value }
+        )
+        let model = AppModel(dependencies: AppDependencies(
+            coordinator: coordinator,
+            connectionTest: connectionTest,
+            textDelivery: delivery,
+            preferencesStore: preferencesStore,
+            keychain: secretStore,
+            hotkeys: hotkeys,
+            launchAtLogin: launch,
+            feedback: feedback,
+            permissions: permissions,
+            logStore: logs,
+            now: { clock.value }
+        ))
         return AppContext(
             model: model,
             delivery: delivery,

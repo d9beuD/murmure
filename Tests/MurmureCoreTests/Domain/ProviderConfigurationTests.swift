@@ -63,17 +63,7 @@ final class ProviderConfigurationTests: XCTestCase {
         }
     }
 
-    func testDomainTitlesAndDefaults() {
-        XCTAssertEqual(AuthenticationMode.allCases.map(\.title), ["Bearer", "API Key", "None"])
-        XCTAssertEqual(CleanupAPIFormat.allCases.map(\.title), ["Responses API", "Chat Completions"])
-        XCTAssertEqual(CleanupFailurePolicy.allCases.map(\.title), ["Use Raw Transcript", "Stop with an Error"])
-        XCTAssertEqual(TriggerMode.allCases.map(\.title), ["Hold to Talk", "Press to Start/Stop"])
-        XCTAssertEqual(OutputMode.allCases.map(\.title), ["Clipboard", "Insert Automatically"])
-        XCTAssertEqual(DictationState.idle.title, "Ready")
-        XCTAssertEqual(DictationState.requestingPermission.title, "Requesting microphone access…")
-        XCTAssertEqual(DictationState.recording.title, "Recording…")
-        XCTAssertEqual(DictationState.transcribing.title, "Transcribing…")
-        XCTAssertEqual(DictationState.error("failure").title, "failure")
+    func testProviderDefaults() {
         XCTAssertEqual(ProviderConfiguration.openAITranscription.path, "audio/transcriptions")
         XCTAssertEqual(ProviderConfiguration.openAIResponses.path, "responses")
     }
