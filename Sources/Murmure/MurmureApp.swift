@@ -3,6 +3,7 @@ import SwiftUI
 import MurmureCore
 import Sparkle
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
