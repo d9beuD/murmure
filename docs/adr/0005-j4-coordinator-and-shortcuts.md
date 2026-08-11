@@ -1,20 +1,20 @@
-# ADR 0005 — Coordinateur et raccourcis J4
+# ADR 0005 — J4 Coordinator and Shortcuts
 
-Statut : implémenté, validation interactive des raccourcis en attente
+Status: implemented, awaiting interactive shortcut validation
 
-## Décision
+## Decision
 
-Une session reçoit un UUID dès la demande de permission microphone. Toutes les tâches — permission, enregistrement et transcription — vérifient cet identifiant avant de modifier l'état. Une annulation invalide donc immédiatement les résultats tardifs.
+A session receives a UUID as soon as microphone permission is requested. Every task—permission, recording, and transcription—checks this identifier before changing state. Cancellation therefore immediately invalidates late results.
 
-Le mode push-to-talk arrête la capture au relâchement et annule une demande de permission si la touche est relâchée trop tôt. Le mode bascule ne réagit qu'au `keyDown` : le premier appui démarre, le second arrête. Les événements répétés et les appuis rapprochés sont filtrés par un debounce de 150 ms.
+Push-to-talk mode stops capture on release and cancels a permission request if the key is released too soon. Toggle mode reacts only to `keyDown`: the first press starts, and the second stops. Repeated events and closely spaced presses are filtered through a 150 ms debounce.
 
-Un enregistrement de moins de 250 ms est supprimé sans requête réseau. Un watchdog de dix minutes déclenche l'arrêt normal si le système ne fournit jamais `keyUp`. Le mode ne peut être modifié que lorsque le coordinateur est au repos et il est maintenant persisté dans le schéma de préférences 3.
+A recording shorter than 250 ms is deleted without a network request. A ten-minute watchdog triggers a normal stop if the system never delivers `keyUp`. The mode can only be changed while the coordinator is idle and is now persisted in preference schema 3.
 
-## Validation réalisée
+## Completed validation
 
 ```text
 swift build
 swift build -Xswiftc -warnings-as-errors
 ```
 
-La matrice de scénarios clavier (appui court, maintien, bascule, répétition, annulation et perte de `keyUp`) doit être exécutée dans une session macOS graphique avec le bundle `Murmure.app`.
+The keyboard scenario matrix (short press, hold, toggle, repeat, cancellation, and lost `keyUp`) must be run in a graphical macOS session with the `Murmure.app` bundle.

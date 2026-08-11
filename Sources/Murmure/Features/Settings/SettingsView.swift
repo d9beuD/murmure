@@ -8,12 +8,12 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Général") {
-                Toggle("Lancer Murmure à l’ouverture de session", isOn: Binding(
+            Section("General") {
+                Toggle("Launch Murmure at login", isOn: Binding(
                     get: { model.launchAtLoginEnabled },
                     set: { model.setLaunchAtLogin($0) }
                 ))
-                Toggle("Jouer un son au début et à la fin d’une dictée", isOn: $model.preferences.playFeedbackSounds)
+                Toggle("Play a sound when dictation starts and ends", isOn: $model.preferences.playFeedbackSounds)
                 if let launchAtLoginError = model.launchAtLoginError {
                     Label(launchAtLoginError, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
@@ -21,8 +21,8 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Raccourci global") {
-                KeyboardShortcuts.Recorder("Raccourci :", name: .dictation)
+            Section("Global Shortcut") {
+                KeyboardShortcuts.Recorder("Shortcut:", name: .dictation)
 
                 Picker("Mode", selection: Binding(
                     get: { model.mode },
@@ -34,78 +34,78 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Transcription STT") {
-                TextField("Nom", text: $model.preferences.stt.name)
+            Section("STT Transcription") {
+                TextField("Name", text: $model.preferences.stt.name)
                 TextField("Endpoint", text: $model.preferences.stt.baseURL)
-                TextField("Chemin", text: $model.preferences.stt.path)
-                TextField("Modèle", text: $model.preferences.stt.model)
-                TextField("Langue (optionnel)", text: $model.preferences.sttLanguage)
-                TextField("Prompt de contexte (optionnel)", text: $model.preferences.sttPrompt)
-                Picker("Authentification", selection: $model.preferences.stt.authentication) {
+                TextField("Path", text: $model.preferences.stt.path)
+                TextField("Model", text: $model.preferences.stt.model)
+                TextField("Language (optional)", text: $model.preferences.sttLanguage)
+                TextField("Context prompt (optional)", text: $model.preferences.sttPrompt)
+                Picker("Authentication", selection: $model.preferences.stt.authentication) {
                     ForEach(AuthenticationMode.allCases) { Text($0.title).tag($0) }
                 }
                 if model.preferences.stt.authentication != .none {
-                    SecureField("Clé API", text: $model.sttAPIKey)
+                    SecureField("API key", text: $model.sttAPIKey)
                     if model.preferences.stt.authentication == .apiKey {
-                        TextField("Nom de l’en-tête", text: $model.preferences.stt.customHeaderName)
+                        TextField("Header name", text: $model.preferences.stt.customHeaderName)
                     }
                 }
                 validation(for: model.preferences.stt)
                 ConnectionTestControls(model: model)
             }
 
-            Section("Nettoyage TTT") {
-                Toggle("Activer le nettoyage", isOn: $model.preferences.cleanupEnabled)
+            Section("TTT Cleanup") {
+                Toggle("Enable cleanup", isOn: $model.preferences.cleanupEnabled)
                 if model.preferences.cleanupEnabled {
                     TextField("Endpoint", text: $model.preferences.cleanupProvider.baseURL)
-                    TextField("Chemin", text: $model.preferences.cleanupProvider.path)
-                    TextField("Modèle", text: $model.preferences.cleanupProvider.model)
-                    Picker("Authentification", selection: $model.preferences.cleanupProvider.authentication) {
+                    TextField("Path", text: $model.preferences.cleanupProvider.path)
+                    TextField("Model", text: $model.preferences.cleanupProvider.model)
+                    Picker("Authentication", selection: $model.preferences.cleanupProvider.authentication) {
                         ForEach(AuthenticationMode.allCases) { Text($0.title).tag($0) }
                     }
                     Picker("Format", selection: $model.preferences.cleanupFormat) {
                         ForEach(CleanupAPIFormat.allCases) { Text($0.title).tag($0) }
                     }
                     if model.preferences.cleanupProvider.authentication != .none {
-                        SecureField("Clé API", text: $model.cleanupAPIKey)
+                        SecureField("API key", text: $model.cleanupAPIKey)
                     }
                     if model.preferences.cleanupProvider.authentication == .apiKey {
-                        TextField("Nom de l’en-tête", text: $model.preferences.cleanupProvider.customHeaderName)
+                        TextField("Header name", text: $model.preferences.cleanupProvider.customHeaderName)
                     }
                     TextEditor(text: $model.preferences.cleanupPrompt)
                         .frame(minHeight: 80)
-                    Button("Réinitialiser le prompt") { model.resetCleanupPrompt() }
-                    Picker("En cas d'échec", selection: $model.preferences.cleanupFailurePolicy) {
+                    Button("Reset Prompt") { model.resetCleanupPrompt() }
+                    Picker("On failure", selection: $model.preferences.cleanupFailurePolicy) {
                         ForEach(CleanupFailurePolicy.allCases) { Text($0.title).tag($0) }
                     }
                     validation(for: model.preferences.cleanupProvider)
                 }
             }
 
-            Section("Livraison") {
-                Picker("Sortie", selection: $model.preferences.outputMode) {
+            Section("Delivery") {
+                Picker("Output", selection: $model.preferences.outputMode) {
                     ForEach(OutputMode.allCases) { Text($0.title).tag($0) }
                 }
             }
 
-            Section("Autorisations") {
+            Section("Permissions") {
                 permissionRow("Microphone", status: model.microphonePermission)
                 if model.microphonePermission != .granted {
-                    Button("Autoriser le microphone") { model.requestMicrophonePermission() }
+                    Button("Allow Microphone Access") { model.requestMicrophonePermission() }
                 }
-                permissionRow("Accessibilité", status: model.accessibilityPermission)
+                permissionRow("Accessibility", status: model.accessibilityPermission)
                 if model.accessibilityPermission != .granted {
-                    Button("Autoriser l’insertion automatique") { model.requestAccessibilityPermission() }
+                    Button("Allow Automatic Insertion") { model.requestAccessibilityPermission() }
                 }
-                Button("Actualiser les autorisations") { model.refreshPermissions() }
-                Text("L’Accessibilité n’est nécessaire que pour le mode d’insertion automatique. Sans elle, Murmure utilise le presse-papiers.")
+                Button("Refresh Permissions") { model.refreshPermissions() }
+                Text("Accessibility permission is only required for automatic insertion. Without it, Murmure uses the clipboard.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("À propos") {
-                Text("Murmure 0.1.0 — licence MIT")
-                Link("Code source sur GitHub", destination: URL(string: "https://github.com/d9beuD/murmure")!)
+            Section("About") {
+                Text("Murmure 0.1.0 — MIT License")
+                Link("Source code on GitHub", destination: URL(string: "https://github.com/d9beuD/murmure")!)
             }
         }
         .formStyle(.grouped)
@@ -120,11 +120,11 @@ struct SettingsView: View {
     @ViewBuilder
     private func validation(for provider: ProviderConfiguration) -> some View {
         if provider.endpointURL == nil {
-            Label("URL invalide : utilisez http:// ou https://", systemImage: "exclamationmark.triangle")
+            Label("Invalid URL: use http:// or https://", systemImage: "exclamationmark.triangle")
                 .foregroundStyle(.orange)
                 .font(.caption)
         } else if provider.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            Label("Le modèle est obligatoire.", systemImage: "exclamationmark.triangle")
+            Label("A model is required.", systemImage: "exclamationmark.triangle")
                 .foregroundStyle(.orange)
                 .font(.caption)
         }
@@ -137,7 +137,7 @@ struct SettingsView: View {
             Label(status.title, systemImage: status == .granted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .foregroundStyle(status == .granted ? .green : .orange)
         }
-        .accessibilityLabel("\(name) : \(status.title)")
+        .accessibilityLabel("\(name): \(status.title)")
     }
 }
 

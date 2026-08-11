@@ -30,7 +30,7 @@ struct LogsView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Effacer") {
+                Button("Clear") {
                     logStore.clear()
                 }
             }

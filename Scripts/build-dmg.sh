@@ -7,7 +7,7 @@ build_number=${MURMURE_BUILD_NUMBER:-1}
 signing_identity=${MURMURE_SIGNING_IDENTITY:--}
 
 if [[ ! "$version" =~ '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$' ]]; then
-    print -u2 "MURMURE_VERSION doit suivre le format x.y.z."
+    print -u2 "MURMURE_VERSION must use the x.y.z format."
     exit 1
 fi
 
@@ -27,7 +27,7 @@ cleanup() {
 trap cleanup EXIT
 
 if [[ "$application_path" != "$binary_directory/Murmure.app" || "$binary_directory" != *"/.build/"* ]]; then
-    print -u2 "Chemin de bundle inattendu : $application_path"
+    print -u2 "Unexpected bundle path: $application_path"
     exit 1
 fi
 
@@ -57,5 +57,5 @@ fi
 /usr/bin/hdiutil create -volname "Murmure $version" -srcfolder "$staging_directory" -ov -format UDZO "$dmg_path"
 /usr/bin/shasum -a 256 "$dmg_path" > "$checksum_path"
 
-print "DMG : $dmg_path"
-print "Checksum : $checksum_path"
+print "DMG: $dmg_path"
+print "Checksum: $checksum_path"

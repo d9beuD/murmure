@@ -13,7 +13,7 @@ struct OnboardingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             ProgressView(value: Double(step + 1), total: Double(stepCount))
-                .accessibilityLabel("Étape \(step + 1) sur \(stepCount)")
+                .accessibilityLabel("Step \(step + 1) of \(stepCount)")
 
             Group {
                 switch step {
@@ -28,18 +28,18 @@ struct OnboardingView: View {
 
             HStack {
                 if step > 0 {
-                    Button("Précédent") { step -= 1 }
+                    Button("Back") { step -= 1 }
                 }
                 Spacer()
                 if step < stepCount - 1 {
-                    Button("Suivant") {
+                    Button("Next") {
                         model.savePreferences()
                         step += 1
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(step == 1 && !isSTTConfigurationValid)
                 } else {
-                    Button("Terminer") {
+                    Button("Finish") {
                         model.completeOnboarding()
                         dismiss()
                     }
@@ -54,33 +54,33 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Bienvenue dans Murmure", systemImage: "waveform")
+            Label("Welcome to Murmure", systemImage: "waveform")
                 .font(.largeTitle.bold())
-            Text("Murmure enregistre votre voix localement, puis envoie le court fichier audio au fournisseur STT que vous choisissez. Le texte peut ensuite être nettoyé par un second fournisseur, si vous l’activez.")
-            Text("Les clés API restent dans le Trousseau macOS. Les fichiers audio temporaires sont supprimés après la dictée. Murmure ne possède aucun serveur ni compte utilisateur.")
+            Text("Murmure records your voice locally, then sends the short audio file to your chosen STT provider. A second provider can then clean up the text if you enable that option.")
+            Text("API keys stay in the macOS Keychain. Temporary audio files are deleted after dictation. Murmure has no servers or user accounts of its own.")
                 .foregroundStyle(.secondary)
-            Label("Vous pourrez modifier tous ces choix dans Réglages.", systemImage: "gear")
+            Label("You can change all of these choices later in Settings.", systemImage: "gear")
                 .font(.callout)
         }
     }
 
     private var sttConfiguration: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Connexion de transcription")
+            Text("Transcription connection")
                 .font(.title2.bold())
-            Text("Indiquez l’endpoint compatible OpenAI et le modèle STT à utiliser.")
+            Text("Enter the OpenAI-compatible endpoint and STT model to use.")
                 .foregroundStyle(.secondary)
             TextField("Endpoint", text: $model.preferences.stt.baseURL)
-            TextField("Chemin", text: $model.preferences.stt.path)
-            TextField("Modèle", text: $model.preferences.stt.model)
-            Picker("Authentification", selection: $model.preferences.stt.authentication) {
+            TextField("Path", text: $model.preferences.stt.path)
+            TextField("Model", text: $model.preferences.stt.model)
+            Picker("Authentication", selection: $model.preferences.stt.authentication) {
                 ForEach(AuthenticationMode.allCases) { Text($0.title).tag($0) }
             }
             if model.preferences.stt.authentication != .none {
-                SecureField("Clé API", text: $model.sttAPIKey)
+                SecureField("API key", text: $model.sttAPIKey)
             }
             if model.preferences.stt.authentication == .apiKey {
-                TextField("Nom de l’en-tête", text: $model.preferences.stt.customHeaderName)
+                TextField("Header name", text: $model.preferences.stt.customHeaderName)
             }
             if let endpoint = model.preferences.stt.endpointURL {
                 Label(endpoint.absoluteString, systemImage: "link")
@@ -88,7 +88,7 @@ struct OnboardingView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             } else {
-                Label("L’endpoint doit commencer par http:// ou https://.", systemImage: "exclamationmark.triangle")
+                Label("The endpoint must start with http:// or https://.", systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -97,13 +97,13 @@ struct OnboardingView: View {
 
     private var connectionTest: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Tester la connexion")
+            Text("Test the connection")
                 .font(.title2.bold())
-            Text("Ce test est volontaire : dites une courte phrase, puis Murmure l’enverra à votre fournisseur STT. Aucune transcription de test n’est conservée.")
+            Text("This test is optional: speak a short phrase, then Murmure will send it to your STT provider. The test transcription is not retained.")
                 .foregroundStyle(.secondary)
             ConnectionTestControls(model: model)
             if model.microphonePermission != .granted {
-                Button("Autoriser le microphone") {
+                Button("Allow Microphone Access") {
                     model.requestMicrophonePermission()
                 }
             }
@@ -112,11 +112,11 @@ struct OnboardingView: View {
 
     private var shortcut: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Raccourci global")
+            Text("Global shortcut")
                 .font(.title2.bold())
-            Text("Choisissez le raccourci qui déclenchera Murmure, même lorsqu’une autre application est au premier plan.")
+            Text("Choose the shortcut that will trigger Murmure, even when another app is in the foreground.")
                 .foregroundStyle(.secondary)
-            KeyboardShortcuts.Recorder("Raccourci :", name: .dictation)
+            KeyboardShortcuts.Recorder("Shortcut:", name: .dictation)
             Picker("Mode", selection: Binding(
                 get: { model.mode },
                 set: { model.setMode($0) }
@@ -130,25 +130,25 @@ struct OnboardingView: View {
 
     private var delivery: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Livraison et préférences")
+            Text("Delivery and preferences")
                 .font(.title2.bold())
-            Picker("Résultat de la dictée", selection: $model.preferences.outputMode) {
+            Picker("Dictation output", selection: $model.preferences.outputMode) {
                 ForEach(OutputMode.allCases) { Text($0.title).tag($0) }
             }
             if model.preferences.outputMode == .paste {
-                Text("L’insertion automatique nécessite l’autorisation Accessibilité. Sans elle, le texte sera copié dans le presse-papiers.")
+                Text("Automatic insertion requires Accessibility permission. Without it, the text will be copied to the clipboard.")
                     .foregroundStyle(.secondary)
                 if model.accessibilityPermission != .granted {
-                    Button("Autoriser l’insertion automatique") {
+                    Button("Allow Automatic Insertion") {
                         model.requestAccessibilityPermission()
                     }
                 }
             }
-            Toggle("Lancer Murmure à l’ouverture de session", isOn: Binding(
+            Toggle("Launch Murmure at login", isOn: Binding(
                 get: { model.launchAtLoginEnabled },
                 set: { model.setLaunchAtLogin($0) }
             ))
-            Toggle("Jouer un son au début et à la fin d’une dictée", isOn: $model.preferences.playFeedbackSounds)
+            Toggle("Play a sound when dictation starts and ends", isOn: $model.preferences.playFeedbackSounds)
         }
     }
 

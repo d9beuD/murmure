@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version sémantique sans le préfixe v (ex. 0.1.0)
+        description: Semantic version without the v prefix (for example, 0.1.0)
         required: true
         type: string
       prerelease:
-        description: Publier comme préversion
+        description: Publish as a prerelease
         required: true
         default: false
         type: boolean
       draft:
-        description: Créer la release en brouillon
+        description: Create the release as a draft
         required: true
         default: true
         type: boolean

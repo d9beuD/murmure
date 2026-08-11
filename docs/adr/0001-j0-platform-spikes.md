@@ -1,52 +1,52 @@
-# ADR 0001 — Résultats des spikes J0
+# ADR 0001 — J0 Spike Results
 
-Statut : en cours
-Date : 5 août 2026
+Status: in progress
+Date: August 5, 2026
 
-## Contexte
+## Context
 
-J0 doit valider les capacités système qui peuvent remettre en cause l'architecture de Murmure : application uniquement dans la barre des menus, événements globaux key-down/key-up, capture WAV, presse-papiers et collage automatique.
+J0 must validate the system capabilities that could challenge Murmure's architecture: a menu-bar-only app, global key-down/key-up events, WAV capture, clipboard access, and automatic pasting.
 
-## Implémentation de spike
+## Spike implementation
 
-Le dépôt contenait initialement un Swift Package exécutable nommé `MurmureSpike`, depuis refactoré en cible `Murmure`, avec :
+The repository initially contained an executable Swift Package named `MurmureSpike`, since refactored into the `Murmure` target, with:
 
-- `MenuBarExtra` et scène `Settings` SwiftUI ;
-- deux modes de déclenchement ;
-- dépendance MIT `KeyboardShortcuts` ;
-- capture WAV PCM 16 kHz mono 16 bits via `AVAudioRecorder` ;
-- test presse-papiers ;
-- test d'insertion via événement `Commande-V` ;
-- suppression explicite de la dernière capture.
+- SwiftUI `MenuBarExtra` and `Settings` scenes;
+- two trigger modes;
+- the MIT-licensed `KeyboardShortcuts` dependency;
+- 16 kHz, 16-bit, mono PCM WAV capture through `AVAudioRecorder`;
+- a clipboard test;
+- an insertion test using a Command-V event;
+- explicit deletion of the latest capture.
 
-Le spike utilise `AVAudioRecorder` pour isoler rapidement la validation du format et des permissions. La version définitive pourra remplacer cette implémentation par `AVAudioEngine` sans modifier le coordinateur.
+The spike uses `AVAudioRecorder` to quickly isolate validation of the format and permissions. The final version may replace this implementation with `AVAudioEngine` without changing the coordinator.
 
-Le manifeste J0 épingle provisoirement `KeyboardShortcuts` 1.10.0 : les versions 2.x/3.x utilisent des macros SwiftUI dont les plugins ne sont pas fournis par les Command Line Tools seuls. J1 devra repasser à la version moderne validée par Xcode, avec `Package.resolved` mis à jour.
+The J0 manifest temporarily pins `KeyboardShortcuts` 1.10.0: versions 2.x/3.x use SwiftUI macros whose plugins are not provided by the Command Line Tools alone. J1 will return to the current version validated with Xcode and update `Package.resolved`.
 
-## Pré-requis de validation manuelle
+## Manual validation prerequisites
 
-L'environnement actuel fournit Swift 6.3.3 et le SDK macOS 26, mais pas Xcode.app. La compilation Swift Package peut donc être exécutée avec `swift build`; la validation interactive doit être faite avec une application macOS lancée depuis Xcode ou depuis un bundle `.app`.
+The current environment provides Swift 6.3.3 and the macOS 26 SDK, but not Xcode.app. The Swift Package can therefore be compiled with `swift build`; interactive validation must be performed with a macOS app launched from Xcode or from an `.app` bundle.
 
-À valider sur macOS 26 :
+Validate on macOS 26:
 
-1. L'icône reste uniquement dans la barre des menus.
-2. Le raccourci reçoit bien `keyDown` et `keyUp` hors focus de Murmure.
-3. Le microphone demande et conserve la permission attendue.
-4. Le fichier produit est bien WAV PCM 16 kHz mono 16 bits.
-5. Le presse-papiers conserve le texte UTF-8.
-6. Le collage fonctionne dans Notes, TextEdit, Terminal et un éditeur de code.
-7. L'absence d'autorisation Accessibilité n'empêche pas le mode presse-papiers.
-8. L'App Sandbox est testée avec les deux modes de livraison.
+1. The icon remains in the menu bar only.
+2. The shortcut receives `keyDown` and `keyUp` events when Murmure is not focused.
+3. The microphone requests and retains the expected permission.
+4. The generated file is a 16 kHz, 16-bit, mono PCM WAV.
+5. The clipboard preserves UTF-8 text.
+6. Pasting works in Notes, TextEdit, Terminal, and a code editor.
+7. Missing Accessibility permission does not prevent clipboard mode from working.
+8. App Sandbox is tested with both delivery modes.
 
-## Décision provisoire
+## Provisional decision
 
-La décision App Sandbox reste ouverte jusqu'à la validation du point 8. La livraison directe, Hardened Runtime et repli presse-papiers restent la stratégie de secours si l'insertion inter-applications complète n'est pas compatible avec le sandbox.
+The App Sandbox decision remains open until item 8 is validated. Direct distribution, Hardened Runtime, and a clipboard fallback remain the backup strategy if full cross-application insertion is incompatible with the sandbox.
 
-## Commandes
+## Commands
 
 ```shell
 swift build
 swift run Murmure
 ```
 
-Les commandes `swift run` nécessitent un contexte macOS graphique pour afficher la barre des menus ; elles ne sont pas adaptées à un runner CI sans session utilisateur.
+`swift run` requires a graphical macOS context to display the menu bar and is not suitable for a CI runner without a user session.

@@ -30,7 +30,7 @@ final class MurmureCoreTests: XCTestCase {
         let preferences = AppPreferences(schemaVersion: 3)
         let data = try JSONEncoder().encode(preferences)
         guard var object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return XCTFail("Les préférences encodées doivent être un objet JSON.")
+            return XCTFail("Encoded preferences must be a JSON object.")
         }
         object.removeValue(forKey: "hasCompletedOnboarding")
         let legacyData = try JSONSerialization.data(withJSONObject: object)
@@ -42,7 +42,7 @@ final class MurmureCoreTests: XCTestCase {
     func testRedactsUnknownErrorsFromLogs() {
         let error = SensitiveError()
 
-        XCTAssertEqual(safeLogMessage(for: error), "Opération échouée sans détail exportable.")
+        XCTAssertEqual(safeLogMessage(for: error), "Operation failed with no exportable details.")
         XCTAssertFalse(safeLogMessage(for: error).contains(error.errorDescription ?? ""))
     }
 
@@ -90,14 +90,14 @@ final class MurmureCoreTests: XCTestCase {
             await Task.yield()
         }
 
-        XCTAssertEqual(coordinator.lastTranscript, "Bonjour Murmure")
-        XCTAssertEqual(delivery.copiedTexts, ["Bonjour Murmure"])
+        XCTAssertEqual(coordinator.lastTranscript, "Hello Murmure")
+        XCTAssertEqual(delivery.copiedTexts, ["Hello Murmure"])
         XCTAssertTrue(logs.entries.contains { $0.message == "Delivered transcription to clipboard" })
     }
 }
 
 private struct SensitiveError: LocalizedError {
-    var errorDescription: String? { "la transcription secrète" }
+    var errorDescription: String? { "the secret transcript" }
 }
 
 @MainActor
@@ -119,7 +119,7 @@ private struct SuccessfulTranscriber: SpeechTranscribing {
         prompt: String?,
         language: String?
     ) async throws -> String {
-        "Bonjour Murmure"
+        "Hello Murmure"
     }
 }
 

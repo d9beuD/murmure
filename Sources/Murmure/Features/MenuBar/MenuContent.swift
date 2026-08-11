@@ -27,7 +27,7 @@ struct MenuContent: View {
             NSApp.activate(ignoringOtherApps: true)
             openWindow(id: "settings")
         } label: {
-            Label("Réglages", systemImage: "gear")
+            Label("Settings", systemImage: "gear")
         }
 
         Button {
@@ -41,10 +41,10 @@ struct MenuContent: View {
             NSApp.activate(ignoringOtherApps: true)
             openWindow(id: "onboarding")
         } label: {
-            Label("Guide de démarrage", systemImage: "questionmark.circle")
+            Label("Getting Started", systemImage: "questionmark.circle")
         }
 
-        Button("Quitter") {
+        Button("Quit") {
             NSApplication.shared.terminate(nil)
         }
     }

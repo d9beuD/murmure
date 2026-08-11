@@ -1,46 +1,46 @@
-# ADR 0002 — Fondation J1
+# ADR 0002 — J1 Foundation
 
-Statut : implémenté partiellement, validation Xcode en attente
+Status: partially implemented, awaiting Xcode validation
 
-## Décision
+## Decision
 
-La fondation J1 utilise Swift Package Manager avec deux cibles :
+The J1 foundation uses Swift Package Manager with two targets:
 
-- `MurmureCore` : domaine, états, protocoles de services et `DictationCoordinator` ;
-- `Murmure` : application SwiftUI, `MenuBarExtra`, `Settings` et adaptateurs macOS.
+- `MurmureCore`: domain, states, service protocols, and `DictationCoordinator`;
+- `Murmure`: SwiftUI app, `MenuBarExtra`, `Settings`, and macOS adapters.
 
-Cette organisation permet de compiler avec les Command Line Tools tout en gardant une frontière claire pour le futur projet Xcode. Le bundle identifier, les entitlements et le signing restent des paramètres de la cible Xcode à créer dès que Xcode.app sera disponible.
+This organization allows compilation with the Command Line Tools while maintaining a clear boundary for the future Xcode project. The bundle identifier, entitlements, and signing remain settings for the Xcode target that will be created once Xcode.app is available.
 
-## Injection
+## Dependency injection
 
-`AppEnvironment` injecte `AudioRecording` et `TextDelivering` dans `DictationCoordinator`. Le modèle SwiftUI ne connaît donc pas les détails AVFoundation ou CoreGraphics.
+`AppEnvironment` injects `AudioRecording` and `TextDelivering` into `DictationCoordinator`. The SwiftUI model therefore does not know the details of AVFoundation or CoreGraphics.
 
-## Métadonnées
+## Metadata
 
-`Configuration/Info.plist` contient les clés nécessaires à la présence menubar et à la demande microphone. Il servira de base à la cible Xcode.
+`Configuration/Info.plist` contains the keys required for menu bar presence and the microphone request. It will serve as the basis for the Xcode target.
 
-## Dépendance raccourci
+## Shortcut dependency
 
-Le package reste épinglé à `KeyboardShortcuts` 1.10.0 pour compiler avec les Command Line Tools. Les versions récentes utilisent des plugins de macros SwiftUI indisponibles sans Xcode. Le passage à la version moderne est prévu lors de la création de la cible Xcode.
+The package remains pinned to `KeyboardShortcuts` 1.10.0 so it can compile with the Command Line Tools. Recent versions use SwiftUI macro plugins that are unavailable without Xcode. Upgrading to the current version is planned when the Xcode target is created.
 
-## Validation réalisée
+## Completed validation
 
 ```text
-swift build                         ✅
+swift build                              ✅
 swift build -Xswiftc -warnings-as-errors ✅
-swift run Murmure                  ✅ démarrage graphique, arrêté manuellement
+swift run Murmure                        ✅ graphical launch, stopped manually
 ```
 
-La validation des permissions, de l'icône Dock, des événements globaux et de l'insertion inter-applications reste manuelle sur une machine équipée d'Xcode et d'une session macOS graphique.
+Validation of permissions, the Dock icon, global events, and cross-application insertion remains manual on a machine with Xcode and a graphical macOS session.
 
-## Correctif post-J1 — installation différée des raccourcis
+## Post-J1 fix — deferred shortcut installation
 
-`HotkeyService` installe désormais ses handlers au prochain passage de la boucle principale. L'enregistrement Carbon effectué trop tôt pendant l'initialisation SwiftUI peut échouer silencieusement ; ce report garantit que le dispatcher d'événements macOS existe avant la restauration d'un raccourci déjà mémorisé.
+`HotkeyService` now installs its handlers on the next pass through the main loop. Carbon registration performed too early during SwiftUI initialization can fail silently; deferring it ensures the macOS event dispatcher exists before restoring an already saved shortcut.
 
-## Correctif post-J2 — bundle de développement
+## Post-J2 fix — development bundle
 
-`swift run Murmure` lance un Mach-O brut : `Configuration/Info.plist` n'y est pas lié et LaunchServices ne le considère pas comme un bundle d'application. Cela rend notamment l'activation des fenêtres d'une application menubar non fiable. `Scripts/run-app.sh` construit désormais un `Murmure.app`, copie les ressources, applique l'Info.plist, effectue une signature ad hoc et ouvre le bundle avec LaunchServices.
+`swift run Murmure` launches a raw Mach-O executable: `Configuration/Info.plist` is not linked to it, and LaunchServices does not consider it an application bundle. This notably makes activation of windows from a menu bar app unreliable. `Scripts/run-app.sh` now builds a `Murmure.app`, copies resources, applies `Info.plist`, performs ad hoc signing, and opens the bundle through LaunchServices.
 
-## Conséquence
+## Consequence
 
-J1 est fonctionnellement prêt pour commencer J2, mais la validation de sortie du jalon reste conditionnée à l'installation d'Xcode.app et à la génération de la cible macOS signée.
+J1 is functionally ready for J2 to begin, but milestone exit validation still depends on installing Xcode.app and generating the signed macOS target.

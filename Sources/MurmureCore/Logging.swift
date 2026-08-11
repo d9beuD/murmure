@@ -13,7 +13,7 @@ public func safeLogMessage(for error: any Error) -> String {
     if let error = error as? any LogSafeError {
         return error.logMessage
     }
-    return "Opération échouée sans détail exportable."
+    return "Operation failed with no exportable details."
 }
 
 public struct AppLogEntry: Identifiable, Equatable, Sendable {

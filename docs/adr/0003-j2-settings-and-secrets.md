@@ -1,26 +1,22 @@
-# ADR 0003 — Réglages et secrets J2
+# ADR 0003 — J2 Settings and Secrets
 
-Statut : implémenté, validation interactive Xcode en attente
+Status: implemented, awaiting interactive Xcode validation
 
-## Décision
+## Decision
 
-Les configurations STT et TTT sont des valeurs `Codable` dans `MurmureCore`. `AppPreferences` porte un numéro de schéma (actuellement 4, depuis l’ajout des préférences J7) et est encodé en une seule valeur JSON dans `UserDefaults`. Une version inconnue est ignorée et revient aux valeurs par défaut ; les migrations futures auront un point d'entrée unique.
+STT and TTT configurations are `Codable` values in `MurmureCore`. `AppPreferences` carries a schema number (currently 4, since J7 preferences were added) and is encoded as a single JSON value in `UserDefaults`. An unknown version is ignored and falls back to defaults; future migrations will have a single entry point.
 
-Les clés API ne font pas partie de `AppPreferences`. `KeychainStore` les stocke comme un mot de passe générique unique sous le service `com.d9beuD.Murmure`; son contenu JSON associe le UUID de chaque connexion à sa clé. Une clé vide est retirée de ce contenu. Les erreurs du Trousseau sont réduites à un statut système et ne révèlent jamais la valeur.
+API keys are not part of `AppPreferences`. `KeychainStore` stores them as one generic password under the `com.d9beuD.Murmure` service; its JSON content maps each connection UUID to its key. An empty key is removed from this content. Keychain errors are reduced to a system status and never reveal the value.
 
-Au démarrage, les secrets des profils STT et TTT sont lus dans une entrée
-Trousseau unique, encodée en JSON, afin de ne solliciter le Trousseau qu'une
-seule fois. Les profils absents sont traités comme des clés vides. Les entrées
-des versions précédentes, qui stockaient une clé par UUID de profil, sont
-relues une dernière fois puis migrées automatiquement vers cette entrée unique.
+At startup, the secrets for STT and TTT profiles are read from one JSON-encoded Keychain entry so the Keychain is queried only once. Missing profiles are treated as empty keys. Entries from previous versions, which stored one key per profile UUID, are read one last time and then migrated automatically to this single entry.
 
-La vue Settings expose les paramètres STT et TTT, le format Responses ou Chat Completions, le prompt de nettoyage, la politique de repli vers le texte brut, le mode de livraison et les informations d'authentification. Les modifications sont sauvegardées automatiquement ; aucun appel réseau n'est effectué à ce stade.
+The Settings view exposes STT and TTT parameters, Responses or Chat Completions format, the cleanup prompt, the fallback-to-raw-text policy, delivery mode, and authentication information. Changes are saved automatically; no network call is made at this stage.
 
-## Validation réalisée
+## Completed validation
 
 ```text
 swift build
 swift build -Xswiftc -warnings-as-errors
 ```
 
-La vérification réelle du Trousseau, de la fenêtre Settings et de l'absence de secret dans le bundle doit être faite avec une cible Xcode signée sur macOS 26.
+Actual verification of Keychain behavior, the Settings window, and the absence of secrets in the bundle must be performed with a signed Xcode target on macOS 26.

@@ -89,22 +89,22 @@ enum TranscriptionError: LocalizedError, LogSafeError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidEndpoint: "L’endpoint STT est invalide."
-        case .invalidHeader: "Le nom de l’en-tête d’authentification est invalide."
-        case .missingAPIKey: "La clé API STT est manquante."
-        case .fileTooLarge: "Le fichier audio dépasse la limite de 25 Mo."
-        case .invalidResponse: "La réponse STT est invalide."
-        case .emptyResult: "La transcription est vide."
+        case .invalidEndpoint: "The STT endpoint is invalid."
+        case .invalidHeader: "The authentication header name is invalid."
+        case .missingAPIKey: "The STT API key is missing."
+        case .fileTooLarge: "The audio file exceeds the 25 MB limit."
+        case .invalidResponse: "The STT response is invalid."
+        case .emptyResult: "The transcript is empty."
         case .http(let statusCode, let message):
-            if let message { "Erreur STT (HTTP \(statusCode)) : \(message)" }
-            else { "Erreur STT (HTTP \(statusCode))." }
+            if let message { "STT error (HTTP \(statusCode)): \(message)" }
+            else { "STT error (HTTP \(statusCode))." }
         }
     }
 
     var logMessage: String {
         switch self {
-        case .http(let statusCode, _): "Échec de la requête STT (HTTP \(statusCode))."
-        default: "Échec de la transcription STT."
+        case .http(let statusCode, _): "STT request failed (HTTP \(statusCode))."
+        default: "STT transcription failed."
         }
     }
 }

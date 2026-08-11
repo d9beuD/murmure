@@ -1,11 +1,10 @@
-# Notices de tiers
+# Third-Party Notices
 
 ## KeyboardShortcuts
 
-Murmure utilise [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)
-pour l’enregistrement des raccourcis globaux.
+Murmure uses [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)
+to register global shortcuts.
 
 Copyright © Sindre Sorhus
 
-Licence MIT. Le texte complet de la licence est disponible dans le dépôt de la
-dépendance.
+MIT License. The full license text is available in the dependency's repository.

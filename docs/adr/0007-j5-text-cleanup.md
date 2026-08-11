@@ -1,22 +1,22 @@
-# ADR 0007 — Nettoyage TTT J5
+# ADR 0007 — J5 TTT Cleanup
 
-Statut : implémenté, validation fournisseur réel en attente
+Status: implemented, awaiting real provider validation
 
-## Décision
+## Decision
 
-Après une transcription STT réussie, le nettoyage est optionnel. Responses API reçoit `instructions` pour le prompt et `input` pour le texte brut ; Chat Completions reçoit un message `system` puis un message `user`. Les requêtes demandent `store: false` et n'utilisent aucun état conversationnel.
+After a successful STT transcription, cleanup is optional. The Responses API receives `instructions` for the prompt and `input` for the raw text; Chat Completions receives a `system` message followed by a `user` message. Requests specify `store: false` and use no conversational state.
 
-`OpenAITextCleanupService` accepte les réponses Responses en agrégeant tous les contenus `output_text`, plutôt que de supposer que le premier élément de `output` est du texte. Pour Chat Completions, il accepte le contenu texte simple et les tableaux de parties texte.
+`OpenAITextCleanupService` accepts Responses API output by aggregating all `output_text` content instead of assuming the first `output` item is text. For Chat Completions, it accepts both plain text content and arrays of text parts.
 
-La politique `useRawTranscript` conserve le texte STT si le nettoyage échoue. La politique `stop` expose l'erreur tout en gardant la transcription brute en mémoire pour une copie ultérieure. Dans les deux cas le fichier audio temporaire est supprimé.
+The `useRawTranscript` policy retains the STT text if cleanup fails. The `stop` policy surfaces the error while keeping the raw transcript in memory for later copying. In both cases, the temporary audio file is deleted.
 
-Les logs indiquent l'envoi au fournisseur TTT, la taille de la réponse améliorée et les erreurs, sans écrire les prompts, clés ou contenus dans un stockage persistant.
+Logs indicate the upload to the TTT provider, the enhanced response length, and errors without writing prompts, keys, or content to persistent storage.
 
-## Validation réalisée
+## Completed validation
 
 ```text
 swift build
 swift build -Xswiftc -warnings-as-errors
 ```
 
-Un test avec un endpoint Responses et un endpoint Chat Completions réels reste à effectuer avec des clés de test et un texte de dictée non sensible.
+A test with real Responses and Chat Completions endpoints remains to be performed using test keys and non-sensitive dictation text.

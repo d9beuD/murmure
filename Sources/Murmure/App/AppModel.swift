@@ -138,8 +138,8 @@ final class AppModel {
             launchAtLoginError = nil
             savePreferences()
         } catch {
-            launchAtLoginError = "Impossible de modifier le lancement à la connexion : \(error.localizedDescription)"
-            logStore.log("Error: impossible de modifier le lancement à la connexion.")
+            launchAtLoginError = "Could not change the launch at login setting: \(error.localizedDescription)"
+            logStore.log("Error: could not change the launch at login setting.")
         }
     }
 
@@ -238,7 +238,7 @@ final class AppModel {
             self.refreshPermissions()
             guard granted else {
                 self.connectionTestSessionID = nil
-                self.connectionTestState = .failed("Accès au microphone refusé. Autorisez Murmure dans Réglages Système.")
+                self.connectionTestState = .failed("Microphone access was denied. Allow Murmure in System Settings.")
                 self.playFeedback(.error)
                 return
             }
@@ -251,7 +251,7 @@ final class AppModel {
             } catch {
                 self.connectionTestSessionID = nil
                 self.connectionTestState = .failed(error.localizedDescription)
-                self.logStore.log("Error: test de connexion : \(safeLogMessage(for: error))")
+                self.logStore.log("Error: connection test: \(safeLogMessage(for: error))")
                 self.playFeedback(.error)
             }
         }
@@ -264,7 +264,7 @@ final class AppModel {
         guard duration >= DictationTiming.minimumRecordingDuration, let audioURL = testAudioRecorder.stop() else {
             testAudioRecorder.cancel()
             connectionTestSessionID = nil
-            connectionTestState = .failed("Enregistrez au moins une courte phrase avant le test.")
+            connectionTestState = .failed("Record at least one short phrase before running the test.")
             return
         }
         connectionTestState = .testing
@@ -280,7 +280,7 @@ final class AppModel {
                 }
             }
             do {
-                let host = self.preferences.stt.endpointURL?.host ?? "endpoint configuré"
+                let host = self.preferences.stt.endpointURL?.host ?? "configured endpoint"
                 self.logStore.log("Testing STT connection with \(host)")
                 let text = try await self.transcriber.transcribe(
                     audioURL: audioURL,
@@ -299,7 +299,7 @@ final class AppModel {
             } catch {
                 guard self.connectionTestSessionID == sessionID else { return }
                 self.connectionTestState = .failed(error.localizedDescription)
-                self.logStore.log("Error: test de connexion : \(safeLogMessage(for: error))")
+                self.logStore.log("Error: connection test: \(safeLogMessage(for: error))")
                 self.playFeedback(.error)
             }
         }
@@ -315,11 +315,11 @@ final class AppModel {
     }
 
     func copyTestText() {
-        textDelivery.copy("Murmure — test presse-papiers")
+        textDelivery.copy("Murmure — clipboard test")
     }
 
     func pasteTestText() {
-        textDelivery.copyAndPaste("Murmure — test insertion")
+        textDelivery.copyAndPaste("Murmure — insertion test")
     }
 
     func deleteLastCapture() {
@@ -353,9 +353,9 @@ enum PermissionStatus: Equatable {
 
     var title: String {
         switch self {
-        case .granted: "Autorisé"
-        case .denied: "Refusé"
-        case .notDetermined: "À autoriser"
+        case .granted: "Allowed"
+        case .denied: "Denied"
+        case .notDetermined: "Not allowed yet"
         }
     }
 }
@@ -377,11 +377,11 @@ enum ConnectionTestState: Equatable {
 
     var title: String {
         switch self {
-        case .idle: "Prêt à tester la connexion STT."
-        case .requestingPermission: "Autorisation du microphone…"
-        case .recording: "Enregistrement du test en cours…"
-        case .testing: "Envoi de l’enregistrement au fournisseur…"
-        case .succeeded(let characterCount): "Connexion vérifiée : \(characterCount) caractères reçus."
+        case .idle: "Ready to test the STT connection."
+        case .requestingPermission: "Requesting microphone access…"
+        case .recording: "Recording test audio…"
+        case .testing: "Sending the recording to the provider…"
+        case .succeeded(let characterCount): "Connection verified: received \(characterCount) characters."
         case .failed(let message): message
         }
     }

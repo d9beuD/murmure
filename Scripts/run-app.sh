@@ -11,7 +11,7 @@ application_path="$binary_directory/Murmure.app"
 contents_path="$application_path/Contents"
 
 if [[ "$application_path" != "$binary_directory/Murmure.app" || "$binary_directory" != *"/.build/"* ]]; then
-    print -u2 "Chemin de bundle inattendu : $application_path"
+    print -u2 "Unexpected bundle path: $application_path"
     exit 1
 fi
 
@@ -28,4 +28,4 @@ fi
 /usr/bin/codesign --force --deep --sign - "$application_path"
 /usr/bin/open "$application_path"
 
-print "Murmure lancé depuis $application_path"
+print "Murmure launched from $application_path"

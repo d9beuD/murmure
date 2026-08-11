@@ -1,32 +1,17 @@
-# ADR 0010 — Durcissement et release J8
+# ADR 0010 — J8 Hardening and Release
 
-Statut : implémenté, validation Apple de la première release en attente
+Status: implemented, awaiting Apple validation of the first release
 
-## Décision
+## Decision
 
-Les transports réseau utilisent une session éphémère et bloquent toute
-redirection qui change de schéma, hôte ou port. L’exception ATS se limite au
-réseau local afin de conserver les endpoints HTTP de boucle locale, sans
-autoriser HTTP pour Internet.
+Network transports use an ephemeral session and block every redirect that changes the scheme, host, or port. The ATS exception is limited to local networking so loopback HTTP endpoints remain available without allowing HTTP traffic to the internet.
 
-Les logs n’écrivent plus `localizedDescription` pour une erreur inconnue. Les
-services STT et TTT fournissent un message de diagnostic expurgé, éventuellement
-avec un code HTTP, tandis que le détail renvoyé par le fournisseur reste visible
-uniquement dans l’interface d’erreur active.
+Logs no longer write `localizedDescription` for unknown errors. STT and TTT services provide a redacted diagnostic message, optionally with an HTTP status code, while provider-supplied details remain visible only in the active error interface.
 
-Une cible de tests couvre les migrations de préférences, la normalisation des
-endpoints, la protection des logs et un pipeline de dictée injecté. La CI
-construit avec les avertissements en erreurs, exécute ces tests et refuse les
-formats de secrets, signatures et enregistrements audio connus.
+A test target covers preference migrations, endpoint normalization, log protection, and an injected dictation pipeline. CI builds with warnings treated as errors, runs these tests, and rejects known secret, signature, and audio-recording formats.
 
-Le script `Scripts/release.sh` construit un bundle Release, applique Hardened
-Runtime, signe avec une identité Developer ID fournie par l’environnement,
-produit un DMG et un SHA-256, et peut soumettre l’archive à `notarytool` via une
-Team API Key App Store Connect reconstruite temporairement.
+`Scripts/release.sh` builds a Release bundle, applies Hardened Runtime, signs with a Developer ID identity supplied by the environment, produces a DMG and SHA-256 checksum, and can submit the archive to `notarytool` using a temporarily reconstructed App Store Connect Team API key.
 
-## Validation finale restante
+## Remaining final validation
 
-La compilation stricte et les tests sont validés avec Xcode. La première
-signature et notarisation réelles restent à effectuer avec le certificat
-Developer ID et la Team API Key App Store Connect du mainteneur ; elles sont
-décrites dans la checklist de release.
+Strict compilation and tests are validated with Xcode. The first real signing and notarization remain to be performed with the maintainer's Developer ID certificate and App Store Connect Team API key; the process is described in the release checklist.

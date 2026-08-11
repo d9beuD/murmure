@@ -192,23 +192,23 @@ enum CleanupError: LocalizedError, LogSafeError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidEndpoint: "L’endpoint TTT est invalide."
-        case .missingAPIKey: "La clé API TTT est manquante."
-        case .invalidHeader: "Le nom de l’en-tête TTT est invalide."
-        case .emptyInput: "La transcription à nettoyer est vide."
-        case .emptyPrompt: "Le prompt TTT est vide."
-        case .invalidResponse: "La réponse TTT est invalide."
-        case .emptyResult: "Le nettoyage TTT a retourné un texte vide."
+        case .invalidEndpoint: "The TTT endpoint is invalid."
+        case .missingAPIKey: "The TTT API key is missing."
+        case .invalidHeader: "The TTT header name is invalid."
+        case .emptyInput: "The transcript to clean up is empty."
+        case .emptyPrompt: "The TTT prompt is empty."
+        case .invalidResponse: "The TTT response is invalid."
+        case .emptyResult: "TTT cleanup returned empty text."
         case .http(let statusCode, let message):
-            if let message { "Erreur TTT (HTTP \(statusCode)) : \(message)" }
-            else { "Erreur TTT (HTTP \(statusCode))." }
+            if let message { "TTT error (HTTP \(statusCode)): \(message)" }
+            else { "TTT error (HTTP \(statusCode))." }
         }
     }
 
     var logMessage: String {
         switch self {
-        case .http(let statusCode, _): "Échec de la requête TTT (HTTP \(statusCode))."
-        default: "Échec du nettoyage TTT."
+        case .http(let statusCode, _): "TTT request failed (HTTP \(statusCode))."
+        default: "TTT cleanup failed."
         }
     }
 }

@@ -1,20 +1,20 @@
-# ADR 0008 — Livraison inter-applications J6
+# ADR 0008 — J6 Cross-Application Text Delivery
 
-Statut : implémenté, validation manuelle des applications cibles en attente
+Status: implemented, awaiting manual target-application validation
 
-## Décision
+## Decision
 
-La livraison est déclenchée par le coordinateur après le STT et le TTT éventuel. Le mode `clipboard` écrit le texte dans `NSPasteboard`. Le mode `paste` demande l'autorisation Accessibilité, inspecte l'élément focalisé et tente de remplacer le texte sélectionné via `kAXSelectedTextAttribute`.
+Delivery is triggered by the coordinator after STT and optional TTT. The `clipboard` mode writes text to `NSPasteboard`. The `paste` mode requests Accessibility permission, inspects the focused element, and tries to replace selected text through `kAXSelectedTextAttribute`.
 
-Les champs `AXSecureTextField` et `AXPasswordField` ne reçoivent jamais de frappe synthétique : le texte est seulement copié. Si l'autorisation manque, si l'élément n'est pas éditable ou si l'insertion AX échoue, Murmure conserve le résultat dans le presse-papiers et utilise `⌘V` uniquement lorsqu'un champ texte non sécurisé est identifié. Chaque résultat est journalisé sans inclure le texte.
+`AXSecureTextField` and `AXPasswordField` fields never receive synthetic keystrokes: text is only copied. If permission is missing, the element is not editable, or AX insertion fails, Murmure keeps the result on the clipboard and uses `⌘V` only when a non-secure text field has been identified. Every result is logged without including the text.
 
-La livraison ne persiste rien et ne remplace pas la transcription en mémoire. Une copie manuelle reste possible via le service de livraison pour les écrans futurs.
+Delivery persists nothing and does not replace the in-memory transcript. Manual copying through the delivery service remains possible for future screens.
 
-## Validation réalisée
+## Completed validation
 
 ```text
 swift build
 swift build -Xswiftc -warnings-as-errors
 ```
 
-La validation finale doit couvrir Notes, Safari, Terminal et un éditeur de code, avec et sans autorisation Accessibilité, ainsi qu'un champ mot de passe.
+Final validation must cover Notes, Safari, Terminal, and a code editor, with and without Accessibility permission, as well as a password field.

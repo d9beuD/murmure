@@ -23,7 +23,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Murmure utilise le microphone pour enregistrer votre dictée.</string>
+	<string>Murmure uses the microphone to record your dictation.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

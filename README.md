@@ -1,104 +1,106 @@
 # Murmure
 
-Murmure est une application macOS de dictée vocale destinée à vivre dans la barre des menus. Elle sera basée sur des endpoints STT et TTT compatibles avec le format OpenAI.
+Murmure is a macOS voice dictation app designed to live in the menu bar. It uses STT and TTT endpoints compatible with the OpenAI API format.
 
-## État du projet
+## Project status
 
-Le jalon J8 fournit une application Swift 6 ciblant macOS 26, avec :
+Milestone J8 provides a Swift 6 app targeting macOS 26, with:
 
-- cible exécutable `Murmure` ;
-- bibliothèque de domaine `MurmureCore` ;
-- interface `MenuBarExtra` et `Settings` ;
-- coordination injectable ;
-- capture audio et livraison presse-papiers héritées du spike J0 ;
-- raccourcis globaux push-to-talk et toggle.
-- réglages STT et TTT éditables depuis la fenêtre SwiftUI Settings ;
-- persistance JSON versionnée dans `UserDefaults` pour les réglages non sensibles ;
-- clés API conservées uniquement dans le Trousseau macOS ;
-- validation locale des endpoints et modèles ;
-- demande d’autorisation microphone ;
-- enregistrement WAV puis envoi multipart vers `/audio/transcriptions` ;
-- parsing des réponses JSON et texte brut, avec erreurs HTTP explicites ;
-- suppression du fichier temporaire après chaque transcription.
-- machine à états protégée contre les sessions obsolètes ;
-- modes push-to-talk et bascule avec debounce ;
-- durée minimale de 250 ms et watchdog de 10 minutes ;
-- annulation sûre pendant l’autorisation microphone ou la transcription ;
-- fenêtre de logs en direct, uniquement en mémoire ;
-- nettoyage optionnel par Responses API ou Chat Completions ;
-- fallback vers la transcription brute en cas d’échec TTT ;
-- livraison automatique dans le presse-papiers ou le champ actif ;
-- insertion Accessibility sécurisée avec repli contrôlé.
-- assistant de premier lancement entièrement en français ;
-- test de connexion STT explicite avec un court enregistrement ;
-- statut et demandes des permissions Microphone et Accessibilité ;
-- lancement optionnel à l’ouverture de session et feedbacks sonores ;
-- aide accessible depuis la barre des menus.
-- transport éphémère qui refuse les redirections inter-origines ;
-- logs d’erreur expurgés des réponses des fournisseurs ;
-- tests de domaine et CI avec avertissements traités comme erreurs ;
-- script de préparation d’une archive signée, notarisable et accompagnée d’un SHA-256.
+- a `Murmure` executable target;
+- a `MurmureCore` domain library;
+- `MenuBarExtra` and `Settings` interfaces;
+- injectable coordination;
+- audio capture and clipboard delivery inherited from the J0 spike;
+- push-to-talk and toggle global shortcuts;
+- STT and TTT settings editable from the SwiftUI Settings window;
+- versioned JSON persistence in `UserDefaults` for non-sensitive settings;
+- API keys stored only in the macOS Keychain;
+- local validation of endpoints and models;
+- microphone permission handling;
+- WAV recording followed by multipart upload to `/audio/transcriptions`;
+- JSON and plain-text response parsing with explicit HTTP errors;
+- temporary-file deletion after every transcription;
+- a state machine protected against stale sessions;
+- push-to-talk and toggle modes with debounce;
+- a minimum duration of 250 ms and a 10-minute watchdog;
+- safe cancellation while requesting microphone access or transcribing;
+- an in-memory live log window;
+- optional cleanup through the Responses API or Chat Completions;
+- fallback to the raw transcript when TTT fails;
+- automatic delivery to the clipboard or active field;
+- safe Accessibility insertion with a controlled fallback;
+- a complete first-launch assistant in English;
+- an explicit STT connection test using a short recording;
+- Microphone and Accessibility permission status and requests;
+- optional launch at login and sound feedback;
+- help available from the menu bar;
+- ephemeral networking that rejects cross-origin redirects;
+- error logs with provider responses redacted;
+- domain tests and CI with warnings treated as errors;
+- a script that prepares a signed, notarizable archive with a SHA-256 checksum.
 
-## Première configuration
+## First-time setup
 
-Au premier lancement, Murmure ouvre un guide qui permet de configurer un
-fournisseur STT, de choisir un raccourci global, de tester la connexion et de
-choisir le mode de sortie. Tous ces réglages restent modifiables depuis
-**Réglages** dans la barre des menus.
+On first launch, Murmure opens a guide for configuring an STT provider, choosing
+a global shortcut, testing the connection, and selecting an output mode. All of
+these settings remain editable from **Settings** in the menu bar.
 
-Le test STT demande le microphone, enregistre une courte phrase, puis envoie
-le fichier audio au fournisseur configuré. Il n’est jamais effectué en arrière-plan.
+The STT test requests microphone access, records a short phrase, then sends the
+audio file to the configured provider. It never runs in the background.
 
-Le mode **Insérer automatiquement** demande l’autorisation Accessibilité. En
-son absence — et pour les champs sécurisés — Murmure copie toujours le résultat
-dans le presse-papiers à la place.
+**Insert Automatically** requires Accessibility permission. Without it—and for
+secure fields—Murmure always copies the result to the clipboard instead.
 
-## Confidentialité
+## Privacy
 
-- Les clés API sont conservées dans le Trousseau macOS, jamais dans
-  `UserDefaults` ni dans les logs.
-- L’audio est créé dans le répertoire temporaire de macOS puis supprimé après
-  chaque transcription, réussite, erreur ou annulation.
-- Murmure n’exploite aucun compte ni serveur propre : l’audio et, si activé, la
-  transcription sont envoyés seulement aux endpoints STT et TTT choisis.
-- La fenêtre Logs ne conserve ses événements qu’en mémoire et n’affiche ni
-  secret, ni audio, ni transcription, ni prompt.
+- API keys are stored in the macOS Keychain, never in `UserDefaults` or logs.
+- Audio is created in the macOS temporary directory and deleted after every
+  transcription, whether it succeeds, fails, or is canceled.
+- Murmure has no accounts or servers of its own: audio and, when enabled, the
+  transcript are sent only to the STT and TTT endpoints you choose.
+- The Logs window keeps events only in memory and displays no secrets, audio,
+  transcripts, or prompts.
 
-## Développement local
+## Local development
 
-Avec Swift 6.3 et un SDK macOS 26 :
+With Swift 6.3 and a macOS 26 SDK:
 
 ```shell
 swift build
 ./Scripts/run-app.sh
 ```
 
-Le script construit un vrai bundle `Murmure.app`, applique `Info.plist`, le signe localement puis le lance avec LaunchServices. Il faut utiliser ce script pour tester l'interface, les fenêtres, les raccourcis et les permissions. `swift run Murmure` ne produit qu'un exécutable brut sans métadonnées d'application macOS et n'est adapté qu'aux diagnostics élémentaires.
+The script builds a real `Murmure.app` bundle, applies `Info.plist`, signs it
+locally, and launches it through LaunchServices. Use this script to test the UI,
+windows, shortcuts, and permissions. `swift run Murmure` produces only a raw
+executable without macOS application metadata and is suitable only for basic
+diagnostics.
 
-Le handler du raccourci global est installé après le démarrage de la boucle d'événements macOS, afin que les raccourcis mémorisés restent actifs après une relance.
+The global-shortcut handler is installed after the macOS event loop starts so
+saved shortcuts remain active after relaunching the app.
 
-Les tests demandent une installation complète de Xcode (les Command Line Tools
-ne fournissent pas XCTest) :
+Tests require a full Xcode installation (the Command Line Tools do not include
+XCTest):
 
 ```shell
 swift test -Xswiftc -warnings-as-errors
 ```
 
-## Démarrage à la connexion
+## Launch at login
 
-L’option est disponible dans **Réglages > Général**. macOS peut demander une
-autorisation ou exiger que l’application soit installée comme un bundle signé ;
-le script de développement n’est pas le mode de distribution final.
+The option is available under **Settings > General**. macOS may request
+permission or require the application to be installed as a signed bundle; the
+development script is not the final distribution method.
 
-## Préparer une release
+## Preparing a release
 
-Sur une machine équipée d’Xcode et d’une identité Developer ID, le script
-`Scripts/release.sh` produit un DMG et son SHA-256. Le workflow GitHub
-**Release** peut être lancé manuellement pour produire un DMG, l’attacher à une
-nouvelle release, le signer puis le notariser avec une Team API Key App Store
-Connect. La procédure détaillée est dans [la checklist de release](docs/RELEASE_CHECKLIST.md).
+On a machine with Xcode and a Developer ID identity, `Scripts/release.sh`
+produces a DMG and its SHA-256 checksum. The GitHub **Release** workflow can be
+run manually to produce a DMG, attach it to a new release, sign it, and notarize
+it with an App Store Connect Team API key. See the detailed
+[release checklist](docs/RELEASE_CHECKLIST.md).
 
-## Licence
+## License
 
-Murmure est distribué sous licence MIT. Voir [LICENSE](LICENSE).
-Les notices des dépendances sont disponibles dans [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Murmure is distributed under the MIT License. See [LICENSE](LICENSE).
+Dependency notices are available in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

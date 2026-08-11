@@ -22,17 +22,17 @@ struct MurmureApp: App {
         }
         .menuBarExtraStyle(.menu)
 
-        Window("Réglages de Murmure", id: "settings") {
+        Window("Murmure Settings", id: "settings") {
             SettingsView(model: model)
         }
         .defaultLaunchBehavior(.suppressed)
 
-        Window("Logs de Murmure", id: "logs") {
+        Window("Murmure Logs", id: "logs") {
             LogsView(logStore: model.logStore)
         }
         .defaultLaunchBehavior(.suppressed)
 
-        Window("Bienvenue dans Murmure", id: "onboarding") {
+        Window("Welcome to Murmure", id: "onboarding") {
             OnboardingView(model: model)
         }
         .defaultLaunchBehavior(.suppressed)

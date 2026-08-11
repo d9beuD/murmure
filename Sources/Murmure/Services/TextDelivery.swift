@@ -44,17 +44,17 @@ final class TextDelivery: TextDelivering {
         ] as CFDictionary
         guard AXIsProcessTrustedWithOptions(trustedOptions) else {
             copy(text)
-            return .fallbackCopied(reason: "autorisation Accessibilité absente")
+            return .fallbackCopied(reason: "Accessibility permission missing")
         }
 
         guard let focusedElement = focusedElement() else {
             copyAndPaste(text)
-            return .fallbackCopied(reason: "champ actif introuvable")
+            return .fallbackCopied(reason: "active field not found")
         }
 
         guard let role = role(of: focusedElement) else {
             copyAndPaste(text)
-            return .fallbackCopied(reason: "rôle du champ actif inconnu")
+            return .fallbackCopied(reason: "unknown active field role")
         }
 
         if role == "AXSecureTextField" || role == "AXPasswordField" {
@@ -65,7 +65,7 @@ final class TextDelivery: TextDelivering {
         let textRoles = ["AXTextField", "AXTextArea", "AXSearchField", "AXComboBox", "AXWebArea"]
         guard textRoles.contains(role) else {
             copy(text)
-            return .fallbackCopied(reason: "champ actif non éditable")
+            return .fallbackCopied(reason: "active field is not editable")
         }
 
         var isSettable = DarwinBoolean(false)
@@ -77,7 +77,7 @@ final class TextDelivery: TextDelivering {
         }
 
         copyAndPaste(text)
-        return .fallbackCopied(reason: "insertion Accessibility refusée")
+        return .fallbackCopied(reason: "Accessibility insertion rejected")
     }
 
     private func focusedElement() -> AXUIElement? {

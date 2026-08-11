@@ -10,8 +10,8 @@ public enum AuthenticationMode: String, CaseIterable, Identifiable, Codable, Sen
     public var title: String {
         switch self {
         case .bearer: "Bearer"
-        case .apiKey: "Clé API"
-        case .none: "Aucune"
+        case .apiKey: "API Key"
+        case .none: "None"
         }
     }
 }
@@ -36,8 +36,8 @@ public enum CleanupFailurePolicy: String, CaseIterable, Identifiable, Codable, S
     public var id: Self { self }
     public var title: String {
         switch self {
-        case .useRawTranscript: "Utiliser la transcription brute"
-        case .stop: "Arrêter avec une erreur"
+        case .useRawTranscript: "Use Raw Transcript"
+        case .stop: "Stop with an Error"
         }
     }
 }
@@ -145,7 +145,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.hasCompletedOnboarding = hasCompletedOnboarding
     }
 
-    public static let defaultCleanupPrompt = "Nettoie la transcription sans en changer le sens. Corrige la ponctuation, les fautes et les hésitations. Retourne uniquement le texte final."
+    public static let defaultCleanupPrompt = "Clean up the transcript without changing its meaning. Correct punctuation, mistakes, and hesitations. Return only the final text."
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, stt, sttLanguage, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompt, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
@@ -177,7 +177,7 @@ public enum OutputMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case clipboard
     case paste
     public var id: Self { self }
-    public var title: String { self == .clipboard ? "Presse-papiers" : "Insérer automatiquement" }
+    public var title: String { self == .clipboard ? "Clipboard" : "Insert Automatically" }
 }
 
 public enum TextDeliveryResult: Equatable, Sendable {
@@ -201,9 +201,9 @@ public enum TriggerMode: String, CaseIterable, Identifiable, Codable, Sendable {
     public var title: String {
         switch self {
         case .pushToTalk:
-            "Maintenir pour parler"
+            "Hold to Talk"
         case .toggle:
-            "Appuyer pour démarrer/arrêter"
+            "Press to Start/Stop"
         }
     }
 
@@ -225,13 +225,13 @@ public enum DictationState: Equatable, Sendable {
     public var title: String {
         switch self {
         case .idle:
-            "Prêt"
+            "Ready"
         case .requestingPermission:
-            "Autorisation microphone…"
+            "Requesting microphone access…"
         case .recording:
-            "Enregistrement…"
+            "Recording…"
         case .transcribing:
-            "Transcription…"
+            "Transcribing…"
         case .error(let message):
             message
         }
@@ -321,7 +321,7 @@ public final class DictationCoordinator {
             guard await self.environment.audioRecorder.requestPermission() else {
                 guard self.activeSessionID == sessionID else { return }
                 self.activeSessionID = nil
-                let message = "Accès au microphone refusé. Autorisez Murmure dans Réglages Système."
+                let message = "Microphone access was denied. Allow Murmure in System Settings."
                 self.environment.logStore.log("Error: \(message)")
                 self.state = .error(message)
                 return
@@ -387,13 +387,13 @@ public final class DictationCoordinator {
         environment.logStore.log("Record ended")
         onRecordingStopped?()
         guard let audioURL = lastAudioURL else {
-            let message = "Aucun fichier audio n’a été produit."
+            let message = "No audio file was produced."
             environment.logStore.log("Error: \(message)")
             state = .error(message)
             return
         }
         guard let sessionID = activeSessionID else {
-            let message = "Session d’enregistrement introuvable."
+            let message = "Recording session not found."
             environment.logStore.log("Error: \(message)")
             state = .error(message)
             return
@@ -412,7 +412,7 @@ public final class DictationCoordinator {
             do {
                 let sizeInBytes = (try? FileManager.default.attributesOfItem(atPath: audioURL.path)[.size] as? NSNumber)?.intValue ?? 0
                 let sizeInKilobytes = Double(sizeInBytes) / 1024
-                let host = configuration.endpointURL?.host ?? "endpoint configuré"
+                let host = configuration.endpointURL?.host ?? "configured endpoint"
                 self.environment.logStore.log(String(format: "Sending %.1f kB to %@", sizeInKilobytes, host))
                 let text = try await self.environment.transcriber.transcribe(
                     audioURL: audioURL,
@@ -425,7 +425,7 @@ public final class DictationCoordinator {
                 self.environment.logStore.log("Received \(text.count) chars transcription")
                 var finalText = text
                 if cleanupEnabled {
-                    let cleanupHost = cleanupConfiguration.endpointURL?.host ?? "endpoint configuré"
+                    let cleanupHost = cleanupConfiguration.endpointURL?.host ?? "configured endpoint"
                     self.environment.logStore.log("Sending transcription to \(cleanupHost)")
                     do {
                         let enhancedText = try await self.environment.cleaner.clean(

@@ -6,32 +6,32 @@ struct ConnectionTestControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Le test enregistre une courte phrase et l’envoie au fournisseur STT configuré.")
+            Text("The test records a short phrase and sends it to the configured STT provider.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             HStack {
                 switch model.connectionTestState {
                 case .recording:
-                    Button("Arrêter et tester") {
+                    Button("Stop and Test") {
                         model.finishSTTConnectionTest()
                     }
-                    .accessibilityHint("Arrête l’enregistrement de test et l’envoie au fournisseur STT.")
+                    .accessibilityHint("Stops the test recording and sends it to the STT provider.")
 
-                    Button("Annuler", role: .cancel) {
+                    Button("Cancel", role: .cancel) {
                         model.cancelSTTConnectionTest()
                     }
                 case .requestingPermission, .testing:
                     ProgressView()
                         .controlSize(.small)
-                    Button("Annuler", role: .cancel) {
+                    Button("Cancel", role: .cancel) {
                         model.cancelSTTConnectionTest()
                     }
                 case .idle, .succeeded, .failed:
-                    Button("Démarrer un test") {
+                    Button("Start a Test") {
                         model.startSTTConnectionTest()
                     }
-                    .accessibilityHint("Demande le microphone puis commence un court enregistrement de test.")
+                    .accessibilityHint("Requests microphone access, then starts a short test recording.")
                 }
             }
 
@@ -42,7 +42,7 @@ struct ConnectionTestControls: View {
             }
             .font(.caption)
             .foregroundStyle(statusColor)
-            .accessibilityLabel("État du test de connexion : \(model.connectionTestState.title)")
+            .accessibilityLabel("Connection test status: \(model.connectionTestState.title)")
         }
     }
 

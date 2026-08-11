@@ -6,7 +6,7 @@ enum KeychainStoreError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unexpectedStatus(let status): "Erreur du Trousseau (\(status))."
+        case .unexpectedStatus(let status): "Keychain error (\(status))."
         }
     }
 }

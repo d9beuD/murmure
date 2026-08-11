@@ -14,7 +14,7 @@ required_variables=(
 
 for variable in "${required_variables[@]}"; do
     if [[ -z "${(P)variable:-}" ]]; then
-        print -u2 "Variable d’environnement requise : $variable"
+        print -u2 "Required environment variable: $variable"
         exit 1
     fi
 done
@@ -44,7 +44,7 @@ security list-keychain -d user -s "$keychain_path" "${original_keychains[@]}"
 
 signing_identity=$(security find-identity -v -p codesigning "$keychain_path" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1)
 if [[ -z "$signing_identity" ]]; then
-    print -u2 "Aucune identité Developer ID Application valide dans le certificat fourni."
+    print -u2 "The supplied certificate contains no valid Developer ID Application identity."
     exit 1
 fi
 
@@ -65,5 +65,5 @@ xcrun stapler staple "$dmg_path"
 xcrun stapler validate "$dmg_path"
 /usr/bin/shasum -a 256 "$dmg_path" > "$checksum_path"
 
-print "DMG notarisé : $dmg_path"
-print "Checksum : $checksum_path"
+print "Notarized DMG: $dmg_path"
+print "Checksum: $checksum_path"

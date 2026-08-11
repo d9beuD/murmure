@@ -1,13 +1,11 @@
 # Changelog
 
-## 0.1.0 — À publier
+## 0.1.0 — Unreleased
 
-- Dictée macOS depuis la barre des menus, avec raccourci maintenir ou bascule.
-- Endpoints STT et TTT configurables, compatibles avec le format OpenAI.
-- Nettoyage facultatif par Responses API ou Chat Completions.
-- Livraison au presse-papiers ou insertion automatique avec protection des
-  champs sécurisés.
-- Guide de démarrage, test STT explicite, permissions et lancement à la
-  connexion.
-- Logs en mémoire, durcissement des redirections réseau et préparation de
-  release signée/notarisée.
+- macOS dictation from the menu bar with push-to-talk or toggle shortcuts.
+- Configurable STT and TTT endpoints compatible with the OpenAI API format.
+- Optional cleanup through the Responses API or Chat Completions.
+- Clipboard delivery or automatic insertion with secure-field protection.
+- Getting-started guide, explicit STT test, permissions, and launch at login.
+- In-memory logs, hardened network redirects, and signed/notarized release
+  preparation.

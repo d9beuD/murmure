@@ -1,37 +1,21 @@
-# ADR 0009 — Onboarding et finition J7
+# ADR 0009 — J7 Onboarding and Polish
 
-Statut : implémenté, validation interactive macOS en attente
+Status: implemented, awaiting interactive macOS validation
 
-## Décision
+## Decision
 
-Un nouvel utilisateur reçoit un assistant SwiftUI en cinq étapes : explication
-des flux de données, configuration STT, test explicite, raccourci global, puis
-sortie et préférences générales. Les installations existantes sont considérées
-comme déjà configurées lors de la migration du schéma 3 vers 4 afin de ne pas
-interrompre leur usage.
+A new user receives a five-step SwiftUI assistant: data-flow explanation, STT configuration, explicit test, global shortcut, then output and general preferences. Existing installations are considered already configured when migrating from schema 3 to 4 so their use is not interrupted.
 
-Le test de connexion n’est jamais implicite : il ouvre le microphone, demande à
-l’utilisateur d’enregistrer une phrase, et réutilise le transport STT normal.
-Le fichier temporaire est supprimé à la fin du test et seul le nombre de
-caractères est affiché ou journalisé.
+The connection test is never implicit: it opens the microphone, asks the user to record a phrase, and reuses the normal STT transport. The temporary file is deleted at the end of the test, and only the character count is displayed or logged.
 
-Les permissions Microphone et Accessibilité sont exposées dans les réglages.
-L’Accessibilité n’est demandée que par action explicite et reste facultative :
-le presse-papiers demeure le repli sûr. Le lancement à la connexion emploie
-`SMAppService.mainApp`; un échec est montré dans les réglages sans modifier la
-préférence persistée.
+Microphone and Accessibility permissions are shown in Settings. Accessibility is requested only through an explicit action and remains optional: the clipboard is the safe fallback. Launch at login uses `SMAppService.mainApp`; a failure is displayed in Settings without changing the persisted preference.
 
-Les sons de début et de fin sont activables et n’incluent aucune donnée de la
-dictée. L’interface et la documentation utilisateur sont en français ; les
-événements de logs existants restent en anglais afin de conserver le format
-demandé pour le diagnostic.
+Start and end sounds can be enabled and contain no dictation data. The interface and user documentation are in English. Log events also remain in English to preserve a consistent diagnostic format.
 
-## Validation réalisée
+## Completed validation
 
 ```text
 swift build -Xswiftc -warnings-as-errors
 ```
 
-La validation manuelle restante couvre l’ouverture automatique du guide sur une
-installation propre, l’inscription au lancement à la connexion depuis un bundle
-signé, les dialogues système de permission, les sons et un test STT réel.
+Remaining manual validation covers the guide opening automatically on a clean installation, launch-at-login registration from a signed bundle, system permission dialogs, sounds, and a real STT test.

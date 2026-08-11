@@ -90,8 +90,8 @@ enum RecorderError: LocalizedError, LogSafeError {
     case couldNotStart
 
     var errorDescription: String? {
-        "Impossible de démarrer l’enregistrement. Vérifiez l’autorisation microphone."
+        "Could not start recording. Check microphone permission."
     }
 
-    var logMessage: String { "Impossible de démarrer l’enregistrement." }
+    var logMessage: String { "Could not start recording." }
 }
