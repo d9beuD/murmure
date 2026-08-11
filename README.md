@@ -4,7 +4,7 @@ Murmure is a macOS voice dictation app designed to live in the menu bar. It uses
 
 ## Project status
 
-Milestone J8 provides a Swift 6 app targeting macOS 26, with:
+Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-complete from source, build, test, and bundle-script evidence, but final menu-bar-only runtime validation requires an interactive Xcode-signed `.app` launch. Some J0 checks still require manual, interactive macOS validation, especially global events, cross-app paste, and sandbox behavior. Current feature set includes:
 
 - a `Murmure` executable target;
 - a `MurmureCore` domain library;

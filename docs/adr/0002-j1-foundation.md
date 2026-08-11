@@ -1,37 +1,39 @@
 # ADR 0002 — J1 Foundation
 
-Status: partially implemented, awaiting Xcode validation
+Status: functionally implemented, awaiting interactive Xcode validation
 
 ## Decision
 
-The J1 foundation uses Swift Package Manager with two targets:
+The J1 foundation is implemented with Swift Package Manager and two production targets:
 
 - `MurmureCore`: domain, states, service protocols, and `DictationCoordinator`;
 - `Murmure`: SwiftUI app, `MenuBarExtra`, `Settings`, and macOS adapters.
 
-This organization allows compilation with the Command Line Tools while maintaining a clear boundary for the future Xcode project. The bundle identifier, entitlements, and signing remain settings for the Xcode target that will be created once Xcode.app is available.
+This organization allows compilation and testing with the repository CI commands while maintaining clear separation between app UI/adapters and core domain logic. Runtime validation still depends on launching an Xcode-capable, signed macOS application bundle.
 
 ## Dependency injection
 
-`AppEnvironment` injects `AudioRecording` and `TextDelivering` into `DictationCoordinator`. The SwiftUI model therefore does not know the details of AVFoundation or CoreGraphics.
+`AppEnvironment` injects services into `DictationCoordinator`. The SwiftUI model therefore does not know the details of AVFoundation, networking, persistence, keychain storage, or text delivery.
 
 ## Metadata
 
-`Configuration/Info.plist` contains the keys required for menu bar presence and the microphone request. It will serve as the basis for the Xcode target.
+`Configuration/Info.plist` contains the keys required for menu bar presence, including `LSUIElement`, and the microphone request. `Sources/Murmure/MurmureApp.swift` provides the `MenuBarExtra` and `Settings` scenes.
 
 ## Shortcut dependency
 
-The package remains pinned to `KeyboardShortcuts` 1.10.0 so it can compile with the Command Line Tools. Recent versions use SwiftUI macro plugins that are unavailable without Xcode. Upgrading to the current version is planned when the Xcode target is created.
+The package remains pinned to `KeyboardShortcuts` 1.10.0. Shortcut handler installation is deferred to the next main-loop pass so saved shortcuts restore after the macOS event dispatcher exists.
 
 ## Completed validation
 
 ```text
 swift build                              ✅
 swift build -Xswiftc -warnings-as-errors ✅
-swift run Murmure                        ✅ graphical launch, stopped manually
+swift test -Xswiftc -warnings-as-errors  ✅
 ```
 
-Validation of permissions, the Dock icon, global events, and cross-application insertion remains manual on a machine with Xcode and a graphical macOS session.
+CI build/test coverage and source evidence cover the SPM target split, dependency injection, `MenuBarExtra`/`Settings`, `LSUIElement`, and warnings-as-errors commands.
+
+Remaining manual validation: launch the Xcode-signed `.app` bundle in a graphical macOS session; confirm menu-bar-only presence/no Dock icon, permissions prompts, global shortcut events, and cross-application insertion.
 
 ## Post-J1 fix — deferred shortcut installation
 
@@ -43,4 +45,4 @@ Validation of permissions, the Dock icon, global events, and cross-application i
 
 ## Consequence
 
-J1 is functionally ready for J2 to begin, but milestone exit validation still depends on installing Xcode.app and generating the signed macOS target.
+J1 is functionally implemented and ready for later milestones. Final exit validation still depends on an interactive run of the Xcode-signed macOS bundle.

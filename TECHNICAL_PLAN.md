@@ -922,7 +922,7 @@ Deliverables:
 - clipboard and insertion test in target applications;
 - documented decision to enable or disable App Sandbox.
 
-Exit criterion: all four system capabilities work on macOS 26 and the distribution strategy is decided.
+Exit criterion: all four system capabilities work on macOS 26 and the distribution strategy is decided. Current J0 code is present, but manual validation of global events, cross-application paste, and the App Sandbox decision remains open.
 
 ### J1 — Repository Foundation
 
@@ -936,7 +936,7 @@ Deliverables:
 - MIT License;
 - build and test CI.
 
-Exit criterion: an empty app starts only in the menu bar and CI is green.
+Exit criterion: the foundation is code-complete when the app/core target split, strict Swift 6 build/test commands, service injection, `MenuBarExtra`/`Settings`, and `LSUIElement` metadata are present and CI is green. Final runtime validation still requires launching an Xcode-signed `.app` bundle and confirming menu-bar-only behavior interactively.
 
 ### J2 — Settings and Secrets
 

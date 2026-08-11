@@ -1,6 +1,6 @@
 # ADR 0001 — J0 Spike Results
 
-Status: in progress
+Status: partially implemented, awaiting interactive macOS validation
 Date: August 5, 2026
 
 ## Context
@@ -19,6 +19,8 @@ The repository initially contained an executable Swift Package named `MurmureSpi
 - an insertion test using a Command-V event;
 - explicit deletion of the latest capture.
 
+Static repository evidence covers menu-bar-only behavior, WAV capture, clipboard access, and insertion code. Runtime validation is still pending for global key-down/key-up events, cross-application paste behavior, and the App Sandbox decision.
+
 The spike uses `AVAudioRecorder` to quickly isolate validation of the format and permissions. The final version may replace this implementation with `AVAudioEngine` without changing the coordinator.
 
 The J0 manifest temporarily pins `KeyboardShortcuts` 1.10.0: versions 2.x/3.x use SwiftUI macros whose plugins are not provided by the Command Line Tools alone. J1 will return to the current version validated with Xcode and update `Package.resolved`.
@@ -27,20 +29,16 @@ The J0 manifest temporarily pins `KeyboardShortcuts` 1.10.0: versions 2.x/3.x us
 
 The current environment provides Swift 6.3.3 and the macOS 26 SDK, but not Xcode.app. The Swift Package can therefore be compiled with `swift build`; interactive validation must be performed with a macOS app launched from Xcode or from an `.app` bundle.
 
-Validate on macOS 26:
+Remaining manual checks on macOS 26:
 
-1. The icon remains in the menu bar only.
-2. The shortcut receives `keyDown` and `keyUp` events when Murmure is not focused.
-3. The microphone requests and retains the expected permission.
-4. The generated file is a 16 kHz, 16-bit, mono PCM WAV.
-5. The clipboard preserves UTF-8 text.
-6. Pasting works in Notes, TextEdit, Terminal, and a code editor.
-7. Missing Accessibility permission does not prevent clipboard mode from working.
-8. App Sandbox is tested with both delivery modes.
+1. Global shortcut receives `keyDown` and `keyUp` events when Murmure is not focused.
+2. Cross-application paste works in Notes, TextEdit, Terminal, and a code editor.
+3. Missing Accessibility permission does not prevent clipboard mode from working.
+4. App Sandbox is tested with both delivery modes.
 
 ## Provisional decision
 
-The App Sandbox decision remains open until item 8 is validated. Direct distribution, Hardened Runtime, and a clipboard fallback remain the backup strategy if full cross-application insertion is incompatible with the sandbox.
+The App Sandbox decision remains open until sandboxed delivery is validated. Direct distribution, Hardened Runtime, and a clipboard fallback remain the backup strategy if global events or cross-application insertion are incompatible with the sandbox.
 
 ## Commands
 
