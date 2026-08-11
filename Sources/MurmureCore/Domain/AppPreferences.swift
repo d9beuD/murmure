@@ -1,6 +1,7 @@
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 4
+    public static let currentSchemaVersion = 5
     public var schemaVersion: Int
+    public var interfaceLanguage: InterfaceLanguage
     public var stt: ProviderConfiguration
     public var sttLanguage: String
     public var sttPrompt: String
@@ -9,6 +10,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var cleanupProvider: ProviderConfiguration
     public var cleanupFormat: CleanupAPIFormat
     public var cleanupPrompt: String
+    public var cleanupPromptMode: CleanupPromptMode
     public var cleanupFailurePolicy: CleanupFailurePolicy
     public var outputMode: OutputMode
     public var launchAtLogin: Bool
@@ -17,14 +19,17 @@ public struct AppPreferences: Codable, Equatable, Sendable {
 
     public init(
         schemaVersion: Int = AppPreferences.currentSchemaVersion,
+        interfaceLanguage: InterfaceLanguage = .automatic,
         stt: ProviderConfiguration = .openAITranscription,
         sttLanguage: String = "", sttPrompt: String = "", triggerMode: TriggerMode = .pushToTalk,
         cleanupEnabled: Bool = true, cleanupProvider: ProviderConfiguration = .openAIResponses,
         cleanupFormat: CleanupAPIFormat = .responses, cleanupPrompt: String = AppPreferences.defaultCleanupPrompt,
+        cleanupPromptMode: CleanupPromptMode = .localizedDefault,
         cleanupFailurePolicy: CleanupFailurePolicy = .useRawTranscript, outputMode: OutputMode = .clipboard,
         launchAtLogin: Bool = false, playFeedbackSounds: Bool = true, hasCompletedOnboarding: Bool = false
     ) {
         self.schemaVersion = schemaVersion
+        self.interfaceLanguage = interfaceLanguage
         self.stt = stt
         self.sttLanguage = sttLanguage
         self.sttPrompt = sttPrompt
@@ -33,6 +38,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.cleanupProvider = cleanupProvider
         self.cleanupFormat = cleanupFormat
         self.cleanupPrompt = cleanupPrompt
+        self.cleanupPromptMode = cleanupPromptMode
         self.cleanupFailurePolicy = cleanupFailurePolicy
         self.outputMode = outputMode
         self.launchAtLogin = launchAtLogin
@@ -43,13 +49,14 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public static let defaultCleanupPrompt = "Clean up the transcript without changing its meaning. Correct punctuation, mistakes, and hesitations. Return only the final text."
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, stt, sttLanguage, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompt, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
+        case schemaVersion, interfaceLanguage, stt, sttLanguage, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let decodedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
         schemaVersion = decodedSchemaVersion
+        interfaceLanguage = try container.decodeIfPresent(InterfaceLanguage.self, forKey: .interfaceLanguage) ?? .automatic
         stt = try container.decodeIfPresent(ProviderConfiguration.self, forKey: .stt) ?? .openAITranscription
         sttLanguage = try container.decodeIfPresent(String.self, forKey: .sttLanguage) ?? ""
         sttPrompt = try container.decodeIfPresent(String.self, forKey: .sttPrompt) ?? ""
@@ -58,10 +65,17 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         cleanupProvider = try container.decodeIfPresent(ProviderConfiguration.self, forKey: .cleanupProvider) ?? .openAIResponses
         cleanupFormat = try container.decodeIfPresent(CleanupAPIFormat.self, forKey: .cleanupFormat) ?? .responses
         cleanupPrompt = try container.decodeIfPresent(String.self, forKey: .cleanupPrompt) ?? Self.defaultCleanupPrompt
+        if let decodedMode = try container.decodeIfPresent(CleanupPromptMode.self, forKey: .cleanupPromptMode) {
+            cleanupPromptMode = decodedMode
+        } else if cleanupPrompt == Self.defaultCleanupPrompt {
+            cleanupPromptMode = .legacyDefaultPendingChoice
+        } else {
+            cleanupPromptMode = .custom
+        }
         cleanupFailurePolicy = try container.decodeIfPresent(CleanupFailurePolicy.self, forKey: .cleanupFailurePolicy) ?? .useRawTranscript
         outputMode = try container.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .clipboard
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         playFeedbackSounds = try container.decodeIfPresent(Bool.self, forKey: .playFeedbackSounds) ?? true
-        hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? (decodedSchemaVersion < Self.currentSchemaVersion)
+        hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? (decodedSchemaVersion < 4)
     }
 }

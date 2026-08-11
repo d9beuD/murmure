@@ -11,9 +11,11 @@ struct OnboardingView: View {
     private let stepCount = 5
 
     var body: some View {
+        let locale = model.interfaceLocale
+
         VStack(alignment: .leading, spacing: 20) {
             ProgressView(value: Double(step + 1), total: Double(stepCount))
-                .accessibilityLabel("Step \(step + 1) of \(stepCount)")
+                .accessibilityLabel(MurmureLocalization.onboardingStep(step + 1, total: stepCount, locale: locale))
 
             Group {
                 switch step {
@@ -28,18 +30,18 @@ struct OnboardingView: View {
 
             HStack {
                 if step > 0 {
-                    Button("Back") { step -= 1 }
+                    Button(MurmureLocalization.text("action.back", defaultValue: "Back", locale: locale)) { step -= 1 }
                 }
                 Spacer()
                 if step < stepCount - 1 {
-                    Button("Next") {
+                    Button(MurmureLocalization.text("action.next", defaultValue: "Next", locale: locale)) {
                         model.savePreferences()
                         step += 1
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(step == 1 && !isSTTConfigurationValid)
                 } else {
-                    Button("Finish") {
+                    Button(MurmureLocalization.text("action.finish", defaultValue: "Finish", locale: locale)) {
                         model.completeOnboarding()
                         dismiss()
                     }
@@ -54,33 +56,41 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Welcome to Murmure", systemImage: "waveform")
+            Label(MurmureLocalization.text("onboarding.welcome.title", defaultValue: "Welcome to Murmure", locale: model.interfaceLocale), systemImage: "waveform")
                 .font(.largeTitle.bold())
-            Text("Murmure records your voice locally, then sends the short audio file to your chosen STT provider. A second provider can then clean up the text if you enable that option.")
-            Text("API keys stay in the macOS Keychain. Temporary audio files are deleted after dictation. Murmure has no servers or user accounts of its own.")
+            Text(MurmureLocalization.text("onboarding.welcome.description", defaultValue: "Murmure records your voice locally, then sends the short audio file to your chosen STT provider. A second provider can then clean up the text if you enable that option.", locale: model.interfaceLocale))
+            Text(MurmureLocalization.text("onboarding.welcome.privacy", defaultValue: "API keys stay in the macOS Keychain. Temporary audio files are deleted after dictation. Murmure has no servers or user accounts of its own.", locale: model.interfaceLocale))
                 .foregroundStyle(.secondary)
-            Label("You can change all of these choices later in Settings.", systemImage: "gear")
+            Label(MurmureLocalization.text("onboarding.welcome.settings_hint", defaultValue: "You can change all of these choices later in Settings.", locale: model.interfaceLocale), systemImage: "gear")
                 .font(.callout)
+            Picker(
+                MurmureLocalization.text("settings.interface_language", defaultValue: "Interface language", locale: model.interfaceLocale),
+                selection: $model.preferences.interfaceLanguage
+            ) {
+                ForEach(InterfaceLanguage.allCases) { language in
+                    Text(language.title(locale: model.interfaceLocale)).tag(language)
+                }
+            }
         }
     }
 
     private var sttConfiguration: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Transcription connection")
+            Text(MurmureLocalization.text("onboarding.transcription.title", defaultValue: "Transcription connection", locale: model.interfaceLocale))
                 .font(.title2.bold())
-            Text("Enter the OpenAI-compatible endpoint and STT model to use.")
+            Text(MurmureLocalization.text("onboarding.transcription.description", defaultValue: "Enter the OpenAI-compatible endpoint and STT model to use.", locale: model.interfaceLocale))
                 .foregroundStyle(.secondary)
-            TextField("Endpoint", text: $model.preferences.stt.baseURL)
-            TextField("Path", text: $model.preferences.stt.path)
-            TextField("Model", text: $model.preferences.stt.model)
-            Picker("Authentication", selection: $model.preferences.stt.authentication) {
-                ForEach(AuthenticationMode.allCases) { Text($0.title).tag($0) }
+            TextField(MurmureLocalization.text("field.endpoint", defaultValue: "Endpoint", locale: model.interfaceLocale), text: $model.preferences.stt.baseURL)
+            TextField(MurmureLocalization.text("field.path", defaultValue: "Path", locale: model.interfaceLocale), text: $model.preferences.stt.path)
+            TextField(MurmureLocalization.text("field.model", defaultValue: "Model", locale: model.interfaceLocale), text: $model.preferences.stt.model)
+            Picker(MurmureLocalization.text("field.authentication", defaultValue: "Authentication", locale: model.interfaceLocale), selection: $model.preferences.stt.authentication) {
+                ForEach(AuthenticationMode.allCases) { Text($0.title(locale: model.interfaceLocale)).tag($0) }
             }
             if model.preferences.stt.authentication != .none {
-                SecureField("API key", text: $model.sttAPIKey)
+                SecureField(MurmureLocalization.text("field.api_key", defaultValue: "API key", locale: model.interfaceLocale), text: $model.sttAPIKey)
             }
             if model.preferences.stt.authentication == .apiKey {
-                TextField("Header name", text: $model.preferences.stt.customHeaderName)
+                TextField(MurmureLocalization.text("field.header_name", defaultValue: "Header name", locale: model.interfaceLocale), text: $model.preferences.stt.customHeaderName)
             }
             if let endpoint = model.preferences.stt.endpointURL {
                 Label(endpoint.absoluteString, systemImage: "link")
@@ -88,7 +98,7 @@ struct OnboardingView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             } else {
-                Label("The endpoint must start with http:// or https://.", systemImage: "exclamationmark.triangle")
+                Label(MurmureLocalization.text("validation.endpoint_scheme", defaultValue: "The endpoint must start with http:// or https://.", locale: model.interfaceLocale), systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -97,13 +107,13 @@ struct OnboardingView: View {
 
     private var connectionTest: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Test the connection")
+            Text(MurmureLocalization.text("onboarding.connection.title", defaultValue: "Test the connection", locale: model.interfaceLocale))
                 .font(.title2.bold())
-            Text("This test is optional: speak a short phrase, then Murmure will send it to your STT provider. The test transcription is not retained.")
+            Text(MurmureLocalization.text("onboarding.connection.description", defaultValue: "This test is optional: speak a short phrase, then Murmure will send it to your STT provider. The test transcription is not retained.", locale: model.interfaceLocale))
                 .foregroundStyle(.secondary)
             ConnectionTestControls(model: model)
             if model.microphonePermission != .granted {
-                Button("Allow Microphone Access") {
+                Button(MurmureLocalization.text("permission.allow_microphone", defaultValue: "Allow Microphone Access", locale: model.interfaceLocale)) {
                     model.requestMicrophonePermission()
                 }
             }
@@ -112,17 +122,17 @@ struct OnboardingView: View {
 
     private var shortcut: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Global shortcut")
+            Text(MurmureLocalization.text("onboarding.shortcut.title", defaultValue: "Global shortcut", locale: model.interfaceLocale))
                 .font(.title2.bold())
-            Text("Choose the shortcut that will trigger Murmure, even when another app is in the foreground.")
+            Text(MurmureLocalization.text("onboarding.shortcut.description", defaultValue: "Choose the shortcut that will trigger Murmure, even when another app is in the foreground.", locale: model.interfaceLocale))
                 .foregroundStyle(.secondary)
-            KeyboardShortcuts.Recorder("Shortcut:", name: .dictation)
-            Picker("Mode", selection: Binding(
+            KeyboardShortcuts.Recorder(MurmureLocalization.text("field.shortcut", defaultValue: "Shortcut:", locale: model.interfaceLocale), name: .dictation)
+            Picker(MurmureLocalization.text("menu.mode", defaultValue: "Mode", locale: model.interfaceLocale), selection: Binding(
                 get: { model.mode },
                 set: { model.setMode($0) }
             )) {
                 ForEach(TriggerMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
+                    Text(mode.title(locale: model.interfaceLocale)).tag(mode)
                 }
             }
         }
@@ -130,25 +140,25 @@ struct OnboardingView: View {
 
     private var delivery: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Delivery and preferences")
+            Text(MurmureLocalization.text("onboarding.delivery.title", defaultValue: "Delivery and preferences", locale: model.interfaceLocale))
                 .font(.title2.bold())
-            Picker("Dictation output", selection: $model.preferences.outputMode) {
-                ForEach(OutputMode.allCases) { Text($0.title).tag($0) }
+            Picker(MurmureLocalization.text("field.dictation_output", defaultValue: "Dictation output", locale: model.interfaceLocale), selection: $model.preferences.outputMode) {
+                ForEach(OutputMode.allCases) { Text($0.title(locale: model.interfaceLocale)).tag($0) }
             }
             if model.preferences.outputMode == .paste {
-                Text("Automatic insertion requires Accessibility permission. Without it, the text will be copied to the clipboard.")
+                Text(MurmureLocalization.text("permission.accessibility_insertion_hint", defaultValue: "Automatic insertion requires Accessibility permission. Without it, the text will be copied to the clipboard.", locale: model.interfaceLocale))
                     .foregroundStyle(.secondary)
                 if model.accessibilityPermission != .granted {
-                    Button("Allow Automatic Insertion") {
+                    Button(MurmureLocalization.text("permission.allow_accessibility", defaultValue: "Allow Automatic Insertion", locale: model.interfaceLocale)) {
                         model.requestAccessibilityPermission()
                     }
                 }
             }
-            Toggle("Launch Murmure at login", isOn: Binding(
+            Toggle(MurmureLocalization.text("settings.launch_at_login", defaultValue: "Launch Murmure at login", locale: model.interfaceLocale), isOn: Binding(
                 get: { model.launchAtLoginEnabled },
                 set: { model.setLaunchAtLogin($0) }
             ))
-            Toggle("Play a sound when dictation starts and ends", isOn: $model.preferences.playFeedbackSounds)
+            Toggle(MurmureLocalization.text("settings.play_feedback", defaultValue: "Play a sound when dictation starts and ends", locale: model.interfaceLocale), isOn: $model.preferences.playFeedbackSounds)
         }
     }
 

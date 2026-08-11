@@ -14,11 +14,11 @@ public enum DictationTiming {
 
 public enum DictationFailure: Equatable, Sendable {
     case microphonePermissionDenied
-    case recordingFailed(message: String)
+    case recordingFailed(message: UserFacingErrorMessage)
     case audioUnavailable
     case sessionUnavailable
-    case transcriptionFailed(message: String)
-    case cleanupFailed(message: String)
+    case transcriptionFailed(message: UserFacingErrorMessage)
+    case cleanupFailed(message: UserFacingErrorMessage)
 }
 
 public enum DictationState: Equatable, Sendable {

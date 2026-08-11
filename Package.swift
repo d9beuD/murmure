@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "Murmure",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v26)
     ],
@@ -37,6 +38,9 @@ let package = Package(
                 "MurmureCore",
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                 .product(name: "Sparkle", package: "Sparkle")
+            ],
+            resources: [
+                .process("Resources")
             ]
         ),
         .testTarget(

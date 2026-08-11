@@ -21,11 +21,38 @@ final class AppModel {
     var sttAPIKey = ""
     var cleanupAPIKey = ""
     var connectionTestState: ConnectionTestState { connectionTest.state }
-    var launchAtLoginError: String?
+    private var launchAtLoginErrorDetail: String?
+    var launchAtLoginError: String? {
+        guard let launchAtLoginErrorDetail else { return nil }
+        let format = MurmureLocalization.text(
+            "error.launch_at_login",
+            defaultValue: "Could not change the launch at login setting: %@",
+            locale: interfaceLocale
+        )
+        return String(format: format, locale: interfaceLocale, arguments: [launchAtLoginErrorDetail])
+    }
     private(set) var permissionsRevision = 0
     var lastAudioURL: URL? { coordinator.lastAudioURL }
 
     var lastTranscript: String? { coordinator.lastTranscript }
+
+    var interfaceLocale: Locale {
+        MurmureLocalization.locale(for: preferences.interfaceLanguage)
+    }
+
+    var cleanupPromptForDisplay: String {
+        switch preferences.cleanupPromptMode {
+        case .localizedDefault:
+            MurmureLocalization.defaultCleanupPrompt(locale: interfaceLocale)
+        case .custom, .legacyDefaultPendingChoice:
+            preferences.cleanupPrompt
+        }
+    }
+
+    var shouldOfferCleanupPromptMigration: Bool {
+        preferences.cleanupPromptMode == .legacyDefaultPendingChoice
+            && interfaceLocale.language.languageCode?.identifier == "fr"
+    }
 
     private var globalShortcutIsDown = false
     private var lastShortcutEventAt: Date?
@@ -138,16 +165,27 @@ final class AppModel {
         do {
             try launchAtLoginService.setEnabled(enabled)
             preferences.launchAtLogin = enabled
-            launchAtLoginError = nil
+            launchAtLoginErrorDetail = nil
             savePreferences()
         } catch {
-            launchAtLoginError = "Could not change the launch at login setting: \(error.localizedDescription)"
+            launchAtLoginErrorDetail = error.localizedDescription
             logStore.log("Error: could not change the launch at login setting.")
         }
     }
 
     func resetCleanupPrompt() {
         preferences.cleanupPrompt = AppPreferences.defaultCleanupPrompt
+        preferences.cleanupPromptMode = .localizedDefault
+        savePreferences()
+    }
+
+    func acceptLocalizedCleanupPrompt() {
+        preferences.cleanupPromptMode = .localizedDefault
+        savePreferences()
+    }
+
+    func keepLegacyCleanupPrompt() {
+        preferences.cleanupPromptMode = .custom
         savePreferences()
     }
 
@@ -221,7 +259,7 @@ final class AppModel {
                 configuration: preferences.cleanupProvider,
                 apiKey: cleanupAPIKey,
                 format: preferences.cleanupFormat,
-                prompt: preferences.cleanupPrompt,
+                prompt: cleanupPromptForDisplay,
                 failurePolicy: preferences.cleanupFailurePolicy
             ) : nil,
             outputMode: preferences.outputMode
@@ -251,11 +289,11 @@ final class AppModel {
     }
 
     func copyTestText() {
-        textDelivery.copy("Murmure — clipboard test")
+        textDelivery.copy(MurmureLocalization.text("test.clipboard", defaultValue: "Murmure — clipboard test", locale: interfaceLocale))
     }
 
     func pasteTestText() {
-        textDelivery.copyAndPaste("Murmure — insertion test")
+        textDelivery.copyAndPaste(MurmureLocalization.text("test.insertion", defaultValue: "Murmure — insertion test", locale: interfaceLocale))
     }
 
     func deleteLastCapture() {

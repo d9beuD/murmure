@@ -76,7 +76,7 @@ public final class DictationCoordinator {
                 guard self.activeSessionID == sessionID else { return }
                 self.activeSessionID = nil
                 self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
-                self.state = .error(.recordingFailed(message: error.localizedDescription))
+                self.state = .error(.recordingFailed(message: userFacingMessage(for: error)))
             }
         }
     }
@@ -166,7 +166,7 @@ public final class DictationCoordinator {
                             self.lastTranscript = text
                             self.activeSessionID = nil
                             self.lastAudioURL = nil
-                            self.state = .error(.cleanupFailed(message: error.localizedDescription))
+                            self.state = .error(.cleanupFailed(message: userFacingMessage(for: error)))
                             return
                         }
                     }
@@ -197,7 +197,7 @@ public final class DictationCoordinator {
                 self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
                 self.activeSessionID = nil
                 self.lastAudioURL = nil
-                self.state = .error(.transcriptionFailed(message: error.localizedDescription))
+                self.state = .error(.transcriptionFailed(message: userFacingMessage(for: error)))
             }
         }
     }

@@ -36,6 +36,24 @@ final class PersistenceAndLoggingTests: XCTestCase {
         XCTAssertFalse(preferences.hasCompletedOnboarding)
     }
 
+    func testLocalizationDefaultsAndLegacyPromptMigration() throws {
+        let fresh = AppPreferences()
+        XCTAssertEqual(fresh.interfaceLanguage, .automatic)
+        XCTAssertEqual(fresh.cleanupPromptMode, .localizedDefault)
+
+        let legacy = try JSONDecoder().decode(
+            AppPreferences.self,
+            from: Data("{\"schemaVersion\":4,\"cleanupPrompt\":\"\(AppPreferences.defaultCleanupPrompt)\"}".utf8)
+        )
+        XCTAssertEqual(legacy.cleanupPromptMode, .legacyDefaultPendingChoice)
+
+        let custom = try JSONDecoder().decode(
+            AppPreferences.self,
+            from: Data("{\"schemaVersion\":4,\"cleanupPrompt\":\"Keep my wording\"}".utf8)
+        )
+        XCTAssertEqual(custom.cleanupPromptMode, .custom)
+    }
+
     func testLegacyPreferencesSkipOnboarding() throws {
         let data = Data("{\"schemaVersion\":3}".utf8)
         let preferences = try JSONDecoder().decode(AppPreferences.self, from: data)

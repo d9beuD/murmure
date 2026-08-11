@@ -9,15 +9,17 @@ struct MenuContent: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Menu("Mode") {
+        let locale = model.interfaceLocale
+
+        Menu(MurmureLocalization.text("menu.mode", defaultValue: "Mode", locale: locale)) {
             ForEach(TriggerMode.allCases) { mode in
                 Button {
                     model.setMode(mode)
                 } label: {
                     if model.mode == mode {
-                        Label(mode.title, systemImage: "checkmark")
+                        Label(mode.title(locale: locale), systemImage: "checkmark")
                     } else {
-                        Text(mode.title)
+                        Text(mode.title(locale: locale))
                     }
                 }
             }
@@ -29,30 +31,30 @@ struct MenuContent: View {
             NSApp.activate(ignoringOtherApps: true)
             openWindow(id: "settings")
         } label: {
-            Label("Settings", systemImage: "gear")
+            Label(MurmureLocalization.text("menu.settings", defaultValue: "Settings", locale: locale), systemImage: "gear")
         }
 
         Button {
             NSApp.activate(ignoringOtherApps: true)
             openWindow(id: "logs")
         } label: {
-            Label("Logs", systemImage: "terminal")
+            Label(MurmureLocalization.text("menu.logs", defaultValue: "Logs", locale: locale), systemImage: "terminal")
         }
 
         Button {
             NSApp.activate(ignoringOtherApps: true)
             openWindow(id: "onboarding")
         } label: {
-            Label("Getting Started", systemImage: "questionmark.circle")
+            Label(MurmureLocalization.text("menu.getting_started", defaultValue: "Getting Started", locale: locale), systemImage: "questionmark.circle")
         }
 
         Divider()
 
-        Button("Check for Updates…") {
+        Button(MurmureLocalization.text("menu.check_for_updates", defaultValue: "Check for Updates…", locale: locale)) {
             updater.checkForUpdates()
         }
 
-        Button("Quit") {
+        Button(MurmureLocalization.text("menu.quit", defaultValue: "Quit", locale: locale)) {
             NSApplication.shared.terminate(nil)
         }
     }

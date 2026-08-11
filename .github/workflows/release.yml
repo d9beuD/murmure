@@ -47,6 +47,7 @@ jobs:
         run: |
           xcodebuild -version
           swift --version
+          xcrun --find xcstringstool
 
       - name: Build and test
         run: |

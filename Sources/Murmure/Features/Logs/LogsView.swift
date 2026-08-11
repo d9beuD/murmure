@@ -3,6 +3,7 @@ import SwiftUI
 
 struct LogsView: View {
     let logStore: AppLogStore
+    @Environment(\.locale) private var locale
 
     var body: some View {
         ZStack {
@@ -30,7 +31,7 @@ struct LogsView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Clear") {
+                Button(MurmureLocalization.text("action.clear", defaultValue: "Clear", locale: locale)) {
                     logStore.clear()
                 }
             }

@@ -5,44 +5,46 @@ struct ConnectionTestControls: View {
     @Bindable var model: AppModel
 
     var body: some View {
+        let locale = model.interfaceLocale
+
         VStack(alignment: .leading, spacing: 8) {
-            Text("The test records a short phrase and sends it to the configured STT provider.")
+            Text(MurmureLocalization.text("connection_test.description", defaultValue: "The test records a short phrase and sends it to the configured STT provider.", locale: locale))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             HStack {
                 switch model.connectionTestState {
                 case .recording:
-                    Button("Stop and Test") {
+                    Button(MurmureLocalization.text("action.stop_and_test", defaultValue: "Stop and Test", locale: locale)) {
                         model.finishSTTConnectionTest()
                     }
-                    .accessibilityHint("Stops the test recording and sends it to the STT provider.")
+                    .accessibilityHint(MurmureLocalization.text("accessibility.stop_and_test", defaultValue: "Stops the test recording and sends it to the STT provider.", locale: locale))
 
-                    Button("Cancel", role: .cancel) {
+                    Button(MurmureLocalization.text("action.cancel", defaultValue: "Cancel", locale: locale), role: .cancel) {
                         model.cancelSTTConnectionTest()
                     }
                 case .requestingPermission, .testing:
                     ProgressView()
                         .controlSize(.small)
-                    Button("Cancel", role: .cancel) {
+                    Button(MurmureLocalization.text("action.cancel", defaultValue: "Cancel", locale: locale), role: .cancel) {
                         model.cancelSTTConnectionTest()
                     }
                 case .idle, .succeeded, .failed:
-                    Button("Start a Test") {
+                    Button(MurmureLocalization.text("action.start_test", defaultValue: "Start a Test", locale: locale)) {
                         model.startSTTConnectionTest()
                     }
-                    .accessibilityHint("Requests microphone access, then starts a short test recording.")
+                    .accessibilityHint(MurmureLocalization.text("accessibility.start_test", defaultValue: "Requests microphone access, then starts a short test recording.", locale: locale))
                 }
             }
 
             Label {
-                Text(model.connectionTestState.title)
+                Text(model.connectionTestState.localizedTitle(locale: locale))
             } icon: {
                 Image(systemName: iconName)
             }
             .font(.caption)
             .foregroundStyle(statusColor)
-            .accessibilityLabel("Connection test status: \(model.connectionTestState.title)")
+            .accessibilityLabel(MurmureLocalization.connectionStatus(model.connectionTestState.localizedTitle(locale: locale), locale: locale))
         }
     }
 

@@ -186,7 +186,7 @@ private struct TextPart: Decodable {
 private struct APIErrorEnvelope: Decodable { let error: APIError }
 private struct APIError: Decodable { let message: String }
 
-enum CleanupError: LocalizedError, LogSafeError {
+enum CleanupError: LocalizedError, LogSafeError, UserFacingErrorProviding {
     case invalidEndpoint
     case missingAPIKey
     case invalidHeader
@@ -215,6 +215,19 @@ enum CleanupError: LocalizedError, LogSafeError {
         switch self {
         case .http(let statusCode, _): "TTT request failed (HTTP \(statusCode))."
         default: "TTT cleanup failed."
+        }
+    }
+
+    var userFacingMessage: UserFacingErrorMessage {
+        switch self {
+        case .invalidEndpoint: .tttInvalidEndpoint
+        case .missingAPIKey: .tttMissingAPIKey
+        case .invalidHeader: .tttInvalidHeader
+        case .emptyInput: .tttEmptyInput
+        case .emptyPrompt: .tttEmptyPrompt
+        case .invalidResponse: .tttInvalidResponse
+        case .emptyResult: .tttEmptyResult
+        case .http(let statusCode, let message): .tttHTTP(statusCode: statusCode, providerMessage: message)
         }
     }
 }
