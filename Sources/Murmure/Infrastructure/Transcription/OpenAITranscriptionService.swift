@@ -89,7 +89,7 @@ private struct TranscriptionResponse: Decodable { let text: String }
 private struct APIErrorEnvelope: Decodable { let error: APIError }
 private struct APIError: Decodable { let message: String }
 
-enum TranscriptionError: LocalizedError, LogSafeError {
+enum TranscriptionError: LocalizedError, LogSafeError, UserFacingErrorProviding {
     case invalidEndpoint
     case invalidHeader
     case missingAPIKey
@@ -116,6 +116,18 @@ enum TranscriptionError: LocalizedError, LogSafeError {
         switch self {
         case .http(let statusCode, _): "STT request failed (HTTP \(statusCode))."
         default: "STT transcription failed."
+        }
+    }
+
+    var userFacingMessage: UserFacingErrorMessage {
+        switch self {
+        case .invalidEndpoint: .sttInvalidEndpoint
+        case .invalidHeader: .sttInvalidHeader
+        case .missingAPIKey: .sttMissingAPIKey
+        case .fileTooLarge: .sttFileTooLarge
+        case .invalidResponse: .sttInvalidResponse
+        case .emptyResult: .sttEmptyResult
+        case .http(let statusCode, let message): .sttHTTP(statusCode: statusCode, providerMessage: message)
         }
     }
 }

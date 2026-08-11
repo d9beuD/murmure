@@ -10,6 +10,13 @@
 	<string>com.d9beuD.Murmure</string>
 	<key>CFBundleName</key>
 	<string>Murmure</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>fr-FR</string>
+	</array>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

@@ -65,11 +65,15 @@ final class AudioRecorder: AudioRecording {
     }
 }
 
-enum RecorderError: LocalizedError, LogSafeError {
+enum RecorderError: LocalizedError, LogSafeError, UserFacingErrorProviding {
     case couldNotStart
 
     var errorDescription: String? {
         "Could not start recording. Check microphone permission."
+    }
+
+    var userFacingMessage: UserFacingErrorMessage {
+        .recordingCouldNotStart
     }
 
     var logMessage: String { "Could not start recording." }

@@ -4,9 +4,9 @@ import Observation
 
 enum ConnectionTestFailure: Equatable {
     case microphonePermissionDenied
-    case recordingFailed(message: String)
+    case recordingFailed(message: UserFacingErrorMessage)
     case insufficientAudio
-    case transcriptionFailed(message: String)
+    case transcriptionFailed(message: UserFacingErrorMessage)
 }
 
 enum ConnectionTestState: Equatable {
@@ -87,7 +87,7 @@ final class ConnectionTestModel {
                 self.onEvent?(.recordingStarted)
             } catch {
                 self.sessionID = nil
-                self.state = .failed(.recordingFailed(message: error.localizedDescription))
+                self.state = .failed(.recordingFailed(message: userFacingMessage(for: error)))
                 self.logger.log("Error: connection test: \(safeLogMessage(for: error))")
                 self.onEvent?(.failed)
             }
@@ -140,7 +140,7 @@ final class ConnectionTestModel {
             } catch {
                 guard self.sessionID == sessionID else { return }
                 self.sessionID = nil
-                self.state = .failed(.transcriptionFailed(message: error.localizedDescription))
+                self.state = .failed(.transcriptionFailed(message: userFacingMessage(for: error)))
                 self.logger.log("Error: connection test: \(safeLogMessage(for: error))")
                 self.onEvent?(.failed)
             }

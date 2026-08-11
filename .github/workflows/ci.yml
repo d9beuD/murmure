@@ -17,6 +17,7 @@ jobs:
         run: |
           xcodebuild -version
           swift --version
+          xcrun --find xcstringstool
 
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors

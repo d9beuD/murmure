@@ -26,6 +26,7 @@ struct MurmureApp: App {
     var body: some Scene {
         MenuBarExtra("Murmure", systemImage: iconName(for: model.state)) {
             MenuContent(model: model, updater: appDelegate.updaterController.updater)
+                .environment(\.locale, model.interfaceLocale)
                 .task {
                     guard model.requiresOnboarding, !didOpenOnboarding else { return }
                     didOpenOnboarding = true
@@ -34,18 +35,30 @@ struct MurmureApp: App {
         }
         .menuBarExtraStyle(.menu)
 
-        Window("Murmure Settings", id: "settings") {
+        Window(
+            MurmureLocalization.text("window.settings", defaultValue: "Murmure Settings", locale: model.interfaceLocale),
+            id: "settings"
+        ) {
             SettingsView(model: model)
+                .environment(\.locale, model.interfaceLocale)
         }
         .defaultLaunchBehavior(.suppressed)
 
-        Window("Murmure Logs", id: "logs") {
+        Window(
+            MurmureLocalization.text("window.logs", defaultValue: "Murmure Logs", locale: model.interfaceLocale),
+            id: "logs"
+        ) {
             LogsView(logStore: model.logStore)
+                .environment(\.locale, model.interfaceLocale)
         }
         .defaultLaunchBehavior(.suppressed)
 
-        Window("Welcome to Murmure", id: "onboarding") {
+        Window(
+            MurmureLocalization.text("window.onboarding", defaultValue: "Welcome to Murmure", locale: model.interfaceLocale),
+            id: "onboarding"
+        ) {
             OnboardingView(model: model)
+                .environment(\.locale, model.interfaceLocale)
         }
         .defaultLaunchBehavior(.suppressed)
     }

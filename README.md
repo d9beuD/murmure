@@ -66,12 +66,17 @@ secure fields—Murmure always copies the result to the clipboard instead.
 
 ## Local development
 
-With Swift 6.3 and a macOS 26 SDK:
+With Xcode 26 (including `xcstringstool`), Swift 6.3, and a macOS 26 SDK:
 
 ```shell
 swift build
 ./Scripts/run-app.sh
 ```
+
+The localization catalogs are compiled while assembling the `.app`, so the
+Command Line Tools alone are not sufficient for launching or releasing the
+localized bundle. Select the full Xcode toolchain with `xcode-select` (or
+`DEVELOPER_DIR`) before running the app scripts.
 
 The script builds a real `Murmure.app` bundle, applies `Info.plist`, signs it
 locally, and launches it through LaunchServices. Use this script to test the UI,
