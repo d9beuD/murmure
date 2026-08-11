@@ -302,13 +302,29 @@ public final class DictationCoordinator {
     private var transcriptionTask: Task<Void, Never>?
     private var recordingWatchdog: Task<Void, Never>?
     private var recordingStartedAt: Date?
+    private let now: () -> Date
+    private let sleep: (Duration) async throws -> Void
 
     public var onRecordingTimeout: (() -> Void)?
     public var onRecordingStarted: (() -> Void)?
     public var onRecordingStopped: (() -> Void)?
 
-    public init(environment: AppEnvironment) {
+    public convenience init(environment: AppEnvironment) {
+        self.init(
+            environment: environment,
+            now: Date.init,
+            sleep: { duration in try await Task.sleep(for: duration) }
+        )
+    }
+
+    package init(
+        environment: AppEnvironment,
+        now: @escaping () -> Date,
+        sleep: @escaping (Duration) async throws -> Void
+    ) {
         self.environment = environment
+        self.now = now
+        self.sleep = sleep
     }
 
     public func startRecording() {
@@ -331,12 +347,13 @@ public final class DictationCoordinator {
                 try self.environment.audioRecorder.start()
                 self.environment.logStore.log("Recording started")
                 self.onRecordingStarted?()
-                self.recordingStartedAt = Date()
+                self.recordingStartedAt = self.now()
                 self.state = .recording
                 self.recordingWatchdog?.cancel()
+                let sleep = self.sleep
                 self.recordingWatchdog = Task { [weak self] in
                     do {
-                        try await Task.sleep(for: .seconds(DictationTiming.maximumRecordingDuration))
+                        try await sleep(.seconds(DictationTiming.maximumRecordingDuration))
                     } catch {
                         return
                     }
@@ -373,7 +390,7 @@ public final class DictationCoordinator {
         guard state == .recording else { return }
         recordingWatchdog?.cancel()
         recordingWatchdog = nil
-        let duration = recordingStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+        let duration = recordingStartedAt.map { now().timeIntervalSince($0) } ?? 0
         recordingStartedAt = nil
         if duration < DictationTiming.minimumRecordingDuration {
             environment.audioRecorder.cancel()

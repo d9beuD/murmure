@@ -22,7 +22,7 @@ jobs:
         run: swift build -Xswiftc -warnings-as-errors
 
       - name: Test
-        run: swift test -Xswiftc -warnings-as-errors
+        run: ./Scripts/check-coverage.sh
 
       - name: Audit repository contents
         run: |

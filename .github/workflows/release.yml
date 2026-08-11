@@ -51,7 +51,7 @@ jobs:
       - name: Build and test
         run: |
           swift build -Xswiftc -warnings-as-errors
-          swift test -Xswiftc -warnings-as-errors
+          ./Scripts/check-coverage.sh
 
       - name: Audit repository contents
         run: |

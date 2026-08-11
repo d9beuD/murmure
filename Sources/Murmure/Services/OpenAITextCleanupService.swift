@@ -2,6 +2,12 @@ import Foundation
 import MurmureCore
 
 final class OpenAITextCleanupService: TextCleaning, @unchecked Sendable {
+    private let transport: any HTTPTransporting
+
+    init(transport: any HTTPTransporting = SafeNetworkSession()) {
+        self.transport = transport
+    }
+
     func clean(
         text: String,
         configuration: ProviderConfiguration,
@@ -39,7 +45,7 @@ final class OpenAITextCleanupService: TextCleaning, @unchecked Sendable {
             ))
         }
 
-        let (data, response) = try await SafeNetworkSession.data(for: request)
+        let (data, response) = try await transport.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw CleanupError.invalidResponse }
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw CleanupError.http(statusCode: httpResponse.statusCode, message: errorMessage(from: data))

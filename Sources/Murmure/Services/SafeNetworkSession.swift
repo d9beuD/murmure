@@ -1,9 +1,13 @@
 import Foundation
 
+protocol HTTPTransporting: Sendable {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse)
+}
+
 /// Ephemeral URLSession that accepts redirects only within the original origin.
 /// Authorization headers are therefore never forwarded to another host.
-enum SafeNetworkSession {
-    static func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+struct SafeNetworkSession: HTTPTransporting {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         let configuration = URLSessionConfiguration.ephemeral
         let delegate = SameOriginRedirectDelegate()
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
@@ -12,7 +16,7 @@ enum SafeNetworkSession {
     }
 }
 
-private final class SameOriginRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+final class SameOriginRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
@@ -23,7 +27,7 @@ private final class SameOriginRedirectDelegate: NSObject, URLSessionTaskDelegate
         guard
             let originalURL = task.originalRequest?.url,
             let redirectedURL = request.url,
-            hasSameOrigin(originalURL, redirectedURL)
+            SameOriginPolicy.allowsRedirect(from: originalURL, to: redirectedURL)
         else {
             completionHandler(nil)
             return
@@ -31,13 +35,16 @@ private final class SameOriginRedirectDelegate: NSObject, URLSessionTaskDelegate
         completionHandler(request)
     }
 
-    private func hasSameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
+}
+
+enum SameOriginPolicy {
+    static func allowsRedirect(from lhs: URL, to rhs: URL) -> Bool {
         lhs.scheme?.lowercased() == rhs.scheme?.lowercased()
             && lhs.host?.lowercased() == rhs.host?.lowercased()
             && effectivePort(for: lhs) == effectivePort(for: rhs)
     }
 
-    private func effectivePort(for url: URL) -> Int? {
+    private static func effectivePort(for url: URL) -> Int? {
         if let port = url.port { return port }
         switch url.scheme?.lowercased() {
         case "https": return 443

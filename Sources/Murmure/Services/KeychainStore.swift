@@ -11,12 +11,77 @@ enum KeychainStoreError: LocalizedError {
     }
 }
 
-final class KeychainStore {
+protocol SecretStoring: AnyObject {
+    func read(profileIDs: [UUID]) throws -> [UUID: String]
+    func save(_ secrets: [UUID: String]) throws
+}
+
+protocol KeychainAccessing: Sendable {
+    func read(service: String, account: String) throws -> Data?
+    func upsert(_ data: Data, service: String, account: String) throws
+    func delete(service: String, account: String) throws
+}
+
+struct SystemKeychainAccess: KeychainAccessing {
+    func read(service: String, account: String) throws -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw KeychainStoreError.unexpectedStatus(status) }
+        return item as? Data
+    }
+
+    func upsert(_ data: Data, service: String, account: String) throws {
+        let query = baseQuery(service: service, account: account)
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var item = query
+            attributes.forEach { item[$0.key] = $0.value }
+            let addStatus = SecItemAdd(item as CFDictionary, nil)
+            guard addStatus == errSecSuccess else { throw KeychainStoreError.unexpectedStatus(addStatus) }
+        } else if status != errSecSuccess {
+            throw KeychainStoreError.unexpectedStatus(status)
+        }
+    }
+
+    func delete(service: String, account: String) throws {
+        let status = SecItemDelete(baseQuery(service: service, account: account) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainStoreError.unexpectedStatus(status)
+        }
+    }
+
+    private func baseQuery(service: String, account: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+    }
+}
+
+final class KeychainStore: SecretStoring {
     private let service: String
     private let secretsAccount = "api-keys"
+    private let access: any KeychainAccessing
 
-    init(service: String = "com.d9beuD.Murmure") {
+    init(
+        service: String = "com.d9beuD.Murmure",
+        access: any KeychainAccessing = SystemKeychainAccess()
+    ) {
         self.service = service
+        self.access = access
     }
 
     func read(profileID: UUID) throws -> String? {
@@ -47,43 +112,18 @@ final class KeychainStore {
         let encodedSecrets = Dictionary(uniqueKeysWithValues: secrets.compactMap { profileID, secret in
             secret.isEmpty ? nil : (profileID.uuidString, secret)
         })
-        let query = secretsQuery()
-
         if encodedSecrets.isEmpty {
-            let status = SecItemDelete(query as CFDictionary)
-            guard status == errSecSuccess || status == errSecItemNotFound else {
-                throw KeychainStoreError.unexpectedStatus(status)
-            }
+            try access.delete(service: service, account: secretsAccount)
             return
         }
 
         let data = try JSONEncoder().encode(encodedSecrets)
-        let attributes: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        ]
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if status == errSecItemNotFound {
-            var item = query
-            attributes.forEach { item[$0.key] = $0.value }
-            let addStatus = SecItemAdd(item as CFDictionary, nil)
-            guard addStatus == errSecSuccess else { throw KeychainStoreError.unexpectedStatus(addStatus) }
-        } else if status != errSecSuccess {
-            throw KeychainStoreError.unexpectedStatus(status)
-        }
+        try access.upsert(data, service: service, account: secretsAccount)
     }
 
     private func readSecretsItem() throws -> [UUID: String]? {
-        let query = secretsQuery().merging([
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]) { _, new in new }
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess else { throw KeychainStoreError.unexpectedStatus(status) }
+        guard let data = try access.read(service: service, account: secretsAccount) else { return nil }
         guard
-            let data = item as? Data,
             let encodedSecrets = try? JSONDecoder().decode([String: String].self, from: data)
         else { return [:] }
 
@@ -98,33 +138,10 @@ final class KeychainStore {
     private func readLegacySecrets(profileIDs: Set<UUID>) throws -> [UUID: String] {
         var secrets: [UUID: String] = [:]
         for profileID in profileIDs {
-            let query = legacyQuery(profileID: profileID).merging([
-                kSecReturnData as String: true,
-                kSecMatchLimit as String: kSecMatchLimitOne
-            ]) { _, new in new }
-            var item: CFTypeRef?
-            let status = SecItemCopyMatching(query as CFDictionary, &item)
-            if status == errSecItemNotFound { continue }
-            guard status == errSecSuccess else { throw KeychainStoreError.unexpectedStatus(status) }
-            guard let data = item as? Data, let secret = String(data: data, encoding: .utf8) else { continue }
+            guard let data = try access.read(service: service, account: profileID.uuidString),
+                  let secret = String(data: data, encoding: .utf8) else { continue }
             secrets[profileID] = secret
         }
         return secrets
-    }
-
-    private func secretsQuery() -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: secretsAccount
-        ]
-    }
-
-    private func legacyQuery(profileID: UUID) -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: profileID.uuidString
-        ]
     }
 }

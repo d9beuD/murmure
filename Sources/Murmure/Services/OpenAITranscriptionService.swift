@@ -2,6 +2,17 @@ import Foundation
 import MurmureCore
 
 final class OpenAITranscriptionService: SpeechTranscribing, @unchecked Sendable {
+    private let transport: any HTTPTransporting
+    private let makeBoundary: @Sendable () -> String
+
+    init(
+        transport: any HTTPTransporting = SafeNetworkSession(),
+        makeBoundary: @escaping @Sendable () -> String = { "Boundary-\(UUID().uuidString)" }
+    ) {
+        self.transport = transport
+        self.makeBoundary = makeBoundary
+    }
+
     func transcribe(
         audioURL: URL,
         configuration: ProviderConfiguration,
@@ -13,7 +24,7 @@ final class OpenAITranscriptionService: SpeechTranscribing, @unchecked Sendable 
         let audioData = try Data(contentsOf: audioURL)
         guard audioData.count <= 25 * 1024 * 1024 else { throw TranscriptionError.fileTooLarge }
 
-        let boundary = "Boundary-\(UUID().uuidString)"
+        let boundary = makeBoundary()
         var body = Data()
         appendField("model", value: configuration.model, to: &body, boundary: boundary)
         if let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -43,7 +54,7 @@ final class OpenAITranscriptionService: SpeechTranscribing, @unchecked Sendable 
             break
         }
 
-        let (data, response) = try await SafeNetworkSession.data(for: request.withHTTPBody(body))
+        let (data, response) = try await transport.data(for: request.withHTTPBody(body))
         guard let httpResponse = response as? HTTPURLResponse else { throw TranscriptionError.invalidResponse }
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw TranscriptionError.http(statusCode: httpResponse.statusCode, message: errorMessage(from: data))

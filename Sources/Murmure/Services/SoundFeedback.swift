@@ -1,15 +1,20 @@
 import AppKit
 
-@MainActor
-final class SoundFeedback {
-    enum Event {
-        case recordingStarted
-        case recordingStopped
-        case connectionTestSucceeded
-        case error
-    }
+enum FeedbackEvent: Equatable {
+    case recordingStarted
+    case recordingStopped
+    case connectionTestSucceeded
+    case error
+}
 
-    func play(_ event: Event) {
+@MainActor
+protocol FeedbackPlaying: AnyObject {
+    func play(_ event: FeedbackEvent)
+}
+
+@MainActor
+final class SoundFeedback: FeedbackPlaying {
+    func play(_ event: FeedbackEvent) {
         let name: NSSound.Name
         switch event {
         case .recordingStarted:

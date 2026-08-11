@@ -3,12 +3,18 @@ import KeyboardShortcuts
 @preconcurrency import MurmureCore
 
 @MainActor
+protocol HotkeyHandling: AnyObject {
+    var onKeyDown: (() -> Void)? { get set }
+    var onKeyUp: (() -> Void)? { get set }
+}
+
+@MainActor
 extension KeyboardShortcuts.Name {
     static let dictation = Self("dictation")
 }
 
 @MainActor
-final class HotkeyService {
+final class HotkeyService: HotkeyHandling {
     var onKeyDown: (() -> Void)?
     var onKeyUp: (() -> Void)?
     private var isInstalled = false

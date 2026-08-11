@@ -42,6 +42,10 @@ let package = Package(
         .testTarget(
             name: "MurmureCoreTests",
             dependencies: ["MurmureCore"]
+        ),
+        .testTarget(
+            name: "MurmureTests",
+            dependencies: ["Murmure", "MurmureCore"]
         )
     ]
 )

@@ -1,5 +1,3 @@
-import ApplicationServices
-import AVFoundation
 import Foundation
 import MurmureCore
 import Observation
@@ -8,14 +6,16 @@ import Observation
 @Observable
 final class AppModel {
     let coordinator: DictationCoordinator
-    let hotkeys: HotkeyService
+    private let hotkeys: any HotkeyHandling
     private let textDelivery: any TextDelivering
     private let preferencesStore: any PreferencesStoring
     private let testAudioRecorder: any AudioRecording
     private let transcriber: any SpeechTranscribing
-    private let launchAtLoginService = LaunchAtLoginService()
-    private let soundFeedback = SoundFeedback()
-    let keychain: KeychainStore
+    private let launchAtLoginService: any LaunchAtLoginControlling
+    private let soundFeedback: any FeedbackPlaying
+    private let permissionProvider: any PermissionProviding
+    private let now: () -> Date
+    private let keychain: any SecretStoring
     let logStore: AppLogStore
 
     private(set) var mode: TriggerMode
@@ -38,16 +38,28 @@ final class AppModel {
     init(
         environment: AppEnvironment,
         preferencesStore: any PreferencesStoring = UserDefaultsPreferencesStore(),
-        keychain: KeychainStore = KeychainStore()
+        keychain: any SecretStoring = KeychainStore(),
+        hotkeys: any HotkeyHandling = HotkeyService(),
+        launchAtLoginService: any LaunchAtLoginControlling = LaunchAtLoginService(),
+        soundFeedback: any FeedbackPlaying = SoundFeedback(),
+        permissionProvider: any PermissionProviding = SystemPermissionProvider(),
+        now: @escaping () -> Date = Date.init,
+        sleep: @escaping (Duration) async throws -> Void = { duration in
+            try await Task.sleep(for: duration)
+        }
     ) {
-        coordinator = DictationCoordinator(environment: environment)
-        hotkeys = HotkeyService()
+        coordinator = DictationCoordinator(environment: environment, now: now, sleep: sleep)
+        self.hotkeys = hotkeys
         textDelivery = environment.textDelivery
         testAudioRecorder = environment.audioRecorder
         transcriber = environment.transcriber
         logStore = environment.logStore
         self.preferencesStore = preferencesStore
         self.keychain = keychain
+        self.launchAtLoginService = launchAtLoginService
+        self.soundFeedback = soundFeedback
+        self.permissionProvider = permissionProvider
+        self.now = now
         let storedPreferences = preferencesStore.preferences
         preferences = storedPreferences
         mode = storedPreferences.triggerMode
@@ -90,17 +102,12 @@ final class AppModel {
 
     var microphonePermission: PermissionStatus {
         _ = permissionsRevision
-        switch AVAudioApplication.shared.recordPermission {
-        case .granted: return .granted
-        case .denied: return .denied
-        case .undetermined: return .notDetermined
-        @unknown default: return .notDetermined
-        }
+        return permissionProvider.microphonePermission
     }
 
     var accessibilityPermission: PermissionStatus {
         _ = permissionsRevision
-        return AXIsProcessTrusted() ? .granted : .notDetermined
+        return permissionProvider.accessibilityPermission
     }
 
     var launchAtLoginEnabled: Bool {
@@ -121,9 +128,7 @@ final class AppModel {
     }
 
     func requestAccessibilityPermission() {
-        AXIsProcessTrustedWithOptions([
-            "AXTrustedCheckOptionPrompt": true
-        ] as CFDictionary)
+        permissionProvider.requestAccessibilityPermission()
         refreshPermissions()
     }
 
@@ -159,7 +164,7 @@ final class AppModel {
 
     func handleKeyDown() {
         guard !globalShortcutIsDown else { return }
-        let now = Date()
+        let now = now()
         if let lastShortcutEventAt, now.timeIntervalSince(lastShortcutEventAt) < DictationTiming.shortcutDebounce {
             return
         }
@@ -244,7 +249,7 @@ final class AppModel {
             }
             do {
                 try self.testAudioRecorder.start()
-                self.connectionTestStartedAt = Date()
+                self.connectionTestStartedAt = self.now()
                 self.connectionTestState = .recording
                 self.logStore.log("Connection test recording started")
                 self.playFeedback(.recordingStarted)
@@ -259,7 +264,7 @@ final class AppModel {
 
     func finishSTTConnectionTest() {
         guard case .recording = connectionTestState, let sessionID = connectionTestSessionID else { return }
-        let duration = connectionTestStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+        let duration = connectionTestStartedAt.map { now().timeIntervalSince($0) } ?? 0
         connectionTestStartedAt = nil
         guard duration >= DictationTiming.minimumRecordingDuration, let audioURL = testAudioRecorder.stop() else {
             testAudioRecorder.cancel()
@@ -340,7 +345,7 @@ final class AppModel {
         }
     }
 
-    private func playFeedback(_ event: SoundFeedback.Event) {
+    private func playFeedback(_ event: FeedbackEvent) {
         guard preferences.playFeedbackSounds else { return }
         soundFeedback.play(event)
     }
