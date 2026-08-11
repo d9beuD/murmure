@@ -1,8 +1,19 @@
+import AppKit
 import SwiftUI
 import MurmureCore
+import Sparkle
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
+}
 
 @main
 struct MurmureApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model: AppModel
     @State private var didOpenOnboarding = false
     @Environment(\.openWindow) private var openWindow
@@ -13,7 +24,7 @@ struct MurmureApp: App {
 
     var body: some Scene {
         MenuBarExtra("Murmure", systemImage: iconName(for: model.state)) {
-            MenuContent(model: model)
+            MenuContent(model: model, updater: appDelegate.updaterController.updater)
                 .task {
                     guard model.requiresOnboarding, !didOpenOnboarding else { return }
                     didOpenOnboarding = true

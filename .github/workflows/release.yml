@@ -7,13 +7,21 @@ on:
         description: Semantic version without the v prefix (for example, 0.1.0)
         required: true
         type: string
+      build_number:
+        description: Monotonic Sparkle build number
+        required: true
+        type: string
+      release_notes:
+        description: Release notes markdown
+        required: true
+        type: string
       prerelease:
         description: Publish as a prerelease
         required: true
         default: false
         type: boolean
       draft:
-        description: Create the release as a draft
+        description: Leave the release as a draft after uploads
         required: true
         default: true
         type: boolean
@@ -26,8 +34,10 @@ jobs:
     runs-on: macos-26
     env:
       MURMURE_VERSION: ${{ inputs.version }}
-      MURMURE_BUILD_NUMBER: ${{ github.run_number }}
+      MURMURE_BUILD_NUMBER: ${{ inputs.build_number }}
       GH_TOKEN: ${{ github.token }}
+      SPARKLE_VERSION: 2.9.5
+      SPARKLE_DISTRIBUTION_SHA256: ${{ secrets.SPARKLE_DISTRIBUTION_SHA256 }}
 
     steps:
       - name: Checkout
@@ -58,6 +68,35 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: ./Scripts/release.sh
 
+      - name: Download Sparkle release tooling
+        run: |
+          sparkle_archive="$RUNNER_TEMP/Sparkle-$SPARKLE_VERSION.tar.xz"
+          curl -L "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz" -o "$sparkle_archive"
+          actual_checksum="$(shasum -a 256 "$sparkle_archive" | cut -d ' ' -f 1)"
+          if [[ "$actual_checksum" != "$SPARKLE_DISTRIBUTION_SHA256" ]]; then
+            echo "Sparkle distribution checksum mismatch"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xJf "$sparkle_archive" -C "$RUNNER_TEMP/sparkle"
+
+      - name: Generate Sparkle appcast
+        env:
+          SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+        run: |
+          artifacts_directory="$GITHUB_WORKSPACE/.build/release-artifacts"
+          private_key_path="$RUNNER_TEMP/sparkle_ed25519_private_key"
+          if [[ -z "$SPARKLE_EDDSA_PRIVATE_KEY" ]]; then
+            echo "Required secret: SPARKLE_EDDSA_PRIVATE_KEY"
+            exit 1
+          fi
+          printf '%s' "$SPARKLE_EDDSA_PRIVATE_KEY" > "$private_key_path"
+          chmod 600 "$private_key_path"
+          "$RUNNER_TEMP/sparkle/bin/generate_appcast" \
+            --ed-key-file "$private_key_path" \
+            --download-url-prefix "https://github.com/d9beuD/murmure/releases/download/v$MURMURE_VERSION/" \
+            "$artifacts_directory"
+
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
@@ -65,12 +104,20 @@ jobs:
           path: |
             .build/release-artifacts/*.dmg
             .build/release-artifacts/*.sha256
+            .build/release-artifacts/appcast.xml
           if-no-files-found: error
 
       - name: Create GitHub release
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
           tag="v$MURMURE_VERSION"
-          release_args=("$tag" ".build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg" ".build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg.sha256" "--title" "Murmure $MURMURE_VERSION" "--generate-notes")
-          [[ "${{ inputs.draft }}" == "true" ]] && release_args+=("--draft")
+          notes_path="$RUNNER_TEMP/release-notes.md"
+          printf '%s\n' "$RELEASE_NOTES" > "$notes_path"
+          release_args=("$tag" ".build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg" ".build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg.sha256" ".build/release-artifacts/appcast.xml" "--title" "Murmure $MURMURE_VERSION" "--notes-file" "$notes_path" "--draft")
           [[ "${{ inputs.prerelease }}" == "true" ]] && release_args+=("--prerelease")
           gh release create "${release_args[@]}"
+
+      - name: Publish GitHub release
+        if: ${{ !inputs.draft }}
+        run: gh release edit "v$MURMURE_VERSION" --draft=false

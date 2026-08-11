@@ -1,9 +1,11 @@
 import AppKit
 import MurmureCore
+import Sparkle
 import SwiftUI
 
 struct MenuContent: View {
     @Bindable var model: AppModel
+    let updater: SPUUpdater
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -42,6 +44,12 @@ struct MenuContent: View {
             openWindow(id: "onboarding")
         } label: {
             Label("Getting Started", systemImage: "questionmark.circle")
+        }
+
+        Divider()
+
+        Button("Check for Updates…") {
+            updater.checkForUpdates()
         }
 
         Button("Quit") {

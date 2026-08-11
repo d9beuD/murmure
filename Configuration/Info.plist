@@ -20,6 +20,10 @@
 	<string>26.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/d9beuD/murmure/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>sRwKdYot+QHIWzJxiyxgiyDynf8TAc8DcPgZfJSe35Q=</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
