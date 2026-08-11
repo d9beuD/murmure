@@ -32,6 +32,21 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
+    func testChangingInterfaceLanguageUpdatesLocaleAndPersistsImmediately() {
+        let context = makeContext(preferences: AppPreferences(interfaceLanguage: .english))
+
+        XCTAssertEqual(context.model.interfaceLocale.identifier, "en")
+        context.model.setInterfaceLanguage(.french)
+
+        XCTAssertEqual(context.model.interfaceLocale.identifier, "fr-FR")
+        XCTAssertEqual(context.preferencesStore.saved.last?.interfaceLanguage, .french)
+
+        context.model.setInterfaceLanguage(.english)
+        XCTAssertEqual(context.model.interfaceLocale.identifier, "en")
+        XCTAssertEqual(context.preferencesStore.saved.last?.interfaceLanguage, .english)
+    }
+
+    @MainActor
     func testOnboardingPromptModeAndStateTitles() {
         var preferences = AppPreferences()
         preferences.cleanupPrompt = "custom"

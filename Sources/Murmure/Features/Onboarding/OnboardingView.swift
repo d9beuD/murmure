@@ -65,7 +65,10 @@ struct OnboardingView: View {
                 .font(.callout)
             Picker(
                 MurmureLocalization.text("settings.interface_language", defaultValue: "Interface language", locale: model.interfaceLocale),
-                selection: $model.preferences.interfaceLanguage
+                selection: Binding(
+                    get: { model.preferences.interfaceLanguage },
+                    set: { model.setInterfaceLanguage($0) }
+                )
             ) {
                 ForEach(InterfaceLanguage.allCases) { language in
                     Text(language.title(locale: model.interfaceLocale)).tag(language)

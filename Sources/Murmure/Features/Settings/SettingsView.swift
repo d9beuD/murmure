@@ -11,7 +11,10 @@ struct SettingsView: View {
 
         Form {
             Section(MurmureLocalization.text("settings.general", defaultValue: "General", locale: locale)) {
-                Picker(MurmureLocalization.text("settings.interface_language", defaultValue: "Interface language", locale: locale), selection: $model.preferences.interfaceLanguage) {
+                Picker(MurmureLocalization.text("settings.interface_language", defaultValue: "Interface language", locale: locale), selection: Binding(
+                    get: { model.preferences.interfaceLanguage },
+                    set: { model.setInterfaceLanguage($0) }
+                )) {
                     ForEach(InterfaceLanguage.allCases) { language in
                         Text(language.title(locale: locale)).tag(language)
                     }

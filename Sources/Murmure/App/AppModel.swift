@@ -18,6 +18,7 @@ final class AppModel {
 
     private(set) var mode: TriggerMode
     var preferences: AppPreferences
+    private(set) var interfaceLanguageRevision = 0
     var sttAPIKey = ""
     var cleanupAPIKey = ""
     var connectionTestState: ConnectionTestState { connectionTest.state }
@@ -37,7 +38,15 @@ final class AppModel {
     var lastTranscript: String? { coordinator.lastTranscript }
 
     var interfaceLocale: Locale {
-        MurmureLocalization.locale(for: preferences.interfaceLanguage)
+        _ = interfaceLanguageRevision
+        return MurmureLocalization.locale(for: preferences.interfaceLanguage)
+    }
+
+    func setInterfaceLanguage(_ language: InterfaceLanguage) {
+        guard preferences.interfaceLanguage != language else { return }
+        preferences.interfaceLanguage = language
+        interfaceLanguageRevision &+= 1
+        savePreferences()
     }
 
     var cleanupPromptForDisplay: String {
