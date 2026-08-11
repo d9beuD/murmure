@@ -84,6 +84,16 @@ windows, shortcuts, and permissions. `swift run Murmure` produces only a raw
 executable without macOS application metadata and is suitable only for basic
 diagnostics.
 
+To assemble and verify the development bundle without opening it, run:
+
+```shell
+MURMURE_SKIP_OPEN=1 ./Scripts/run-app.sh
+./Scripts/verify-app-bundle.sh "$(swift build --show-bin-path)/Murmure.app"
+```
+
+The verification checks that the app contains `Sparkle.framework`, has the
+correct framework search path, and passes code-signature validation.
+
 The global-shortcut handler is installed after the macOS event loop starts so
 saved shortcuts remain active after relaunching the app.
 
