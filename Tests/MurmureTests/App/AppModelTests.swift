@@ -143,6 +143,8 @@ final class AppModelTests: XCTestCase {
 
         XCTAssertEqual(recorder.startCount, 1)
         XCTAssertEqual(recorder.stopCount, 1)
+        XCTAssertEqual(context.listeningIndicator.labels, ["Listening…"])
+        XCTAssertEqual(context.listeningIndicator.hideCount, 1)
     }
 
     @MainActor
@@ -351,6 +353,22 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
+    func testListeningIndicatorFollowsDictationRecordingLifetime() async {
+        let context = makeContext()
+
+        context.model.startRecording()
+        await appWaitUntil("recording") { context.model.state == .recording }
+
+        XCTAssertEqual(context.listeningIndicator.labels, ["Listening…"])
+        XCTAssertEqual(context.listeningIndicator.hideCount, 0)
+
+        context.model.cancelRecording()
+
+        XCTAssertEqual(context.model.state, .idle)
+        XCTAssertEqual(context.listeningIndicator.hideCount, 1)
+    }
+
+    @MainActor
     private func makeContext(
         recorder: any AudioRecording = AppRecorderSpy(),
         transcriber: any SpeechTranscribing = AppTranscriberSpy(),
@@ -373,6 +391,7 @@ final class AppModelTests: XCTestCase {
         let hotkeys = HotkeySpy()
         let launch = LaunchAtLoginSpy()
         let feedback = FeedbackSpy()
+        let listeningIndicator = ListeningIndicatorSpy()
         let clock = AppDate()
         let coordinator = DictationCoordinator(
             dependencies: dependencies,
@@ -395,6 +414,7 @@ final class AppModelTests: XCTestCase {
             hotkeys: hotkeys,
             launchAtLogin: launch,
             feedback: feedback,
+            listeningIndicator: listeningIndicator,
             permissions: permissions,
             logStore: logs,
             now: { clock.value }
@@ -407,6 +427,7 @@ final class AppModelTests: XCTestCase {
             hotkeys: hotkeys,
             launch: launch,
             feedback: feedback,
+            listeningIndicator: listeningIndicator,
             permissions: permissions,
             clock: clock
         )
@@ -422,6 +443,7 @@ private struct AppContext {
     let hotkeys: HotkeySpy
     let launch: LaunchAtLoginSpy
     let feedback: FeedbackSpy
+    let listeningIndicator: ListeningIndicatorSpy
     let permissions: PermissionSpy
     let clock: AppDate
 }

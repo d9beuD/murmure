@@ -11,6 +11,7 @@ struct AppDependencies {
     let hotkeys: any HotkeyHandling
     let launchAtLogin: any LaunchAtLoginControlling
     let feedback: any FeedbackPlaying
+    let listeningIndicator: any ListeningIndicatorPresenting
     let permissions: any PermissionProviding
     let logStore: AppLogStore
     let now: () -> Date

@@ -87,6 +87,12 @@
         "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Prêt" } }
       }
     },
+    "dictation.listening" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Listening…" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Écoute…" } }
+      }
+    },
     "dictation.recording" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Recording…" } },

@@ -184,6 +184,15 @@ final class FeedbackSpy: FeedbackPlaying {
 }
 
 @MainActor
+final class ListeningIndicatorSpy: ListeningIndicatorPresenting {
+    private(set) var labels: [String] = []
+    private(set) var hideCount = 0
+
+    func show(label: String) { labels.append(label) }
+    func hide() { hideCount += 1 }
+}
+
+@MainActor
 final class PermissionSpy: PermissionProviding {
     var microphonePermission: PermissionStatus = .notDetermined
     var accessibilityPermission: PermissionStatus = .notDetermined

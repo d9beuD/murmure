@@ -12,6 +12,7 @@ final class AppModel {
     private let preferencesStore: any PreferencesStoring
     private let launchAtLoginService: any LaunchAtLoginControlling
     private let soundFeedback: any FeedbackPlaying
+    private let listeningIndicator: any ListeningIndicatorPresenting
     private let permissionProvider: any PermissionProviding
     private let keychain: any SecretStoring
     let logStore: AppLogStore
@@ -77,6 +78,7 @@ final class AppModel {
         keychain = dependencies.keychain
         launchAtLoginService = dependencies.launchAtLogin
         soundFeedback = dependencies.feedback
+        listeningIndicator = dependencies.listeningIndicator
         permissionProvider = dependencies.permissions
         now = dependencies.now
         let storedPreferences = preferencesStore.preferences
@@ -94,7 +96,13 @@ final class AppModel {
         }
 
         coordinator.onRecordingStarted = { [weak self] in
-            self?.playFeedback(.recordingStarted)
+            guard let self else { return }
+            self.listeningIndicator.show(label: MurmureLocalization.text(
+                "dictation.listening",
+                defaultValue: "Listening…",
+                locale: self.interfaceLocale
+            ))
+            self.playFeedback(.recordingStarted)
         }
 
         coordinator.onRecordingStopped = { [weak self] in
@@ -164,6 +172,14 @@ final class AppModel {
     func requestAccessibilityPermission() {
         permissionProvider.requestAccessibilityPermission()
         refreshPermissions()
+        Task { [weak self] in
+            for _ in 0..<30 {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self else { return }
+                self.refreshPermissions()
+                if self.accessibilityPermission == .granted { return }
+            }
+        }
     }
 
     func refreshPermissions() {
@@ -257,6 +273,8 @@ final class AppModel {
     }
 
     func stopRecording() {
+        guard state == .recording else { return }
+        listeningIndicator.hide()
         coordinator.stopRecording(request: DictationRequest(
             transcription: TranscriptionRequest(
                 configuration: preferences.stt,
@@ -276,6 +294,7 @@ final class AppModel {
     }
 
     func cancelRecording() {
+        listeningIndicator.hide()
         coordinator.cancelRecording()
     }
 
