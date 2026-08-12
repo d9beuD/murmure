@@ -180,7 +180,7 @@ public final class DictationCoordinator {
                 case .inserted:
                     self.dependencies.logger.log("Inserted transcription in active field")
                 case .fallbackCopied(let reason):
-                    self.dependencies.logger.log("Accessibility unavailable; copied to clipboard (\(reason))")
+                    self.dependencies.logger.log("Automatic insertion unavailable; copied to clipboard (\(reason))")
                 case .secureFieldCopied:
                     self.dependencies.logger.log("Secure field detected; copied to clipboard")
                 }
