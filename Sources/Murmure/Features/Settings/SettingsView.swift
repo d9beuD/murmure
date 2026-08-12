@@ -52,9 +52,6 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
-        .toolbar {
-            DefaultToolbarItem(kind: .sidebarToggle, placement: .navigation)
-        }
         .frame(minWidth: 760, idealWidth: 920, minHeight: 520, idealHeight: 700)
         .onChange(of: model.preferences) { _, _ in model.savePreferences() }
         .onChange(of: model.sttAPIKey) { _, _ in model.savePreferences() }
@@ -264,7 +261,7 @@ private struct CleanupSettingsView: View {
 }
 
 enum PromptDestination: Hashable {
-    case edit(UUID)
+    case edit(UUID, token: UUID)
     case create(UUID)
 }
 
@@ -286,6 +283,10 @@ final class PromptLibraryNavigationState {
     var showResetConfirmation = false
 
     var isDirty: Bool { draft != originalDraft }
+
+    func openPrompt(_ id: UUID) {
+        path.append(.edit(id, token: UUID()))
+    }
 
     func beginEditing(_ id: UUID, model: AppModel) {
         guard draft?.id != id || originalDraft == nil else { return }
@@ -414,9 +415,18 @@ private struct PromptListPage: View {
                     )
                 } else {
                     ForEach(model.preferences.cleanupPrompts) { prompt in
-                        NavigationLink(value: PromptDestination.edit(prompt.id)) {
-                            Label(prompt.name, systemImage: prompt.systemImageName)
+                        Button {
+                            state.openPrompt(prompt.id)
+                        } label: {
+                            HStack {
+                                Label(prompt.name, systemImage: prompt.systemImageName)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
                     }
                 }
             }
@@ -436,6 +446,7 @@ private struct PromptListPage: View {
         }
         .listStyle(.inset)
         .navigationTitle(MurmureLocalization.text("settings.prompts", defaultValue: "Prompts", locale: locale))
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -472,16 +483,16 @@ private struct PromptEditorPage: View {
             : MurmureLocalization.text("prompts.new_title", defaultValue: "New Prompt", locale: locale))
         .navigationBarBackButtonHidden(true)
         .toolbar {
-            ToolbarItemGroup(placement: ToolbarItemPlacement.navigation) {
+            ToolbarItem(placement: ToolbarItemPlacement.navigation) {
                 Button(action: requestBack) {
-                    Label(MurmureLocalization.text("action.back", defaultValue: "Back", locale: locale), systemImage: "chevron.left")
+                    Image(systemName: "chevron.left")
+                        .accessibilityLabel(MurmureLocalization.text("action.back", defaultValue: "Back", locale: locale))
                 }
-                .labelStyle(.iconOnly)
             }
         }
         .onAppear {
             switch destination {
-            case .edit(let id): state.beginEditing(id, model: model)
+            case .edit(let id, _): state.beginEditing(id, model: model)
             case .create(let id): state.beginCreating(id)
             }
         }
