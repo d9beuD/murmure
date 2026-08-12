@@ -3,7 +3,13 @@ import Foundation
 import MurmureCore
 
 @MainActor
-final class AudioRecorder: AudioRecording {
+protocol AudioLevelProviding: AnyObject {
+    func updateMeters()
+    var averagePower: Float { get }
+}
+
+@MainActor
+final class AudioRecorder: AudioRecording, AudioLevelProviding {
     private var recorder: AVAudioRecorder?
     private(set) var currentURL: URL?
 
@@ -32,6 +38,7 @@ final class AudioRecorder: AudioRecording {
 
         let newRecorder = try AVAudioRecorder(url: url, settings: settings)
         newRecorder.prepareToRecord()
+        newRecorder.isMeteringEnabled = true
 
         guard newRecorder.record() else {
             throw RecorderError.couldNotStart
@@ -39,6 +46,14 @@ final class AudioRecorder: AudioRecording {
 
         recorder = newRecorder
         currentURL = url
+    }
+
+    func updateMeters() {
+        recorder?.updateMeters()
+    }
+
+    var averagePower: Float {
+        recorder?.averagePower(forChannel: 0) ?? -160
     }
 
     func stop() -> URL? {

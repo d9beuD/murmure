@@ -109,6 +109,19 @@ final class AppModel {
             self?.playFeedback(.recordingStopped)
         }
 
+        coordinator.onProcessingFinished = { [weak self] in
+            self?.listeningIndicator.hide()
+        }
+
+        coordinator.onTextCleanupStarted = { [weak self] in
+            guard let self else { return }
+            self.listeningIndicator.update(label: MurmureLocalization.text(
+                "dictation.improving",
+                defaultValue: "Improving text…",
+                locale: self.interfaceLocale
+            ))
+        }
+
         connectionTest.onEvent = { [weak self] event in
             switch event {
             case .recordingStarted:
@@ -130,6 +143,10 @@ final class AppModel {
 
         hotkeys.onKeyUp = { [weak self] in
             self?.handleKeyUp()
+        }
+
+        hotkeys.onEscape = { [weak self] in
+            self?.handleEscape()
         }
     }
 
@@ -259,6 +276,15 @@ final class AppModel {
         }
     }
 
+    func handleEscape() {
+        switch state {
+        case .requestingPermission, .recording, .transcribing:
+            cancelRecording()
+        default:
+            break
+        }
+    }
+
     func startRecording() {
         guard connectionTestState.isInactive else { return }
         if isErrorState {
@@ -274,7 +300,6 @@ final class AppModel {
 
     func stopRecording() {
         guard state == .recording else { return }
-        listeningIndicator.hide()
         coordinator.stopRecording(request: DictationRequest(
             transcription: TranscriptionRequest(
                 configuration: preferences.stt,
@@ -291,6 +316,15 @@ final class AppModel {
             ) : nil,
             outputMode: preferences.outputMode
         ))
+        if coordinator.state == .transcribing {
+            listeningIndicator.update(label: MurmureLocalization.text(
+                "dictation.transcribing",
+                defaultValue: "Transcribing…",
+                locale: interfaceLocale
+            ))
+        } else {
+            listeningIndicator.hide()
+        }
     }
 
     func cancelRecording() {

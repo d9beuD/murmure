@@ -111,6 +111,12 @@
         "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Transcription…" } }
       }
     },
+    "dictation.improving" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Improving text…" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Amélioration du texte…" } }
+      }
+    },
     "error.launch_at_login" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not change the launch at login setting: %@" } },

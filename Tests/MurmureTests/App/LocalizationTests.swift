@@ -26,12 +26,20 @@ final class LocalizationTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let strings = try XCTUnwrap(object["strings"] as? [String: Any])
 
-        for key in ["cleanup.default_prompt", "menu.settings", "settings.interface_language", "connection_test.received_characters"] {
+        for key in [
+            "cleanup.default_prompt",
+            "menu.settings",
+            "settings.interface_language",
+            "connection_test.received_characters",
+            "dictation.transcribing",
+            "dictation.improving"
+        ] {
             let entry = try XCTUnwrap(strings[key] as? [String: Any])
             let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
             XCTAssertNotNil(localizations["en"])
             XCTAssertNotNil(localizations["fr-FR"])
         }
+
     }
 
     func testApplicationBundleResourcePathUsesContentsResources() {

@@ -39,7 +39,10 @@ enum CompositionRoot {
             hotkeys: HotkeyService(),
             launchAtLogin: LaunchAtLoginService(),
             feedback: SoundFeedback(),
-            listeningIndicator: ListeningIndicatorController(logger: logStore),
+            listeningIndicator: ListeningIndicatorController(
+                audioLevelProvider: audioRecorder,
+                logger: logStore
+            ),
             permissions: permissions,
             logStore: logStore,
             now: Date.init

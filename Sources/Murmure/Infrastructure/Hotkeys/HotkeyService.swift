@@ -6,17 +6,20 @@ import KeyboardShortcuts
 protocol HotkeyHandling: AnyObject {
     var onKeyDown: (() -> Void)? { get set }
     var onKeyUp: (() -> Void)? { get set }
+    var onEscape: (() -> Void)? { get set }
 }
 
 @MainActor
 extension KeyboardShortcuts.Name {
     static let dictation = Self("dictation")
+    static let cancel = Self("cancel", default: .init(.escape))
 }
 
 @MainActor
 final class HotkeyService: HotkeyHandling {
     var onKeyDown: (() -> Void)?
     var onKeyUp: (() -> Void)?
+    var onEscape: (() -> Void)?
     private var isInstalled = false
 
     init() {
@@ -44,5 +47,11 @@ final class HotkeyService: HotkeyHandling {
                 self?.onKeyUp?()
             }
         }
+        KeyboardShortcuts.onKeyDown(for: .cancel) { [weak self] in
+            Task { @MainActor in
+                self?.onEscape?()
+            }
+        }
     }
+
 }

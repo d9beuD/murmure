@@ -20,6 +20,8 @@ public final class DictationCoordinator {
     public var onRecordingTimeout: (() -> Void)?
     public var onRecordingStarted: (() -> Void)?
     public var onRecordingStopped: (() -> Void)?
+    public var onTextCleanupStarted: (() -> Void)?
+    public var onProcessingFinished: (() -> Void)?
 
     public convenience init(dependencies: DictationDependencies) {
         self.init(
@@ -144,6 +146,7 @@ public final class DictationCoordinator {
                 if let cleanup = request.cleanup {
                     let cleanupHost = cleanup.configuration.endpointURL?.host ?? "configured endpoint"
                     self.dependencies.logger.log("Sending transcription to \(cleanupHost)")
+                    self.onTextCleanupStarted?()
                     do {
                         let enhancedText = try await self.dependencies.cleaner.clean(
                             text: text,
@@ -167,6 +170,7 @@ public final class DictationCoordinator {
                             self.activeSessionID = nil
                             self.lastAudioURL = nil
                             self.state = .error(.cleanupFailed(message: userFacingMessage(for: error)))
+                            self.onProcessingFinished?()
                             return
                         }
                     }
@@ -187,17 +191,20 @@ public final class DictationCoordinator {
                 self.activeSessionID = nil
                 self.lastAudioURL = nil
                 self.state = .idle
+                self.onProcessingFinished?()
             } catch is CancellationError {
                 guard self.activeSessionID == sessionID else { return }
                 self.activeSessionID = nil
                 self.lastAudioURL = nil
                 self.state = .idle
+                self.onProcessingFinished?()
             } catch {
                 guard self.activeSessionID == sessionID else { return }
                 self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
                 self.activeSessionID = nil
                 self.lastAudioURL = nil
                 self.state = .error(.transcriptionFailed(message: userFacingMessage(for: error)))
+                self.onProcessingFinished?()
             }
         }
     }

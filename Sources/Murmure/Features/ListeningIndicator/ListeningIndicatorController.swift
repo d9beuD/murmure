@@ -5,19 +5,31 @@ import SwiftUI
 @MainActor
 protocol ListeningIndicatorPresenting: AnyObject {
     func show(label: String)
+    func update(label: String)
     func hide()
 }
 
 @MainActor
 final class ListeningIndicatorController: ListeningIndicatorPresenting {
-    private static let panelSize = NSSize(width: 128, height: 40)
+    private static let minimumPanelSize = NSSize(width: 128, height: 40)
+    private static let maximumPanelWidth: CGFloat = 320
+    private static let panelHorizontalPadding: CGFloat = 24
+    private static let iconWidth: CGFloat = 24
+    private static let iconSpacing: CGFloat = 8
     private static let anchorSpacing: CGFloat = 8
 
     private let positionProvider: ListeningIndicatorPositionProvider
+    private let audioLevelProvider: any AudioLevelProviding
     private let logger: any LogWriting
     private var panel: NSPanel?
     private var hostingView: NSHostingView<ListeningIndicatorView>?
     private var positionTrackingTask: Task<Void, Never>?
+    private var audioLevelTask: Task<Void, Never>?
+    private var audioLevelSessionID: UUID?
+    private var audioLevelSmoother = ListeningIndicatorAudioLevelSmoother()
+    private var audioLevel: CGFloat = 0
+    private var label = ""
+    private var panelSize = NSSize(width: 128, height: 40)
     private var loggedAnchorSource: ListeningIndicatorAnchor.Source?
     private var lastAnchor: ListeningIndicatorAnchor?
     private var pendingInitialAnchor: ListeningIndicatorAnchor?
@@ -26,15 +38,31 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
 
     init(
         positionProvider: ListeningIndicatorPositionProvider = ListeningIndicatorPositionProvider(),
+        audioLevelProvider: any AudioLevelProviding,
         logger: any LogWriting
     ) {
         self.positionProvider = positionProvider
+        self.audioLevelProvider = audioLevelProvider
         self.logger = logger
     }
 
     func show(label: String) {
-        let panel = makePanelIfNeeded(label: label)
-        hostingView?.rootView = ListeningIndicatorView(label: label)
+        positionTrackingTask?.cancel()
+        audioLevelTask?.cancel()
+        audioLevelTask = nil
+
+        panelSize = Self.panelSize(for: label)
+        let panel = makePanelIfNeeded()
+        panel.setContentSize(panelSize)
+        audioLevelSessionID = UUID()
+        self.label = label
+        audioLevelSmoother.reset()
+        audioLevel = 0
+        hostingView?.rootView = ListeningIndicatorView(
+            label: label,
+            audioLevel: audioLevel,
+            panelWidth: panelSize.width
+        )
         loggedAnchorSource = nil
         lastAnchor = nil
         pendingInitialAnchor = nil
@@ -43,7 +71,6 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
         panel.orderOut(nil)
         updatePosition()
 
-        positionTrackingTask?.cancel()
         positionTrackingTask = Task { [weak self] in
             while !Task.isCancelled {
                 do {
@@ -59,6 +86,11 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
     func hide() {
         positionTrackingTask?.cancel()
         positionTrackingTask = nil
+        audioLevelTask?.cancel()
+        audioLevelTask = nil
+        audioLevelSessionID = nil
+        audioLevelSmoother.reset()
+        audioLevel = 0
         lastAnchor = nil
         pendingInitialAnchor = nil
         unresolvedInitialSampleCount = 0
@@ -66,13 +98,32 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
         panel?.orderOut(nil)
     }
 
-    private func makePanelIfNeeded(label: String) -> NSPanel {
+    func update(label: String) {
+        self.label = label
+        panelSize = Self.panelSize(for: label)
+        panel?.setContentSize(panelSize)
+        audioLevelTask?.cancel()
+        audioLevelTask = nil
+        audioLevelSessionID = nil
+        audioLevelSmoother.reset()
+        audioLevel = 0
+        hostingView?.rootView = ListeningIndicatorView(
+            label: label,
+            audioLevel: 0,
+            panelWidth: panelSize.width
+        )
+        if isPanelVisible {
+            updatePosition()
+        }
+    }
+
+    private func makePanelIfNeeded() -> NSPanel {
         if let panel {
             return panel
         }
 
         let panel = ListeningIndicatorPanel(
-            contentRect: NSRect(origin: .zero, size: Self.panelSize),
+            contentRect: NSRect(origin: .zero, size: panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -91,8 +142,12 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
             .ignoresCycle
         ]
 
-        let hostingView = NSHostingView(rootView: ListeningIndicatorView(label: label))
-        hostingView.frame = NSRect(origin: .zero, size: Self.panelSize)
+        let hostingView = NSHostingView(rootView: ListeningIndicatorView(
+            label: label,
+            audioLevel: 0,
+            panelWidth: panelSize.width
+        ))
+        hostingView.frame = NSRect(origin: .zero, size: panelSize)
         hostingView.autoresizingMask = [.width, .height]
         panel.contentView = hostingView
 
@@ -119,14 +174,14 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
         guard isPanelVisible || initialAnchorIsReady(anchor) else { return }
         let visibleFrame = screen(containing: anchor.point)?.visibleFrame
             ?? NSScreen.main?.visibleFrame
-            ?? NSRect(origin: .zero, size: Self.panelSize)
+            ?? NSRect(origin: .zero, size: panelSize)
 
-        let proposedX = anchor.point.x - (Self.panelSize.width / 2)
+        let proposedX = anchor.point.x - (panelSize.width / 2)
         let aboveY = anchor.point.y + Self.anchorSpacing
-        let belowY = anchor.point.y - Self.anchorSpacing - Self.panelSize.height
-        let proposedY = aboveY + Self.panelSize.height <= visibleFrame.maxY ? aboveY : belowY
-        let maximumX = max(visibleFrame.minX, visibleFrame.maxX - Self.panelSize.width)
-        let maximumY = max(visibleFrame.minY, visibleFrame.maxY - Self.panelSize.height)
+        let belowY = anchor.point.y - Self.anchorSpacing - panelSize.height
+        let proposedY = aboveY + panelSize.height <= visibleFrame.maxY ? aboveY : belowY
+        let maximumX = max(visibleFrame.minX, visibleFrame.maxX - panelSize.width)
+        let maximumY = max(visibleFrame.minY, visibleFrame.maxY - panelSize.height)
         let origin = NSPoint(
             x: min(max(proposedX, visibleFrame.minX), maximumX),
             y: min(max(proposedY, visibleFrame.minY), maximumY)
@@ -136,7 +191,49 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
         if !isPanelVisible {
             isPanelVisible = true
             panel.orderFrontRegardless()
+            if let audioLevelSessionID {
+                startAudioLevelMonitoring(sessionID: audioLevelSessionID)
+            }
         }
+    }
+
+    private func startAudioLevelMonitoring(sessionID: UUID) {
+        guard audioLevelTask == nil else { return }
+
+        audioLevelTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self,
+                      self.isPanelVisible,
+                      self.audioLevelSessionID == sessionID
+                else { return }
+                self.sampleAudioLevel()
+                do {
+                    try await Task.sleep(for: .milliseconds(50))
+                } catch {
+                    return
+                }
+            }
+        }
+    }
+
+    private func sampleAudioLevel() {
+        audioLevelProvider.updateMeters()
+        audioLevel = audioLevelSmoother.update(decibels: audioLevelProvider.averagePower)
+        hostingView?.rootView = ListeningIndicatorView(
+            label: label,
+            audioLevel: audioLevel,
+            panelWidth: panelSize.width
+        )
+    }
+
+    private static func panelSize(for label: String) -> NSSize {
+        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
+        let textWidth = ceil((label as NSString).size(withAttributes: [.font: font]).width)
+        let intrinsicWidth = textWidth + iconWidth + iconSpacing + panelHorizontalPadding
+        return NSSize(
+            width: min(max(minimumPanelSize.width, intrinsicWidth), maximumPanelWidth),
+            height: minimumPanelSize.height
+        )
     }
 
     private func initialAnchorIsReady(_ anchor: ListeningIndicatorAnchor) -> Bool {
@@ -261,17 +358,18 @@ private final class ListeningIndicatorPanel: NSPanel {
 
 private struct ListeningIndicatorView: View {
     let label: String
+    let audioLevel: CGFloat
+    let panelWidth: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isPulsing = false
 
     var body: some View {
         HStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(Color(nsColor: .systemRed).opacity(0.18))
+                    .fill(Color(nsColor: .systemRed).opacity(circleOpacity))
                     .frame(width: 24, height: 24)
-                    .scaleEffect(isPulsing ? 1.12 : 0.82)
+                    .scaleEffect(circleScale)
 
                 Image(systemName: "mic.fill")
                     .font(.callout.weight(.semibold))
@@ -284,29 +382,49 @@ private struct ListeningIndicatorView: View {
                 .lineLimit(1)
         }
         .padding(.horizontal, 12)
-        .frame(width: 128, height: 40)
+        .frame(width: panelWidth, height: 40)
         .background(.regularMaterial, in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
-        .onAppear {
-            updateAnimation()
-        }
-        .onChange(of: reduceMotion) {
-            updateAnimation()
-        }
         .animation(
-            reduceMotion ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-            value: isPulsing
+            reduceMotion ? nil : .easeOut(duration: 0.08),
+            value: audioLevel
         )
     }
 
-    private func updateAnimation() {
-        isPulsing = !reduceMotion
+    private var circleScale: CGFloat {
+        reduceMotion ? 0.82 : 0.82 + (audioLevel * 0.40)
+    }
+
+    private var circleOpacity: Double {
+        0.18 + (Double(audioLevel) * 0.36)
     }
 }
 
-private extension NSRect {
-    var topCenter: NSPoint {
-        NSPoint(x: midX, y: maxY)
+struct ListeningIndicatorAudioLevelSmoother {
+    static let minimumDecibels: Float = -64
+    static let maximumDecibels: Float = -6
+    static let attackCoefficient: CGFloat = 0.65
+    static let releaseCoefficient: CGFloat = 0.25
+
+    private(set) var level: CGFloat = 0
+
+    mutating func update(decibels: Float) -> CGFloat {
+        let target = Self.normalizedLevel(from: decibels)
+        let coefficient = target > level
+            ? Self.attackCoefficient
+            : Self.releaseCoefficient
+        level += (target - level) * coefficient
+        return level
+    }
+
+    mutating func reset() {
+        level = 0
+    }
+
+    static func normalizedLevel(from decibels: Float) -> CGFloat {
+        guard decibels.isFinite else { return 0 }
+        let clamped = min(max(decibels, minimumDecibels), maximumDecibels)
+        return CGFloat((clamped - minimumDecibels) / (maximumDecibels - minimumDecibels))
     }
 }
