@@ -25,6 +25,11 @@ jobs:
       - name: Test
         run: ./Scripts/check-coverage.sh
 
+      - name: Verify app bundle
+        run: |
+          MURMURE_SKIP_OPEN=1 ./Scripts/run-app.sh
+          ./Scripts/verify-app-bundle.sh "$(swift build --show-bin-path)/Murmure.app"
+
       - name: Audit repository contents
         run: |
           ! git ls-files | grep -E '\.(wav|aiff|aif|caf|m4a|mp3|p12|mobileprovision)$'

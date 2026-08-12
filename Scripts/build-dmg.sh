@@ -33,11 +33,21 @@ fi
 
 swift build --package-path "$repository_directory" -c release
 /bin/rm -rf -- "$application_path"
-/bin/mkdir -p "$contents_path/MacOS" "$contents_path/Resources" "$release_directory" "$staging_directory"
+/bin/mkdir -p "$contents_path/MacOS" "$contents_path/Frameworks" "$contents_path/Resources" "$release_directory" "$staging_directory"
 /usr/bin/install -m 755 "$binary_directory/Murmure" "$contents_path/MacOS/Murmure"
 /bin/cp "$repository_directory/Configuration/Info.plist" "$contents_path/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$contents_path/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$contents_path/Info.plist"
+
+sparkle_framework="$binary_directory/Sparkle.framework"
+if [[ ! -d "$sparkle_framework" ]]; then
+    print -u2 "Missing Sparkle framework: $sparkle_framework"
+    exit 1
+fi
+/usr/bin/ditto "$sparkle_framework" "$contents_path/Frameworks/Sparkle.framework"
+/usr/bin/install_name_tool \
+    -add_rpath "@executable_path/../Frameworks" \
+    "$contents_path/MacOS/Murmure"
 
 if ! xcstringstool_path=$(/usr/bin/xcrun --find xcstringstool 2>/dev/null); then
     print -u2 "A full Xcode installation is required to compile Murmure localization catalogs."
@@ -80,6 +90,7 @@ else
     /usr/bin/codesign --force --deep --options runtime --timestamp --sign "$signing_identity" "$application_path"
 fi
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$application_path"
+"$repository_directory/Scripts/verify-app-bundle.sh" "$application_path"
 
 /bin/mv "$application_path" "$staging_directory/Murmure.app"
 /bin/ln -s /Applications "$staging_directory/Applications"
