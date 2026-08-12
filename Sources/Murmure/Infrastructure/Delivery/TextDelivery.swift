@@ -1,10 +1,19 @@
 import AppKit
-import CoreGraphics
 import MurmureCore
-import ApplicationServices
 
 @MainActor
 final class TextDelivery: TextDelivering {
+    private let resolver: FocusedTextElementResolver
+    private let pasteEventPoster: any PasteEventPosting
+
+    init(
+        resolver: FocusedTextElementResolver = .shared,
+        pasteEventPoster: any PasteEventPosting = SystemPasteEventPoster()
+    ) {
+        self.resolver = resolver
+        self.pasteEventPoster = pasteEventPoster
+    }
+
     func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
@@ -12,25 +21,7 @@ final class TextDelivery: TextDelivering {
 
     func copyAndPaste(_ text: String) {
         copy(text)
-
-        guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
-
-        let keyCodeV: CGKeyCode = 9
-        let keyDown = CGEvent(
-            keyboardEventSource: source,
-            virtualKey: keyCodeV,
-            keyDown: true
-        )
-        let keyUp = CGEvent(
-            keyboardEventSource: source,
-            virtualKey: keyCodeV,
-            keyDown: false
-        )
-
-        keyDown?.flags = .maskCommand
-        keyUp?.flags = .maskCommand
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
+        _ = pasteEventPoster.postPaste()
     }
 
     func deliver(_ text: String, mode: OutputMode) -> TextDeliveryResult {
@@ -39,63 +30,28 @@ final class TextDelivery: TextDelivering {
             return .copied
         }
 
-        let trustedOptions = [
-            "AXTrustedCheckOptionPrompt": true
-        ] as CFDictionary
-        guard AXIsProcessTrustedWithOptions(trustedOptions) else {
+        guard resolver.client.isTrusted() else {
             copy(text)
             return .fallbackCopied(reason: "Accessibility permission missing")
         }
 
-        guard let focusedElement = focusedElement() else {
-            copyAndPaste(text)
-            return .fallbackCopied(reason: "active field not found")
-        }
-
-        guard let role = role(of: focusedElement) else {
-            copyAndPaste(text)
-            return .fallbackCopied(reason: "unknown active field role")
-        }
-
-        if role == "AXSecureTextField" || role == "AXPasswordField" {
+        let focusedTextElement = resolver.resolve()
+        if let focusedTextElement, focusedTextElement.isSecure {
             copy(text)
             return .secureFieldCopied
         }
 
-        let textRoles = ["AXTextField", "AXTextArea", "AXSearchField", "AXComboBox", "AXWebArea"]
-        guard textRoles.contains(role) else {
-            copy(text)
-            return .fallbackCopied(reason: "active field is not editable")
-        }
-
-        var isSettable = DarwinBoolean(false)
-        let selectedTextAttribute = kAXSelectedTextAttribute as CFString
-        AXUIElementIsAttributeSettable(focusedElement, selectedTextAttribute, &isSettable)
-        if isSettable.boolValue,
-           AXUIElementSetAttributeValue(focusedElement, selectedTextAttribute, text as CFTypeRef) == .success {
+        if let focusedTextElement,
+           focusedTextElement.isEditable,
+           !focusedTextElement.isWebEditor,
+           resolver.client.replaceSelectedText(text, in: focusedTextElement.element) {
             return .inserted
         }
 
-        copyAndPaste(text)
-        return .fallbackCopied(reason: "Accessibility insertion rejected")
-    }
-
-    private func focusedElement() -> AXUIElement? {
-        let systemWideElement = AXUIElementCreateSystemWide()
-        var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(
-            systemWideElement,
-            kAXFocusedUIElementAttribute as CFString,
-            &value
-        )
-        guard result == .success, let value else { return nil }
-        return unsafeDowncast(value, to: AXUIElement.self)
-    }
-
-    private func role(of element: AXUIElement) -> String? {
-        var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &value)
-        guard result == .success else { return nil }
-        return value as? String
+        copy(text)
+        guard pasteEventPoster.postPaste() else {
+            return .fallbackCopied(reason: "paste event could not be posted")
+        }
+        return .inserted
     }
 }

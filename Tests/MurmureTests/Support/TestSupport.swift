@@ -97,6 +97,27 @@ actor AppControlledTranscriber: SpeechTranscribing {
     }
 }
 
+actor AppControlledCleaner: TextCleaning {
+    private var continuation: CheckedContinuation<String, Never>?
+    private(set) var callCount = 0
+
+    func clean(
+        text: String,
+        configuration: ProviderConfiguration,
+        apiKey: String,
+        format: CleanupAPIFormat,
+        prompt: String
+    ) async throws -> String {
+        callCount += 1
+        return await withCheckedContinuation { continuation = $0 }
+    }
+
+    func succeed(with text: String) {
+        continuation?.resume(returning: text)
+        continuation = nil
+    }
+}
+
 struct AppCleanerStub: TextCleaning {
     func clean(
         text: String,
@@ -162,6 +183,7 @@ final class SecretStoreSpy: SecretStoring {
 final class HotkeySpy: HotkeyHandling {
     var onKeyDown: (() -> Void)?
     var onKeyUp: (() -> Void)?
+    var onEscape: (() -> Void)?
 }
 
 @MainActor
@@ -181,6 +203,17 @@ final class LaunchAtLoginSpy: LaunchAtLoginControlling {
 final class FeedbackSpy: FeedbackPlaying {
     private(set) var events: [FeedbackEvent] = []
     func play(_ event: FeedbackEvent) { events.append(event) }
+}
+
+@MainActor
+final class ListeningIndicatorSpy: ListeningIndicatorPresenting {
+    private(set) var labels: [String] = []
+    private(set) var updatedLabels: [String] = []
+    private(set) var hideCount = 0
+
+    func show(label: String) { labels.append(label) }
+    func update(label: String) { updatedLabels.append(label) }
+    func hide() { hideCount += 1 }
 }
 
 @MainActor
