@@ -52,9 +52,6 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
-        .toolbar {
-            DefaultToolbarItem(kind: .sidebarToggle, placement: .navigation)
-        }
         .frame(minWidth: 760, idealWidth: 920, minHeight: 520, idealHeight: 700)
         .onChange(of: model.preferences) { _, _ in model.savePreferences() }
         .onChange(of: model.sttAPIKey) { _, _ in model.savePreferences() }
@@ -475,9 +472,9 @@ private struct PromptEditorPage: View {
         .toolbar {
             ToolbarItem(placement: ToolbarItemPlacement.navigation) {
                 Button(action: requestBack) {
-                    Label(MurmureLocalization.text("action.back", defaultValue: "Back", locale: locale), systemImage: "chevron.left")
+                    Image(systemName: "chevron.left")
+                        .accessibilityLabel(MurmureLocalization.text("action.back", defaultValue: "Back", locale: locale))
                 }
-                .labelStyle(.iconOnly)
             }
         }
         .onAppear {
