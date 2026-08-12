@@ -436,6 +436,7 @@ private struct PromptListPage: View {
         }
         .listStyle(.inset)
         .navigationTitle(MurmureLocalization.text("settings.prompts", defaultValue: "Prompts", locale: locale))
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -472,7 +473,7 @@ private struct PromptEditorPage: View {
             : MurmureLocalization.text("prompts.new_title", defaultValue: "New Prompt", locale: locale))
         .navigationBarBackButtonHidden(true)
         .toolbar {
-            ToolbarItemGroup(placement: ToolbarItemPlacement.navigation) {
+            ToolbarItem(placement: ToolbarItemPlacement.navigation) {
                 Button(action: requestBack) {
                     Label(MurmureLocalization.text("action.back", defaultValue: "Back", locale: locale), systemImage: "chevron.left")
                 }

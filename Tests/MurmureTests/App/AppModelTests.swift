@@ -48,7 +48,7 @@ final class AppModelTests: XCTestCase {
 
     @MainActor
     func testOnboardingPromptModeAndStateTitles() {
-        var preferences = AppPreferences()
+        var preferences = AppPreferences(interfaceLanguage: .english)
         preferences.cleanupPrompt = "custom"
         let context = makeContext(preferences: preferences)
 
@@ -432,6 +432,7 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(state.showUnsavedConfirmation)
     }
 
+    @MainActor
     func testListeningIndicatorFollowsDictationRecordingLifetime() async {
         let context = makeContext()
 
@@ -505,14 +506,13 @@ final class AppModelTests: XCTestCase {
         await Task.yield()
         XCTAssertTrue(context.delivery.delivered.isEmpty)
     }
-    }
 
     @MainActor
     private func makeContext(
         recorder: any AudioRecording = AppRecorderSpy(),
         transcriber: any SpeechTranscribing = AppTranscriberSpy(),
         cleaner: any TextCleaning = AppCleanerStub(),
-        preferences: AppPreferences = AppPreferences(),
+        preferences: AppPreferences = AppPreferences(interfaceLanguage: .english),
         secrets: [UUID: String] = [:],
         permissions: PermissionSpy = PermissionSpy()
     ) -> AppContext {
