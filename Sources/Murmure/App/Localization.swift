@@ -36,17 +36,48 @@ enum MurmureLocalization {
     }
 
     private static func bundle(for locale: Locale) -> Bundle {
+        let resourceBundle = resourceBundle()
         let identifier = locale.identifier.replacingOccurrences(of: "_", with: "-")
-        if let path = Bundle.module.path(forResource: identifier, ofType: "lproj"),
+        if let path = resourceBundle.path(forResource: identifier, ofType: "lproj"),
            let localizedBundle = Bundle(path: path) {
             return localizedBundle
         }
         if let languageCode = locale.language.languageCode?.identifier,
-           let path = Bundle.module.path(forResource: languageCode, ofType: "lproj"),
+           let path = resourceBundle.path(forResource: languageCode, ofType: "lproj"),
            let localizedBundle = Bundle(path: path) {
             return localizedBundle
         }
+        return resourceBundle
+    }
+
+    private static func resourceBundle() -> Bundle {
+        if let applicationResourceBundle {
+            return applicationResourceBundle
+        }
         return Bundle.module
+    }
+
+    private static var applicationResourceBundle: Bundle? {
+        guard Bundle.main.bundleURL.pathExtension == "app" else { return nil }
+
+        guard let resourceURL = Bundle.main.resourceURL else {
+            preconditionFailure("Murmure application has no Contents/Resources directory.")
+        }
+        guard let bundleURL = applicationResourceBundleURL(
+            bundleURL: Bundle.main.bundleURL,
+            resourceURL: resourceURL
+        ) else {
+            preconditionFailure("Murmure application has no localization resource path.")
+        }
+        guard let bundle = Bundle(url: bundleURL) else {
+            preconditionFailure("Murmure localization bundle is missing at \(bundleURL.path).")
+        }
+        return bundle
+    }
+
+    static func applicationResourceBundleURL(bundleURL: URL, resourceURL: URL?) -> URL? {
+        guard bundleURL.pathExtension == "app", let resourceURL else { return nil }
+        return resourceURL.appendingPathComponent("Murmure_Murmure.bundle", isDirectory: true)
     }
 
     static func characterCount(_ count: Int, locale: Locale) -> String {

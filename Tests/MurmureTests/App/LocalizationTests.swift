@@ -34,6 +34,22 @@ final class LocalizationTests: XCTestCase {
         }
     }
 
+    func testApplicationBundleResourcePathUsesContentsResources() {
+        let appURL = URL(fileURLWithPath: "/tmp/Murmure.app")
+        let resourcesURL = appURL.appendingPathComponent("Contents/Resources", isDirectory: true)
+
+        XCTAssertEqual(
+            MurmureLocalization.applicationResourceBundleURL(bundleURL: appURL, resourceURL: resourcesURL),
+            resourcesURL.appendingPathComponent("Murmure_Murmure.bundle", isDirectory: true)
+        )
+        XCTAssertNil(
+            MurmureLocalization.applicationResourceBundleURL(
+                bundleURL: URL(fileURLWithPath: "/tmp/Murmure_Murmure.bundle"),
+                resourceURL: resourcesURL
+            )
+        )
+    }
+
     func testUserFacingErrorKeepsProviderDetails() {
         let message = UserFacingErrorMessage.sttHTTP(statusCode: 503, providerMessage: "Provider unavailable")
         XCTAssertEqual(message.localizedText(locale: Locale(identifier: "en")), "STT error (HTTP 503).: Provider unavailable")
