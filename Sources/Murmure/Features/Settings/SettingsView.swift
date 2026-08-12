@@ -261,7 +261,7 @@ private struct CleanupSettingsView: View {
 }
 
 enum PromptDestination: Hashable {
-    case edit(UUID)
+    case edit(UUID, token: UUID)
     case create(UUID)
 }
 
@@ -283,6 +283,10 @@ final class PromptLibraryNavigationState {
     var showResetConfirmation = false
 
     var isDirty: Bool { draft != originalDraft }
+
+    func openPrompt(_ id: UUID) {
+        path.append(.edit(id, token: UUID()))
+    }
 
     func beginEditing(_ id: UUID, model: AppModel) {
         guard draft?.id != id || originalDraft == nil else { return }
@@ -411,9 +415,18 @@ private struct PromptListPage: View {
                     )
                 } else {
                     ForEach(model.preferences.cleanupPrompts) { prompt in
-                        NavigationLink(value: PromptDestination.edit(prompt.id)) {
-                            Label(prompt.name, systemImage: prompt.systemImageName)
+                        Button {
+                            state.openPrompt(prompt.id)
+                        } label: {
+                            HStack {
+                                Label(prompt.name, systemImage: prompt.systemImageName)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
                     }
                 }
             }
@@ -479,7 +492,7 @@ private struct PromptEditorPage: View {
         }
         .onAppear {
             switch destination {
-            case .edit(let id): state.beginEditing(id, model: model)
+            case .edit(let id, _): state.beginEditing(id, model: model)
             case .create(let id): state.beginCreating(id)
             }
         }

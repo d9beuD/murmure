@@ -419,7 +419,11 @@ final class AppModelTests: XCTestCase {
         let id = context.model.preferences.cleanupPrompts[0].id
 
         state.beginEditing(id, model: context.model)
-        state.path = [.edit(id)]
+        state.openPrompt(id)
+        let firstDestination = state.path.last
+        state.path.removeLast()
+        state.openPrompt(id)
+        XCTAssertNotEqual(state.path.last, firstDestination)
         state.pendingAction = .back
         state.showUnsavedConfirmation = true
 
