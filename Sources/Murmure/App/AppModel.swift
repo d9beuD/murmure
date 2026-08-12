@@ -12,6 +12,7 @@ final class AppModel {
     private let preferencesStore: any PreferencesStoring
     private let launchAtLoginService: any LaunchAtLoginControlling
     private let soundFeedback: any FeedbackPlaying
+    private let listeningIndicator: any ListeningIndicatorPresenting
     private let permissionProvider: any PermissionProviding
     private let keychain: any SecretStoring
     let logStore: AppLogStore
@@ -80,6 +81,7 @@ final class AppModel {
         keychain = dependencies.keychain
         launchAtLoginService = dependencies.launchAtLogin
         soundFeedback = dependencies.feedback
+        listeningIndicator = dependencies.listeningIndicator
         permissionProvider = dependencies.permissions
         now = dependencies.now
         let storedPreferences = preferencesStore.preferences
@@ -112,11 +114,30 @@ final class AppModel {
         }
 
         coordinator.onRecordingStarted = { [weak self] in
-            self?.playFeedback(.recordingStarted)
+            guard let self else { return }
+            self.listeningIndicator.show(label: MurmureLocalization.text(
+                "dictation.listening",
+                defaultValue: "Listening…",
+                locale: self.interfaceLocale
+            ))
+            self.playFeedback(.recordingStarted)
         }
 
         coordinator.onRecordingStopped = { [weak self] in
             self?.playFeedback(.recordingStopped)
+        }
+
+        coordinator.onProcessingFinished = { [weak self] in
+            self?.listeningIndicator.hide()
+        }
+
+        coordinator.onTextCleanupStarted = { [weak self] in
+            guard let self else { return }
+            self.listeningIndicator.update(label: MurmureLocalization.text(
+                "dictation.improving",
+                defaultValue: "Improving text…",
+                locale: self.interfaceLocale
+            ))
         }
 
         connectionTest.onEvent = { [weak self] event in
@@ -140,6 +161,10 @@ final class AppModel {
 
         hotkeys.onKeyUp = { [weak self] in
             self?.handleKeyUp()
+        }
+
+        hotkeys.onEscape = { [weak self] in
+            self?.handleEscape()
         }
     }
 
@@ -186,6 +211,14 @@ final class AppModel {
     func requestAccessibilityPermission() {
         permissionProvider.requestAccessibilityPermission()
         refreshPermissions()
+        Task { [weak self] in
+            for _ in 0..<30 {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self else { return }
+                self.refreshPermissions()
+                if self.accessibilityPermission == .granted { return }
+            }
+        }
     }
 
     func refreshPermissions() {
@@ -310,6 +343,15 @@ final class AppModel {
         }
     }
 
+    func handleEscape() {
+        switch state {
+        case .requestingPermission, .recording, .transcribing:
+            cancelRecording()
+        default:
+            break
+        }
+    }
+
     func startRecording() {
         guard connectionTestState.isInactive else { return }
         if isErrorState {
@@ -324,6 +366,7 @@ final class AppModel {
     }
 
     func stopRecording() {
+        guard state == .recording else { return }
         coordinator.stopRecording(request: DictationRequest(
             transcription: TranscriptionRequest(
                 configuration: preferences.stt,
@@ -342,9 +385,19 @@ final class AppModel {
             } : nil,
             outputMode: preferences.outputMode
         ))
+        if coordinator.state == .transcribing {
+            listeningIndicator.update(label: MurmureLocalization.text(
+                "dictation.transcribing",
+                defaultValue: "Transcribing…",
+                locale: interfaceLocale
+            ))
+        } else {
+            listeningIndicator.hide()
+        }
     }
 
     func cancelRecording() {
+        listeningIndicator.hide()
         coordinator.cancelRecording()
     }
 

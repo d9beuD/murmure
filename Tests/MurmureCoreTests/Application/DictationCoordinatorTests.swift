@@ -211,7 +211,7 @@ final class DictationCoordinatorTests: XCTestCase {
         let cases: [(TextDeliveryResult, String)] = [
             (.copied, "Delivered transcription to clipboard"),
             (.inserted, "Inserted transcription in active field"),
-            (.fallbackCopied(reason: "denied"), "Accessibility unavailable; copied to clipboard (denied)"),
+            (.fallbackCopied(reason: "denied"), "Automatic insertion unavailable; copied to clipboard (denied)"),
             (.secureFieldCopied, "Secure field detected; copied to clipboard")
         ]
 

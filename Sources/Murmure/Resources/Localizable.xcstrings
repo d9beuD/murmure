@@ -90,6 +90,12 @@
         "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Prêt" } }
       }
     },
+    "dictation.listening" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Listening…" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Écoute…" } }
+      }
+    },
     "dictation.recording" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Recording…" } },
@@ -106,6 +112,12 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Transcribing…" } },
         "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Transcription…" } }
+      }
+    },
+    "dictation.improving" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Improving text…" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Amélioration du texte…" } }
       }
     },
     "error.launch_at_login" : {

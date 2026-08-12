@@ -181,6 +181,8 @@ final class AppModelTests: XCTestCase {
 
         XCTAssertEqual(recorder.startCount, 1)
         XCTAssertEqual(recorder.stopCount, 1)
+        XCTAssertEqual(context.listeningIndicator.labels, ["Listening…"])
+        XCTAssertEqual(context.listeningIndicator.hideCount, 1)
     }
 
     @MainActor
@@ -430,10 +432,86 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(state.showUnsavedConfirmation)
     }
 
+    func testListeningIndicatorFollowsDictationRecordingLifetime() async {
+        let context = makeContext()
+
+        context.model.startRecording()
+        await appWaitUntil("recording") { context.model.state == .recording }
+
+        XCTAssertEqual(context.listeningIndicator.labels, ["Listening…"])
+        XCTAssertEqual(context.listeningIndicator.hideCount, 0)
+
+        context.model.cancelRecording()
+
+        XCTAssertEqual(context.model.state, .idle)
+        XCTAssertEqual(context.listeningIndicator.hideCount, 1)
+    }
+
+    @MainActor
+    func testListeningIndicatorRemainsVisibleDuringTranscription() async throws {
+        let recorder = AppRecorderSpy()
+        recorder.stopURL = try appTemporaryFile()
+        let transcriber = AppControlledTranscriber()
+        let cleaner = AppControlledCleaner()
+        let context = makeContext(recorder: recorder, transcriber: transcriber, cleaner: cleaner)
+
+        context.model.startRecording()
+        await appWaitUntil("recording") { context.model.state == .recording }
+        context.clock.advance(by: 1)
+        context.model.stopRecording()
+        await appWaitUntil("transcription request") { await transcriber.callCount == 1 }
+
+        XCTAssertEqual(context.model.state, .transcribing)
+        XCTAssertEqual(context.listeningIndicator.updatedLabels, ["Transcribing…"])
+        XCTAssertEqual(context.listeningIndicator.hideCount, 0)
+
+        await transcriber.succeed(with: "finished")
+        await appWaitUntil("cleanup request") { await cleaner.callCount == 1 }
+        XCTAssertEqual(context.listeningIndicator.updatedLabels, ["Transcribing…", "Improving text…"])
+        XCTAssertEqual(context.listeningIndicator.hideCount, 0)
+
+        await cleaner.succeed(with: "improved")
+        await appWaitUntil("processing completion") { context.model.state == .idle }
+
+        XCTAssertEqual(context.listeningIndicator.hideCount, 1)
+    }
+
+    @MainActor
+    func testEscapeCancelsRecordingAndInFlightTranscription() async throws {
+        let recorder = AppRecorderSpy()
+        recorder.stopURL = try appTemporaryFile()
+        let transcriber = AppControlledTranscriber()
+        let context = makeContext(recorder: recorder, transcriber: transcriber)
+
+        context.model.startRecording()
+        await appWaitUntil("recording") { context.model.state == .recording }
+        context.hotkeys.onEscape?()
+
+        XCTAssertEqual(context.model.state, .idle)
+        XCTAssertEqual(recorder.cancelCount, 1)
+
+        recorder.stopURL = try appTemporaryFile()
+        context.model.startRecording()
+        await appWaitUntil("second recording") { context.model.state == .recording }
+        context.clock.advance(by: 1)
+        context.model.stopRecording()
+        await appWaitUntil("transcription request") { await transcriber.callCount == 1 }
+
+        context.hotkeys.onEscape?()
+        XCTAssertEqual(context.model.state, .idle)
+        XCTAssertEqual(context.listeningIndicator.hideCount, 2)
+
+        await transcriber.succeed(with: "late result")
+        await Task.yield()
+        XCTAssertTrue(context.delivery.delivered.isEmpty)
+    }
+    }
+
     @MainActor
     private func makeContext(
         recorder: any AudioRecording = AppRecorderSpy(),
         transcriber: any SpeechTranscribing = AppTranscriberSpy(),
+        cleaner: any TextCleaning = AppCleanerStub(),
         preferences: AppPreferences = AppPreferences(),
         secrets: [UUID: String] = [:],
         permissions: PermissionSpy = PermissionSpy()
@@ -445,7 +523,7 @@ final class AppModelTests: XCTestCase {
             microphonePermission: permissions,
             textDelivery: delivery,
             transcriber: transcriber,
-            cleaner: AppCleanerStub(),
+            cleaner: cleaner,
             logger: logs
         )
         let preferencesStore = PreferencesStoreSpy(preferences: preferences)
@@ -453,6 +531,7 @@ final class AppModelTests: XCTestCase {
         let hotkeys = HotkeySpy()
         let launch = LaunchAtLoginSpy()
         let feedback = FeedbackSpy()
+        let listeningIndicator = ListeningIndicatorSpy()
         let clock = AppDate()
         let coordinator = DictationCoordinator(
             dependencies: dependencies,
@@ -475,6 +554,7 @@ final class AppModelTests: XCTestCase {
             hotkeys: hotkeys,
             launchAtLogin: launch,
             feedback: feedback,
+            listeningIndicator: listeningIndicator,
             permissions: permissions,
             logStore: logs,
             now: { clock.value }
@@ -487,6 +567,7 @@ final class AppModelTests: XCTestCase {
             hotkeys: hotkeys,
             launch: launch,
             feedback: feedback,
+            listeningIndicator: listeningIndicator,
             permissions: permissions,
             clock: clock
         )
@@ -502,6 +583,7 @@ private struct AppContext {
     let hotkeys: HotkeySpy
     let launch: LaunchAtLoginSpy
     let feedback: FeedbackSpy
+    let listeningIndicator: ListeningIndicatorSpy
     let permissions: PermissionSpy
     let clock: AppDate
 }
