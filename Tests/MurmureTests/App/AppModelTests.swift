@@ -389,6 +389,48 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
+    func testPromptNavigationCreateSaveAndDiscardDraftLifecycle() {
+        let context = makeContext()
+        let state = PromptLibraryNavigationState()
+        let id = UUID()
+
+        state.beginCreating(id)
+        XCTAssertTrue(state.isDirty)
+        state.draft?.name = "Writing"
+        state.draft?.instructions = "Improve prose."
+
+        XCTAssertTrue(state.save(model: context.model))
+        XCTAssertFalse(state.isDirty)
+        XCTAssertEqual(context.model.preferences.cleanupPrompts.last?.id, id)
+
+        state.draft?.instructions = "Changed locally."
+        XCTAssertTrue(state.isDirty)
+        state.discard()
+        XCTAssertFalse(state.isDirty)
+        XCTAssertEqual(state.draft?.instructions, "Improve prose.")
+    }
+
+    @MainActor
+    func testPromptNavigationResetTransientStateClearsNavigationAndDraft() {
+        let context = makeContext()
+        let state = PromptLibraryNavigationState()
+        let id = context.model.preferences.cleanupPrompts[0].id
+
+        state.beginEditing(id, model: context.model)
+        state.path = [.edit(id)]
+        state.pendingAction = .back
+        state.showUnsavedConfirmation = true
+
+        state.resetTransientState()
+
+        XCTAssertTrue(state.path.isEmpty)
+        XCTAssertNil(state.draft)
+        XCTAssertNil(state.originalDraft)
+        XCTAssertNil(state.pendingAction)
+        XCTAssertFalse(state.showUnsavedConfirmation)
+    }
+
+    @MainActor
     private func makeContext(
         recorder: any AudioRecording = AppRecorderSpy(),
         transcriber: any SpeechTranscribing = AppTranscriberSpy(),

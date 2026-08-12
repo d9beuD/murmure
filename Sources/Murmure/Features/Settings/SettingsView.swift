@@ -1,15 +1,32 @@
 import AppKit
 import KeyboardShortcuts
 import MurmureCore
+import Observation
 import SwiftUI
 
 struct SettingsView: View {
     @Bindable var model: AppModel
     @State private var selection: SettingsSection? = .general
+    @State private var promptNavigation = PromptLibraryNavigationState()
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
+            List(selection: Binding(
+                get: { selection },
+                set: { newSelection in
+                    guard newSelection != selection else { return }
+                    if selection == .prompts, newSelection != .prompts, promptNavigation.isDirty {
+                        promptNavigation.pendingAction = .leaveSettings(newSelection)
+                        promptNavigation.showUnsavedConfirmation = true
+                    } else {
+                        selection = newSelection
+                        if newSelection != .prompts {
+                            promptNavigation.discard()
+                            promptNavigation.path.removeAll()
+                        }
+                    }
+                }
+            )) {
                 ForEach(SettingsSection.allCases) { section in
                     Label(section.title(locale: model.interfaceLocale), systemImage: section.systemImageName)
                         .tag(section)
@@ -27,12 +44,17 @@ struct SettingsView: View {
                 case .cleanup:
                     CleanupSettingsView(model: model)
                 case .prompts:
-                    PromptLibraryView(model: model)
+                    PromptLibraryView(model: model, state: promptNavigation) { newSelection in
+                        selection = newSelection
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            DefaultToolbarItem(kind: .sidebarToggle, placement: .navigation)
+        }
         .frame(minWidth: 760, idealWidth: 920, minHeight: 520, idealHeight: 700)
         .onChange(of: model.preferences) { _, _ in model.savePreferences() }
         .onChange(of: model.sttAPIKey) { _, _ in model.savePreferences() }
@@ -41,7 +63,7 @@ struct SettingsView: View {
     }
 }
 
-private enum SettingsSection: String, CaseIterable, Identifiable {
+enum SettingsSection: String, CaseIterable, Identifiable {
     case general
     case stt
     case cleanup
@@ -241,29 +263,138 @@ private struct CleanupSettingsView: View {
     }
 }
 
-private struct PromptLibraryView: View {
-    @Bindable var model: AppModel
-    @State private var selectedPromptID: UUID?
-    @State private var editorPromptID: UUID?
-    @State private var draft: CleanupPrompt?
-    @State private var originalDraft: CleanupPrompt?
-    @State private var pendingSelection: UUID?
-    @State private var showDiscardConfirmation = false
-    @State private var showDeleteConfirmation = false
-    @State private var showResetConfirmation = false
-    @State private var error: CleanupPromptValidationError?
+enum PromptDestination: Hashable {
+    case edit(UUID)
+    case create(UUID)
+}
 
-    init(model: AppModel) {
-        self.model = model
-        _selectedPromptID = State(initialValue: model.preferences.activeCleanupPromptID ?? model.preferences.cleanupPrompts.first?.id)
+enum PromptPendingAction {
+    case back
+    case leaveSettings(SettingsSection?)
+}
+
+@MainActor
+@Observable
+final class PromptLibraryNavigationState {
+    var path: [PromptDestination] = []
+    var draft: CleanupPrompt?
+    var originalDraft: CleanupPrompt?
+    var validationError: CleanupPromptValidationError?
+    var pendingAction: PromptPendingAction?
+    var showUnsavedConfirmation = false
+    var showDeleteConfirmation = false
+    var showResetConfirmation = false
+
+    var isDirty: Bool { draft != originalDraft }
+
+    func beginEditing(_ id: UUID, model: AppModel) {
+        guard draft?.id != id || originalDraft == nil else { return }
+        draft = model.preferences.cleanupPrompts.first { $0.id == id }
+        originalDraft = draft
+        validationError = nil
     }
 
-    private var isDirty: Bool { draft != originalDraft }
+    func beginCreating(_ id: UUID) {
+        guard draft?.id != id else { return }
+        draft = CleanupPrompt(id: id, name: "", systemImageName: "sparkles", instructions: "")
+        originalDraft = nil
+        validationError = nil
+    }
+
+    @discardableResult
+    func save(model: AppModel) -> Bool {
+        guard let draft else { return true }
+        if let validationError = model.saveCleanupPrompt(draft) {
+            self.validationError = validationError
+            return false
+        }
+        let savedDraft = model.preferences.cleanupPrompts.first { $0.id == draft.id }
+        self.draft = savedDraft
+        originalDraft = savedDraft
+        self.validationError = nil
+        return true
+    }
+
+    func discard() {
+        draft = originalDraft
+        validationError = nil
+    }
+
+    func resetTransientState() {
+        path.removeAll()
+        draft = nil
+        originalDraft = nil
+        validationError = nil
+        pendingAction = nil
+        showUnsavedConfirmation = false
+        showDeleteConfirmation = false
+        showResetConfirmation = false
+    }
+}
+
+private struct PromptLibraryView: View {
+    @Bindable var model: AppModel
+    @Bindable var state: PromptLibraryNavigationState
+    let onLeaveSettings: (SettingsSection?) -> Void
 
     var body: some View {
         let locale = model.interfaceLocale
-        VStack(spacing: 0) {
-            HStack {
+        NavigationStack(path: $state.path) {
+            PromptListPage(model: model, state: state)
+                .navigationDestination(for: PromptDestination.self) { destination in
+                    PromptEditorPage(model: model, state: state, destination: destination)
+                }
+        }
+        .alert(MurmureLocalization.text("prompts.unsaved_title", defaultValue: "Unsaved changes", locale: locale), isPresented: $state.showUnsavedConfirmation) {
+            Button(MurmureLocalization.text("action.save", defaultValue: "Save", locale: locale)) {
+                guard state.save(model: model) else {
+                    state.showUnsavedConfirmation = true
+                    return
+                }
+                resolvePendingAction(discard: false)
+            }
+            Button(MurmureLocalization.text("action.discard", defaultValue: "Discard", locale: locale), role: .destructive) {
+                resolvePendingAction(discard: true)
+            }
+            Button(MurmureLocalization.text("action.cancel", defaultValue: "Cancel", locale: locale), role: .cancel) {
+                state.pendingAction = nil
+            }
+        } message: {
+            Text(MurmureLocalization.text("prompts.unsaved_message", defaultValue: "Save your changes before leaving this prompt?", locale: locale))
+        }
+        .onChange(of: model.preferences.cleanupPrompts) { _, prompts in
+            guard let draftID = state.draft?.id,
+                  prompts.contains(where: { $0.id == draftID }) else { return }
+            if !state.isDirty {
+                state.beginEditing(draftID, model: model)
+            }
+        }
+    }
+
+    private func resolvePendingAction(discard: Bool) {
+        if discard { state.discard() }
+        let action = state.pendingAction
+        state.pendingAction = nil
+        switch action {
+        case .back:
+            state.path.removeLast()
+        case .leaveSettings(let section):
+            state.resetTransientState()
+            onLeaveSettings(section)
+        case nil:
+            break
+        }
+    }
+}
+
+private struct PromptListPage: View {
+    @Bindable var model: AppModel
+    @Bindable var state: PromptLibraryNavigationState
+
+    var body: some View {
+        let locale = model.interfaceLocale
+        List {
+            Section {
                 Picker(MurmureLocalization.text("prompts.active", defaultValue: "Active prompt", locale: locale), selection: Binding<UUID?>(
                     get: { model.preferences.activeCleanupPromptID },
                     set: { model.setActiveCleanupPrompt($0) }
@@ -273,142 +404,147 @@ private struct PromptLibraryView: View {
                         Label(prompt.name, systemImage: prompt.systemImageName).tag(Optional(prompt.id))
                     }
                 }
-                Spacer()
-                Button { addPrompt() } label: { Label(MurmureLocalization.text("prompts.add", defaultValue: "Add", locale: locale), systemImage: "plus") }
-                    .disabled(isDirty)
-                Button(role: .destructive) { showDeleteConfirmation = true } label: { Label(MurmureLocalization.text("prompts.delete", defaultValue: "Delete", locale: locale), systemImage: "trash") }
-                    .disabled(editorPromptID == nil)
-                Button {
-                    if model.cleanupPromptLibraryDiffersFromDefault {
-                        showResetConfirmation = true
-                    } else {
-                        model.resetPromptLibrary()
-                        ensureEditorSelection()
-                    }
-                } label: { Label(MurmureLocalization.text("prompts.reset", defaultValue: "Reset List", locale: locale), systemImage: "arrow.counterclockwise") }
-                    .disabled(isDirty)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
 
-            Divider()
-
-            HSplitView {
-                List(selection: $selectedPromptID) {
-                    ForEach(model.preferences.cleanupPrompts) { prompt in
-                        Label(prompt.name, systemImage: prompt.systemImageName)
-                            .tag(Optional(prompt.id))
-                    }
-                    if model.preferences.cleanupPrompts.isEmpty {
-                        Text(MurmureLocalization.text("prompts.none", defaultValue: "No prompts saved", locale: locale))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(minWidth: 220, idealWidth: 260)
-
-                if draft != nil {
-                    PromptEditor(
-                        draft: Binding(get: { draft! }, set: { draft = $0 }),
-                        error: $error,
-                        onSave: { _ = saveDraft() },
-                        onCancel: discardDraft,
-                        locale: locale
-                    )
-                    .frame(minWidth: 420, idealWidth: 560)
-                } else {
+            Section {
+                if model.preferences.cleanupPrompts.isEmpty {
                     ContentUnavailableView(
-                        MurmureLocalization.text("prompts.select", defaultValue: "Select a prompt", locale: locale),
+                        MurmureLocalization.text("prompts.none", defaultValue: "No prompts saved", locale: locale),
                         systemImage: "text.badge.checkmark"
                     )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ForEach(model.preferences.cleanupPrompts) { prompt in
+                        NavigationLink(value: PromptDestination.edit(prompt.id)) {
+                            Label(prompt.name, systemImage: prompt.systemImageName)
+                        }
+                    }
                 }
             }
-        }
-        .onAppear { ensureEditorSelection() }
-        .onChange(of: selectedPromptID) { _, newValue in
-            guard newValue != editorPromptID else { return }
-            if isDirty {
-                pendingSelection = newValue
-                selectedPromptID = editorPromptID
-                showDiscardConfirmation = true
-            } else {
-                beginEditing(newValue)
+
+            Section {
+                Button {
+                    if model.cleanupPromptLibraryDiffersFromDefault {
+                        state.showResetConfirmation = true
+                    } else {
+                        model.resetPromptLibrary()
+                    }
+                } label: {
+                    Label(MurmureLocalization.text("prompts.reset", defaultValue: "Reset List", locale: locale), systemImage: "arrow.counterclockwise")
+                }
+                .disabled(state.isDirty)
             }
         }
-        .alert(MurmureLocalization.text("prompts.unsaved_title", defaultValue: "Unsaved changes", locale: locale), isPresented: $showDiscardConfirmation) {
-            Button(MurmureLocalization.text("action.save", defaultValue: "Save", locale: locale)) {
-                if saveDraft() { beginEditing(pendingSelection); pendingSelection = nil }
+        .listStyle(.inset)
+        .navigationTitle(MurmureLocalization.text("settings.prompts", defaultValue: "Prompts", locale: locale))
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    let id = UUID()
+                    state.beginCreating(id)
+                    state.path.append(.create(id))
+                } label: {
+                    Label(MurmureLocalization.text("prompts.add", defaultValue: "Add", locale: locale), systemImage: "plus")
+                }
+                .disabled(state.isDirty)
             }
-            Button(MurmureLocalization.text("action.discard", defaultValue: "Discard", locale: locale), role: .destructive) {
-                discardDraft()
-                beginEditing(pendingSelection)
-                pendingSelection = nil
-            }
-            Button(MurmureLocalization.text("action.cancel", defaultValue: "Cancel", locale: locale), role: .cancel) { pendingSelection = nil }
-        } message: {
-            Text(MurmureLocalization.text("prompts.unsaved_message", defaultValue: "Save your changes before leaving this prompt?", locale: locale))
         }
-        .alert(MurmureLocalization.text("prompts.delete_title", defaultValue: "Delete prompt?", locale: locale), isPresented: $showDeleteConfirmation) {
-            Button(MurmureLocalization.text("prompts.delete", defaultValue: "Delete", locale: locale), role: .destructive) { deletePrompt() }
-            Button(MurmureLocalization.text("action.cancel", defaultValue: "Cancel", locale: locale), role: .cancel) { }
-        }
-        .alert(MurmureLocalization.text("prompts.reset_title", defaultValue: "Reset prompt list?", locale: locale), isPresented: $showResetConfirmation) {
+        .alert(MurmureLocalization.text("prompts.reset_title", defaultValue: "Reset prompt list?", locale: locale), isPresented: $state.showResetConfirmation) {
             Button(MurmureLocalization.text("prompts.reset", defaultValue: "Reset List", locale: locale), role: .destructive) {
                 model.resetPromptLibrary()
-                ensureEditorSelection()
             }
             Button(MurmureLocalization.text("action.cancel", defaultValue: "Cancel", locale: locale), role: .cancel) { }
         } message: {
             Text(MurmureLocalization.text("prompts.reset_message", defaultValue: "This replaces the current prompt list with the localized example prompt.", locale: locale))
         }
     }
+}
 
-    private func ensureEditorSelection() {
-        let id = selectedPromptID ?? model.preferences.cleanupPrompts.first?.id
-        selectedPromptID = id
-        beginEditing(id)
-    }
+private struct PromptEditorPage: View {
+    @Bindable var model: AppModel
+    @Bindable var state: PromptLibraryNavigationState
+    let destination: PromptDestination
 
-    private func beginEditing(_ id: UUID?) {
-        editorPromptID = id
-        draft = id.flatMap { promptID in model.preferences.cleanupPrompts.first { $0.id == promptID } }
-        originalDraft = draft
-        error = nil
-    }
-
-    private func addPrompt() {
-        selectedPromptID = nil
-        editorPromptID = nil
-        originalDraft = nil
-        draft = CleanupPrompt(name: "", systemImageName: "sparkles", instructions: "")
-        error = nil
-    }
-
-    @discardableResult
-    private func saveDraft() -> Bool {
-        guard let draft else { return true }
-        if let error = model.saveCleanupPrompt(draft) {
-            self.error = error
-            return false
+    var body: some View {
+        let locale = model.interfaceLocale
+        editorContent(locale: locale)
+        .navigationTitle(isExistingPrompt
+            ? MurmureLocalization.text("prompts.edit_title", defaultValue: "Edit Prompt", locale: locale)
+            : MurmureLocalization.text("prompts.new_title", defaultValue: "New Prompt", locale: locale))
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItemGroup(placement: ToolbarItemPlacement.navigation) {
+                Button(action: requestBack) {
+                    Label(MurmureLocalization.text("action.back", defaultValue: "Back", locale: locale), systemImage: "chevron.left")
+                }
+                .labelStyle(.iconOnly)
+            }
         }
-        editorPromptID = draft.id
-        selectedPromptID = draft.id
-        originalDraft = model.preferences.cleanupPrompts.first { $0.id == draft.id }
-        self.draft = originalDraft
-        error = nil
-        return true
+        .onAppear {
+            switch destination {
+            case .edit(let id): state.beginEditing(id, model: model)
+            case .create(let id): state.beginCreating(id)
+            }
+        }
+        .alert(MurmureLocalization.text("prompts.delete_title", defaultValue: "Delete prompt?", locale: locale), isPresented: $state.showDeleteConfirmation) {
+            Button(MurmureLocalization.text("prompts.delete", defaultValue: "Delete", locale: locale), role: .destructive) {
+                deleteAndReturn()
+            }
+            Button(MurmureLocalization.text("action.cancel", defaultValue: "Cancel", locale: locale), role: .cancel) { }
+        }
     }
 
-    private func discardDraft() {
-        draft = originalDraft
-        error = nil
+    private var isExistingPrompt: Bool {
+        if case .edit = destination { return true }
+        return false
     }
 
-    private func deletePrompt() {
-        guard let editorPromptID else { return }
-        model.deleteCleanupPrompt(id: editorPromptID)
-        selectedPromptID = model.preferences.activeCleanupPromptID ?? model.preferences.cleanupPrompts.first?.id
-        beginEditing(selectedPromptID)
+    @ViewBuilder
+    private func editorContent(locale: Locale) -> some View {
+        if state.draft != nil {
+            PromptEditor(
+                draft: Binding(get: { state.draft! }, set: { state.draft = $0 }),
+                error: $state.validationError,
+                onSave: saveAndReturn,
+                onCancel: requestCancel,
+                onDelete: requestDelete,
+                showsDelete: isExistingPrompt,
+                locale: locale
+            )
+        } else {
+            ContentUnavailableView(
+                MurmureLocalization.text("prompts.select", defaultValue: "Select a prompt", locale: locale),
+                systemImage: "text.badge.checkmark"
+            )
+        }
+    }
+
+    private func saveAndReturn() {
+        guard state.save(model: model) else { return }
+        state.path.removeLast()
+    }
+
+    private func requestCancel() {
+        requestBack()
+    }
+
+    private func requestBack() {
+        if state.isDirty {
+            state.pendingAction = .back
+            state.showUnsavedConfirmation = true
+        } else {
+            state.discard()
+            state.path.removeLast()
+        }
+    }
+
+    private func requestDelete() {
+        state.showDeleteConfirmation = true
+    }
+
+    private func deleteAndReturn() {
+        guard let id = state.draft?.id else { return }
+        model.deleteCleanupPrompt(id: id)
+        state.resetTransientState()
     }
 }
 
@@ -417,6 +553,8 @@ private struct PromptEditor: View {
     @Binding var error: CleanupPromptValidationError?
     let onSave: () -> Void
     let onCancel: () -> Void
+    let onDelete: () -> Void
+    let showsDelete: Bool
     let locale: Locale
 
     var body: some View {
@@ -437,6 +575,13 @@ private struct PromptEditor: View {
                 if let error {
                     Label(error.message(locale: locale), systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
+                }
+            }
+            if showsDelete {
+                Section {
+                    Button(role: .destructive, action: onDelete) {
+                        Label(MurmureLocalization.text("prompts.delete", defaultValue: "Delete", locale: locale), systemImage: "trash")
+                    }
                 }
             }
             HStack {

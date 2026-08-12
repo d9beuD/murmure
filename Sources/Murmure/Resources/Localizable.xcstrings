@@ -19,6 +19,7 @@
         "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "None" } }
       }
     },
+    "action.back" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Retour" } } } },
     "action.discard" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Discard" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Ignorer" } } } },
     "action.save" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Save" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Enregistrer" } } } },
     "cleanup.chat_completions" : {
@@ -355,6 +356,7 @@
     "prompts.delete" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer" } } } },
     "prompts.delete_title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete prompt?" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer le prompt ?" } } } },
     "prompts.details" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Prompt details" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Détails du prompt" } } } },
+    "prompts.edit_title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Prompt" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Modifier le prompt" } } } },
     "prompts.error_duplicate" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Prompt names must be unique." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Les noms de prompt doivent être uniques." } } } },
     "prompts.error_instructions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Prompt instructions are required." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Les instructions du prompt sont obligatoires." } } } },
     "prompts.error_icon" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose an icon from the available palette." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Choisissez une icône dans la palette disponible." } } } },
@@ -363,6 +365,7 @@
     "prompts.instructions" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Instructions" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Instructions" } } } },
     "prompts.none" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No prompts saved" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Aucun prompt enregistré" } } } },
     "prompts.none_warning" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No prompt is available. Add or reset a prompt before enabling cleanup." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Aucun prompt n’est disponible. Ajoutez ou réinitialisez un prompt avant d’activer le nettoyage." } } } },
+    "prompts.new_title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "New Prompt" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Nouveau prompt" } } } },
     "prompts.reset" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset List" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Réinitialiser la liste" } } } },
     "prompts.reset_message" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This replaces the current prompt list with the localized example prompt." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Cette action remplace la liste actuelle par le prompt d’exemple localisé." } } } },
     "prompts.reset_title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset prompt list?" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Réinitialiser la liste de prompts ?" } } } },
