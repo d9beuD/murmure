@@ -20,6 +20,9 @@ struct MurmureApp: App {
     @Environment(\.openWindow) private var openWindow
 
     init() {
+        if LocalizationDiagnostic.runIfRequested() {
+            exit(0)
+        }
         _model = State(initialValue: CompositionRoot.makeAppModel())
     }
 
