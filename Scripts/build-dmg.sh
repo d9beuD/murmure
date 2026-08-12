@@ -87,7 +87,9 @@ fi
 if [[ "$signing_identity" == "-" ]]; then
     /usr/bin/codesign --force --deep --sign - "$application_path"
 else
-    /usr/bin/codesign --force --deep --options runtime --timestamp --sign "$signing_identity" "$application_path"
+    /usr/bin/codesign --force --deep --options runtime --timestamp --sign "$signing_identity" \
+        --entitlements "$repository_directory/Configuration/Murmure.entitlements" \
+        "$application_path"
 fi
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$application_path"
 "$repository_directory/Scripts/verify-app-bundle.sh" "$application_path"
