@@ -79,6 +79,44 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
+    func testPromptLibraryCRUDValidationAndReset() {
+        let preferences = AppPreferences(interfaceLanguage: .french)
+        let context = makeContext(preferences: preferences)
+        XCTAssertEqual(context.model.activeCleanupPrompt?.instructions, MurmureLocalization.defaultCleanupPrompt(locale: context.model.interfaceLocale))
+
+        let duplicate = CleanupPrompt(name: " Standard ", systemImageName: "sparkles", instructions: "Different")
+        XCTAssertEqual(context.model.saveCleanupPrompt(duplicate), .duplicateName)
+        let invalid = CleanupPrompt(name: "New", systemImageName: "circle", instructions: "Text")
+        XCTAssertEqual(context.model.saveCleanupPrompt(invalid), .invalidIcon)
+
+        let custom = CleanupPrompt(name: " Writing ", systemImageName: "quote.bubble", instructions: "Improve prose.")
+        XCTAssertNil(context.model.saveCleanupPrompt(custom))
+        XCTAssertEqual(context.model.preferences.cleanupPrompts.last?.name, "Writing")
+        context.model.setActiveCleanupPrompt(custom.id)
+        XCTAssertEqual(context.model.activeCleanupPrompt?.id, custom.id)
+        context.model.deleteCleanupPrompt(id: custom.id)
+        XCTAssertNil(context.model.preferences.cleanupPrompts.first { $0.id == custom.id })
+
+        let standardID = context.model.preferences.cleanupPrompts[0].id
+        context.model.deleteCleanupPrompt(id: standardID)
+        XCTAssertTrue(context.model.preferences.cleanupPrompts.isEmpty)
+        XCTAssertNil(context.model.preferences.activeCleanupPromptID)
+        context.model.resetPromptLibrary()
+        XCTAssertEqual(context.model.preferences.cleanupPrompts.count, 1)
+        XCTAssertNotNil(context.model.activeCleanupPrompt)
+    }
+
+    @MainActor
+    func testInvalidActivePromptReferenceIsRepairedAndPersisted() {
+        var preferences = AppPreferences()
+        preferences.activeCleanupPromptID = UUID()
+        let context = makeContext(preferences: preferences)
+
+        XCTAssertEqual(context.model.preferences.activeCleanupPromptID, context.model.preferences.cleanupPrompts.first?.id)
+        XCTAssertEqual(context.preferencesStore.saved.last?.activeCleanupPromptID, context.model.preferences.activeCleanupPromptID)
+    }
+
+    @MainActor
     func testPushToTalkHandlesRepeatDebounceAndKeyUp() async throws {
         let recorder = AppRecorderSpy()
         let context = makeContext(recorder: recorder)

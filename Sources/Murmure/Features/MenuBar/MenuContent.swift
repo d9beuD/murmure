@@ -25,6 +25,33 @@ struct MenuContent: View {
             }
         }
 
+        Menu(MurmureLocalization.text("menu.prompt", defaultValue: "Prompt", locale: locale)) {
+            if model.preferences.cleanupPrompts.isEmpty {
+                Text(MurmureLocalization.text("prompts.none", defaultValue: "No prompts saved", locale: locale))
+            } else {
+                ForEach(model.preferences.cleanupPrompts) { prompt in
+                    Button {
+                        model.setActiveCleanupPrompt(prompt.id)
+                    } label: {
+                        HStack {
+                            Label(prompt.name, systemImage: prompt.systemImageName)
+                            if model.preferences.activeCleanupPromptID == prompt.id {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+            Divider()
+            Text(
+                model.preferences.cleanupEnabled
+                    ? MurmureLocalization.text("menu.prompt_enabled", defaultValue: "TTT cleanup enabled", locale: locale)
+                    : MurmureLocalization.text("menu.prompt_disabled", defaultValue: "TTT cleanup disabled", locale: locale)
+            )
+            .foregroundStyle(.secondary)
+        }
+
         Divider()
 
         Button {

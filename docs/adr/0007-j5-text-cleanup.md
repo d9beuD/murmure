@@ -4,7 +4,7 @@ Status: implemented, awaiting real provider validation
 
 ## Decision
 
-After a successful STT transcription, cleanup is optional. The Responses API receives `instructions` for the prompt and `input` for the raw text; Chat Completions receives a `system` message followed by a `user` message. Requests specify `store: false` and use no conversational state.
+After a successful STT transcription, cleanup is optional. The active prompt is selected from the persisted prompt library. The Responses API receives its `instructions` and `input` for the raw text; Chat Completions receives the same instructions as a `system` message followed by a `user` message. Requests specify `store: false` and use no conversational state. If cleanup is enabled while the library has no active prompt, Murmure skips TTT and delivers the raw STT transcript.
 
 `OpenAITextCleanupService` accepts Responses API output by aggregating all `output_text` content instead of assuming the first `output` item is text. For Chat Completions, it accepts both plain text content and arrays of text parts.
 

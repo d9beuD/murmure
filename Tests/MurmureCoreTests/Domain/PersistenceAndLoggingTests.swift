@@ -26,6 +26,21 @@ final class PersistenceAndLoggingTests: XCTestCase {
         XCTAssertEqual(decoded, preferences)
     }
 
+    func testPromptLibraryRoundTripAndEmptyLibrary() throws {
+        let first = CleanupPrompt(name: "Writing", systemImageName: "quote.bubble", instructions: "Improve writing.")
+        let second = CleanupPrompt(name: "Code", systemImageName: "terminal", instructions: "Keep code exact.")
+        var preferences = AppPreferences(cleanupPrompts: [first, second], activeCleanupPromptID: second.id)
+        let decoded = try JSONDecoder().decode(AppPreferences.self, from: JSONEncoder().encode(preferences))
+        XCTAssertEqual(decoded.cleanupPrompts, [first, second])
+        XCTAssertEqual(decoded.activeCleanupPromptID, second.id)
+
+        preferences.cleanupPrompts = []
+        preferences.activeCleanupPromptID = nil
+        let empty = try JSONDecoder().decode(AppPreferences.self, from: JSONEncoder().encode(preferences))
+        XCTAssertTrue(empty.cleanupPrompts.isEmpty)
+        XCTAssertNil(empty.activeCleanupPromptID)
+    }
+
     func testMissingFieldsUseCurrentDefaults() throws {
         let data = Data("{\"schemaVersion\":4}".utf8)
         let preferences = try JSONDecoder().decode(AppPreferences.self, from: data)
@@ -52,6 +67,18 @@ final class PersistenceAndLoggingTests: XCTestCase {
             from: Data("{\"schemaVersion\":4,\"cleanupPrompt\":\"Keep my wording\"}".utf8)
         )
         XCTAssertEqual(custom.cleanupPromptMode, .custom)
+    }
+
+    func testSchemaFiveCustomPromptDecodesAsEditableLibraryEntry() throws {
+        let preferences = try JSONDecoder().decode(
+            AppPreferences.self,
+            from: Data("{\"schemaVersion\":5,\"cleanupPrompt\":\"Keep my wording\",\"cleanupPromptMode\":\"custom\"}".utf8)
+        )
+
+        XCTAssertEqual(preferences.cleanupPrompts.count, 1)
+        XCTAssertEqual(preferences.cleanupPrompts.first?.name, "Existing Prompt")
+        XCTAssertEqual(preferences.cleanupPrompts.first?.instructions, "Keep my wording")
+        XCTAssertEqual(preferences.activeCleanupPromptID, preferences.cleanupPrompts.first?.id)
     }
 
     func testLegacyPreferencesSkipOnboarding() throws {

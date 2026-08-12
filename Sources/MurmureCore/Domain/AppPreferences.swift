@@ -1,5 +1,8 @@
+import Foundation
+
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 5
+    public static let currentSchemaVersion = 6
+    public static let defaultCleanupPromptID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
     public var schemaVersion: Int
     public var interfaceLanguage: InterfaceLanguage
     public var stt: ProviderConfiguration
@@ -9,6 +12,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var cleanupEnabled: Bool
     public var cleanupProvider: ProviderConfiguration
     public var cleanupFormat: CleanupAPIFormat
+    public var cleanupPrompts: [CleanupPrompt]
+    public var activeCleanupPromptID: UUID?
+    // Kept for decoding preferences written before the prompt library existed.
     public var cleanupPrompt: String
     public var cleanupPromptMode: CleanupPromptMode
     public var cleanupFailurePolicy: CleanupFailurePolicy
@@ -25,6 +31,13 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         cleanupEnabled: Bool = true, cleanupProvider: ProviderConfiguration = .openAIResponses,
         cleanupFormat: CleanupAPIFormat = .responses, cleanupPrompt: String = AppPreferences.defaultCleanupPrompt,
         cleanupPromptMode: CleanupPromptMode = .localizedDefault,
+        cleanupPrompts: [CleanupPrompt] = [CleanupPrompt(
+            id: AppPreferences.defaultCleanupPromptID,
+            name: "Standard",
+            systemImageName: "wand.and.stars",
+            instructions: AppPreferences.defaultCleanupPrompt
+        )],
+        activeCleanupPromptID: UUID? = nil,
         cleanupFailurePolicy: CleanupFailurePolicy = .useRawTranscript, outputMode: OutputMode = .clipboard,
         launchAtLogin: Bool = false, playFeedbackSounds: Bool = true, hasCompletedOnboarding: Bool = false
     ) {
@@ -37,6 +50,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.cleanupEnabled = cleanupEnabled
         self.cleanupProvider = cleanupProvider
         self.cleanupFormat = cleanupFormat
+        self.cleanupPrompts = cleanupPrompts
+        self.activeCleanupPromptID = activeCleanupPromptID ?? cleanupPrompts.first?.id
         self.cleanupPrompt = cleanupPrompt
         self.cleanupPromptMode = cleanupPromptMode
         self.cleanupFailurePolicy = cleanupFailurePolicy
@@ -49,7 +64,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public static let defaultCleanupPrompt = "Clean up the transcript without changing its meaning. Correct punctuation, mistakes, and hesitations. Return only the final text."
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, interfaceLanguage, stt, sttLanguage, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
+        case schemaVersion, interfaceLanguage, stt, sttLanguage, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompts, activeCleanupPromptID, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
     }
 
     public init(from decoder: Decoder) throws {
@@ -71,6 +86,18 @@ public struct AppPreferences: Codable, Equatable, Sendable {
             cleanupPromptMode = .legacyDefaultPendingChoice
         } else {
             cleanupPromptMode = .custom
+        }
+        if let decodedPrompts = try container.decodeIfPresent([CleanupPrompt].self, forKey: .cleanupPrompts) {
+            cleanupPrompts = decodedPrompts
+            activeCleanupPromptID = try container.decodeIfPresent(UUID.self, forKey: .activeCleanupPromptID)
+        } else {
+            let legacyPrompt = CleanupPrompt(
+                name: cleanupPromptMode == .custom ? "Existing Prompt" : "Standard",
+                systemImageName: cleanupPromptMode == .custom ? "text.badge.checkmark" : "wand.and.stars",
+                instructions: cleanupPrompt
+            )
+            cleanupPrompts = [legacyPrompt]
+            activeCleanupPromptID = legacyPrompt.id
         }
         cleanupFailurePolicy = try container.decodeIfPresent(CleanupFailurePolicy.self, forKey: .cleanupFailurePolicy) ?? .useRawTranscript
         outputMode = try container.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .clipboard
