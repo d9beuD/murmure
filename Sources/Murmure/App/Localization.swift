@@ -2,19 +2,23 @@ import Foundation
 import MurmureCore
 
 enum MurmureLocalization {
-    static let supportedLanguageIdentifiers = ["en", "fr-FR"]
-
     static func locale(
         for language: InterfaceLanguage,
         preferredLanguages: [String] = Locale.preferredLanguages
     ) -> Locale {
         switch language {
         case .automatic:
-            let match = Bundle.preferredLocalizations(
-                from: supportedLanguageIdentifiers,
-                forPreferences: preferredLanguages
-            ).first ?? "en"
-            return Locale(identifier: match)
+            for preferredLanguage in preferredLanguages {
+                let languageCode = Locale(identifier: preferredLanguage)
+                    .language.languageCode?.identifier
+                if languageCode == "fr" {
+                    return Locale(identifier: "fr-FR")
+                }
+                if languageCode == "en" {
+                    return Locale(identifier: "en")
+                }
+            }
+            return Locale(identifier: "en")
         case .english:
             return Locale(identifier: "en")
         case .french:

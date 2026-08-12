@@ -15,6 +15,10 @@ final class LocalizationTests: XCTestCase {
             MurmureLocalization.locale(for: .automatic, preferredLanguages: ["de-DE"]).identifier,
             "en"
         )
+        XCTAssertEqual(
+            MurmureLocalization.locale(for: .automatic, preferredLanguages: ["de-DE", "fr-CA"]).identifier,
+            "fr-FR"
+        )
     }
 
     func testCatalogContainsEnglishAndFrenchRepresentativeEntries() throws {
