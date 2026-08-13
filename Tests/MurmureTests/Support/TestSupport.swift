@@ -163,6 +163,7 @@ final class PreferencesStoreSpy: PreferencesStoring {
 
 final class SecretStoreSpy: SecretStoring {
     var secrets: [UUID: String]
+    var saveError: (any Error)?
     private(set) var readIDs: [UUID] = []
     private(set) var saves: [[UUID: String]] = []
 
@@ -176,6 +177,7 @@ final class SecretStoreSpy: SecretStoring {
     }
 
     func save(_ secrets: [UUID: String]) throws {
+        if let saveError { throw saveError }
         self.secrets = secrets
         saves.append(secrets)
     }

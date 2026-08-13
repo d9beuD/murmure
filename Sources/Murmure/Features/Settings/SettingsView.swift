@@ -55,9 +55,6 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 760, idealWidth: 920, minHeight: 520, idealHeight: 700)
-        .onChange(of: model.preferences) { _, _ in model.savePreferences() }
-        .onChange(of: model.sttAPIKey) { _, _ in model.savePreferences() }
-        .onChange(of: model.cleanupAPIKey) { _, _ in model.savePreferences() }
         .background(DockPresenceWindowFocus(controller: dockPresenceController))
     }
 }

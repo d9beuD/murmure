@@ -6,22 +6,30 @@ import Observation
 @Observable
 final class AppModel {
     let coordinator: DictationCoordinator
+    let preferencesModel: PreferencesModel
     private let connectionTest: ConnectionTestModel
     private let hotkeys: any HotkeyHandling
     private let textDelivery: any TextDelivering
-    private let preferencesStore: any PreferencesStoring
     private let launchAtLoginService: any LaunchAtLoginControlling
     private let soundFeedback: any FeedbackPlaying
     private let listeningIndicator: any ListeningIndicatorPresenting
     private let permissionProvider: any PermissionProviding
-    private let keychain: any SecretStoring
     let logStore: AppLogStore
 
     private(set) var mode: TriggerMode
-    var preferences: AppPreferences
+    var preferences: AppPreferences {
+        get { preferencesModel.preferences }
+        set { preferencesModel.update(newValue) }
+    }
     private(set) var interfaceLanguageRevision = 0
-    var sttAPIKey = ""
-    var cleanupAPIKey = ""
+    var sttAPIKey: String {
+        get { preferencesModel.sttAPIKey }
+        set { preferencesModel.updateSTTAPIKey(newValue) }
+    }
+    var cleanupAPIKey: String {
+        get { preferencesModel.cleanupAPIKey }
+        set { preferencesModel.updateCleanupAPIKey(newValue) }
+    }
     var connectionTestState: ConnectionTestState { connectionTest.state }
     private var launchAtLoginErrorDetail: String?
     var launchAtLoginError: String? {
@@ -117,22 +125,17 @@ final class AppModel {
         hotkeys = dependencies.hotkeys
         textDelivery = dependencies.textDelivery
         logStore = dependencies.logStore
-        preferencesStore = dependencies.preferencesStore
-        keychain = dependencies.keychain
+        preferencesModel = PreferencesModel(
+            preferencesStore: dependencies.preferencesStore,
+            keychain: dependencies.keychain,
+            initialPreferences: initialPreferences
+        )
         launchAtLoginService = dependencies.launchAtLogin
         soundFeedback = dependencies.feedback
         listeningIndicator = dependencies.listeningIndicator
         permissionProvider = dependencies.permissions
         now = dependencies.now
-        let storedPreferences = initialPreferences
-        preferences = storedPreferences
-        mode = storedPreferences.triggerMode
-        let secrets = (try? keychain.read(profileIDs: [
-            storedPreferences.stt.id,
-            storedPreferences.cleanupProvider.id
-        ])) ?? [:]
-        sttAPIKey = secrets[storedPreferences.stt.id] ?? ""
-        cleanupAPIKey = secrets[storedPreferences.cleanupProvider.id] ?? ""
+        mode = initialPreferences.triggerMode
         coordinator.onRecordingTimeout = { [weak self] in
             self?.stopRecording()
         }
@@ -193,14 +196,7 @@ final class AppModel {
     }
 
     func savePreferences() {
-        if let activeCleanupPrompt {
-            preferences.cleanupPrompt = activeCleanupPrompt.instructions
-            preferences.cleanupPromptMode = .custom
-        }
-        preferencesStore.save(preferences)
-        var secrets = [preferences.stt.id: sttAPIKey]
-        secrets[preferences.cleanupProvider.id] = cleanupAPIKey
-        try? keychain.save(secrets)
+        preferencesModel.flushPendingWrites()
     }
 
     var requiresOnboarding: Bool { !preferences.hasCompletedOnboarding }
@@ -265,6 +261,10 @@ final class AppModel {
         guard id == nil || preferences.cleanupPrompts.contains(where: { $0.id == id }) else { return }
         guard preferences.activeCleanupPromptID != id else { return }
         preferences.activeCleanupPromptID = id
+        if let activeCleanupPrompt {
+            preferences.cleanupPrompt = activeCleanupPrompt.instructions
+            preferences.cleanupPromptMode = .custom
+        }
         savePreferences()
     }
 
@@ -298,6 +298,10 @@ final class AppModel {
         if preferences.activeCleanupPromptID == nil {
             preferences.activeCleanupPromptID = value.id
         }
+        if preferences.activeCleanupPromptID == value.id {
+            preferences.cleanupPrompt = value.instructions
+            preferences.cleanupPromptMode = .custom
+        }
         savePreferences()
         return nil
     }
@@ -307,6 +311,10 @@ final class AppModel {
         preferences.cleanupPrompts.remove(at: index)
         if preferences.activeCleanupPromptID == id {
             preferences.activeCleanupPromptID = preferences.cleanupPrompts.first?.id
+            if let activeCleanupPrompt {
+                preferences.cleanupPrompt = activeCleanupPrompt.instructions
+                preferences.cleanupPromptMode = .custom
+            }
         }
         savePreferences()
     }
