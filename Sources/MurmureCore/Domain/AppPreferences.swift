@@ -1,14 +1,14 @@
 import Foundation
 
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 7
+    public static let currentSchemaVersion = 8
     public static let defaultCleanupPromptID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
     public var schemaVersion: Int
     public var interfaceLanguage: InterfaceLanguage
     public var stt: ProviderConfiguration
     public var sttLanguage: TranscriptionLanguage
     public var sttFavoriteLanguages: [TranscriptionLanguage]
-    public var sttPrompt: String
+    public var dictationDictionary: [String]
     public var triggerMode: TriggerMode
     public var cleanupEnabled: Bool
     public var cleanupProvider: ProviderConfiguration
@@ -30,7 +30,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         stt: ProviderConfiguration = .openAITranscription,
         sttLanguage: TranscriptionLanguage = .automatic,
         sttFavoriteLanguages: [TranscriptionLanguage] = [.french, .english],
-        sttPrompt: String = "", triggerMode: TriggerMode = .pushToTalk,
+        dictationDictionary: [String] = [], triggerMode: TriggerMode = .pushToTalk,
         cleanupEnabled: Bool = true, cleanupProvider: ProviderConfiguration = .openAIResponses,
         cleanupFormat: CleanupAPIFormat = .responses, cleanupPrompt: String = AppPreferences.defaultCleanupPrompt,
         cleanupPromptMode: CleanupPromptMode = .localizedDefault,
@@ -53,7 +53,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
             normalizedFavorites.append(sttLanguage)
         }
         self.sttFavoriteLanguages = normalizedFavorites
-        self.sttPrompt = sttPrompt
+        self.dictationDictionary = Self.normalizedDictationDictionary(dictationDictionary)
         self.triggerMode = triggerMode
         self.cleanupEnabled = cleanupEnabled
         self.cleanupProvider = cleanupProvider
@@ -71,8 +71,22 @@ public struct AppPreferences: Codable, Equatable, Sendable {
 
     public static let defaultCleanupPrompt = "Clean up the transcript without changing its meaning. Correct punctuation, mistakes, and hesitations. Return only the final text."
 
+    public var dictationDictionaryPrompt: String? {
+        guard !dictationDictionary.isEmpty else { return nil }
+        return dictationDictionary.joined(separator: ", ")
+    }
+
+    public static func normalizedDictationDictionary(_ terms: [String]) -> [String] {
+        var seen = Set<String>()
+        return terms.compactMap { rawTerm in
+            let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !term.isEmpty, seen.insert(term).inserted else { return nil }
+            return term
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, interfaceLanguage, stt, sttLanguage, sttFavoriteLanguages, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompts, activeCleanupPromptID, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
+        case schemaVersion, interfaceLanguage, stt, sttLanguage, sttFavoriteLanguages, dictationDictionary, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompts, activeCleanupPromptID, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
     }
 
     public init(from decoder: Decoder) throws {
@@ -94,7 +108,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         if sttLanguage != .automatic && !sttFavoriteLanguages.contains(sttLanguage) {
             sttFavoriteLanguages.append(sttLanguage)
         }
-        sttPrompt = try container.decodeIfPresent(String.self, forKey: .sttPrompt) ?? ""
+        dictationDictionary = Self.normalizedDictationDictionary(
+            try container.decodeIfPresent([String].self, forKey: .dictationDictionary) ?? []
+        )
         triggerMode = try container.decodeIfPresent(TriggerMode.self, forKey: .triggerMode) ?? .pushToTalk
         cleanupEnabled = try container.decodeIfPresent(Bool.self, forKey: .cleanupEnabled) ?? true
         cleanupProvider = try container.decodeIfPresent(ProviderConfiguration.self, forKey: .cleanupProvider) ?? .openAIResponses

@@ -41,6 +41,8 @@ struct SettingsView: View {
                     GeneralSettingsView(model: model)
                 case .stt:
                     STTSettingsView(model: model)
+                case .dictationDictionary:
+                    DictationDictionaryView(model: model)
                 case .cleanup:
                     CleanupSettingsView(model: model)
                 case .prompts:
@@ -63,6 +65,7 @@ struct SettingsView: View {
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general
     case stt
+    case dictationDictionary
     case cleanup
     case prompts
 
@@ -72,6 +75,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: "gearshape"
         case .stt: "waveform"
+        case .dictationDictionary: "character.book.closed"
         case .cleanup: "wand.and.stars"
         case .prompts: "text.badge.checkmark"
         }
@@ -81,6 +85,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: MurmureLocalization.text("settings.general", defaultValue: "General", locale: locale)
         case .stt: MurmureLocalization.text("settings.stt", defaultValue: "STT Transcription", locale: locale)
+        case .dictationDictionary: MurmureLocalization.text("settings.dictation_dictionary", defaultValue: "Dictation Dictionary", locale: locale)
         case .cleanup: MurmureLocalization.text("settings.ttt", defaultValue: "TTT Cleanup", locale: locale)
         case .prompts: MurmureLocalization.text("settings.prompts", defaultValue: "Prompts", locale: locale)
         }
@@ -196,7 +201,6 @@ private struct STTSettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                TextField(MurmureLocalization.text("field.context_prompt_optional", defaultValue: "Context prompt (optional)", locale: locale), text: $model.preferences.sttPrompt)
                 Picker(MurmureLocalization.text("field.authentication", defaultValue: "Authentication", locale: locale), selection: $model.preferences.stt.authentication) {
                     ForEach(AuthenticationMode.allCases) { Text($0.title(locale: locale)).tag($0) }
                 }
@@ -221,6 +225,165 @@ private struct STTSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+}
+
+private struct DictationDictionaryView: View {
+    @Bindable var model: AppModel
+    @State private var searchText = ""
+    @State private var isAdding = false
+    @State private var newTerm = ""
+    @State private var addError = false
+    @FocusState private var newTermIsFocused: Bool
+
+    private var filteredTerms: [String] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return model.preferences.dictationDictionary }
+        return model.preferences.dictationDictionary.filter {
+            $0.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var body: some View {
+        let locale = model.interfaceLocale
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(MurmureLocalization.text("settings.dictation_dictionary", defaultValue: "Dictation Dictionary", locale: locale))
+                    .font(.title2.weight(.semibold))
+                Spacer()
+                TextField(
+                    MurmureLocalization.text("dictation_dictionary.search", defaultValue: "Search…", locale: locale),
+                    text: $searchText
+                )
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 180)
+                Button {
+                    guard !isAdding else { return }
+                    newTerm = ""
+                    addError = false
+                    isAdding = true
+                    newTermIsFocused = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.bordered)
+                .help(MurmureLocalization.text("dictation_dictionary.add", defaultValue: "Add term", locale: locale))
+                .disabled(isAdding)
+            }
+            .padding(.bottom, 6)
+
+            HStack {
+                Text(MurmureLocalization.text(
+                    "dictation_dictionary.description",
+                    defaultValue: "Add names, acronyms, or technical terms that should be recognized by dictation.",
+                    locale: locale
+                ))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                Spacer()
+                Text(MurmureLocalization.dictationDictionaryCount(model.preferences.dictationDictionary.count, locale: locale))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.bottom, 16)
+
+            Label {
+                Text(MurmureLocalization.text(
+                    "dictation_dictionary.warning",
+                    defaultValue: "This may improve recognition, but it is not 100% effective and depends on the selected transcription model.",
+                    locale: locale
+                ))
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.bottom, 12)
+
+            HStack {
+                Text(MurmureLocalization.text("dictation_dictionary.column", defaultValue: "Dictionary String", locale: locale))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 4)
+
+            List {
+                if isAdding {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            TextField(
+                                MurmureLocalization.text("dictation_dictionary.entry_placeholder", defaultValue: "Term", locale: locale),
+                                text: $newTerm
+                            )
+                            .textFieldStyle(.plain)
+                            .focused($newTermIsFocused)
+                            .onSubmit(commitNewTerm)
+                            .onExitCommand(perform: cancelNewTerm)
+                            .onChange(of: newTerm) { _, _ in addError = false }
+
+                            Button(action: cancelNewTerm) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(MurmureLocalization.text("dictation_dictionary.cancel", defaultValue: "Cancel", locale: locale))
+                        }
+                        if addError {
+                            Text(MurmureLocalization.text(
+                                "dictation_dictionary.invalid_entry",
+                                defaultValue: "Enter a non-empty term that is not already in the dictionary.",
+                                locale: locale
+                            ))
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        }
+                    }
+                    .listRowBackground(Color(nsColor: .controlBackgroundColor))
+                }
+
+                ForEach(filteredTerms, id: \.self) { term in
+                    HStack(spacing: 8) {
+                        Text(term)
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button {
+                            model.removeDictationDictionaryTerm(term)
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(MurmureLocalization.text("dictation_dictionary.remove", defaultValue: "Remove term", locale: locale))
+                    }
+                }
+            }
+            .listStyle(.inset)
+        }
+        .padding()
+        .onChange(of: isAdding) { _, adding in
+            if adding { newTermIsFocused = true }
+        }
+    }
+
+    private func commitNewTerm() {
+        guard model.addDictationDictionaryTerm(newTerm) else {
+            addError = true
+            newTermIsFocused = true
+            return
+        }
+        isAdding = false
+        newTerm = ""
+        addError = false
+    }
+
+    private func cancelNewTerm() {
+        isAdding = false
+        newTerm = ""
+        addError = false
+        newTermIsFocused = false
     }
 }
 

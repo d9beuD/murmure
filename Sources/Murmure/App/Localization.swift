@@ -89,6 +89,15 @@ enum MurmureLocalization {
         return String(format: format, locale: locale, arguments: [count])
     }
 
+    static func dictationDictionaryCount(_ count: Int, locale: Locale) -> String {
+        let format = text(
+            "dictation_dictionary.count",
+            defaultValue: "%lld strings",
+            locale: locale
+        )
+        return String(format: format, locale: locale, arguments: [count])
+    }
+
     static func onboardingStep(_ step: Int, total: Int, locale: Locale) -> String {
         let format = text("onboarding.step", defaultValue: "Step %lld of %lld", locale: locale)
         return String(format: format, locale: locale, arguments: [step, total])

@@ -76,6 +76,23 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
+    func testDictationDictionaryNormalizesRejectsDuplicatesAndPersists() {
+        let context = makeContext()
+
+        XCTAssertTrue(context.model.addDictationDictionaryTerm("  Symfony  "))
+        XCTAssertFalse(context.model.addDictationDictionaryTerm("Symfony"))
+        XCTAssertFalse(context.model.addDictationDictionaryTerm("   "))
+        XCTAssertTrue(context.model.addDictationDictionaryTerm("CapRover"))
+
+        XCTAssertEqual(context.model.preferences.dictationDictionary, ["Symfony", "CapRover"])
+        XCTAssertEqual(context.model.preferences.dictationDictionaryPrompt, "Symfony, CapRover")
+        XCTAssertEqual(context.preferencesStore.saved.last?.dictationDictionary, ["Symfony", "CapRover"])
+
+        context.model.removeDictationDictionaryTerm("Symfony")
+        XCTAssertEqual(context.model.preferences.dictationDictionary, ["CapRover"])
+    }
+
+    @MainActor
     func testSchemaSixMigrationPreservesPromptLibrary() {
         let prompt = CleanupPrompt(name: "Existing", systemImageName: "quote.bubble", instructions: "Keep this prompt.")
         let preferences = AppPreferences(
@@ -230,6 +247,28 @@ final class AppModelTests: XCTestCase {
     }
 
     @MainActor
+    func testDictationForwardsDictionaryPrompt() async throws {
+        let recorder = AppRecorderSpy()
+        recorder.stopURL = try appTemporaryFile()
+        defer { if let url = recorder.stopURL { try? FileManager.default.removeItem(at: url) } }
+        let transcriber = AppTranscriberSpy()
+        let preferences = AppPreferences(
+            dictationDictionary: ["Symfony", "CapRover"],
+            cleanupEnabled: false
+        )
+        let context = makeContext(recorder: recorder, transcriber: transcriber, preferences: preferences)
+
+        context.model.startRecording()
+        await appWaitUntil("recording") { context.model.state == .recording }
+        context.clock.advance(by: 1)
+        context.model.stopRecording()
+        await appWaitUntil("dictation completion") { context.model.state == .idle }
+
+        let calls = await transcriber.calls
+        XCTAssertEqual(calls.first?.prompt, "Symfony, CapRover")
+    }
+
+    @MainActor
     func testConnectionPermissionAndRecorderFailures() async {
         let deniedRecorder = AppRecorderSpy()
         let deniedPermissions = PermissionSpy()
@@ -290,7 +329,7 @@ final class AppModelTests: XCTestCase {
         recorder.stopURL = audioURL
         let transcriber = AppTranscriberSpy(result: .success("verified text"))
         var preferences = AppPreferences()
-        preferences.sttPrompt = "vocabulary"
+        preferences.dictationDictionary = ["Symfony", "CapRover"]
         preferences.sttLanguage = .french
         let context = makeContext(recorder: recorder, transcriber: transcriber, preferences: preferences)
         context.model.sttAPIKey = "connection-key"
@@ -305,7 +344,7 @@ final class AppModelTests: XCTestCase {
         let calls = await transcriber.calls
         XCTAssertEqual(calls.first?.configuration, preferences.stt)
         XCTAssertEqual(calls.first?.apiKey, "connection-key")
-        XCTAssertEqual(calls.first?.prompt, "vocabulary")
+        XCTAssertEqual(calls.first?.prompt, "Symfony, CapRover")
         XCTAssertEqual(calls.first?.language, "fr")
         XCTAssertEqual(recorder.deleteCount, 1)
         XCTAssertEqual(context.feedback.events, [.recordingStarted, .recordingStopped, .connectionTestSucceeded])
