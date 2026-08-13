@@ -40,7 +40,7 @@ Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-com
 - ephemeral networking that rejects cross-origin redirects;
 - error logs with provider responses redacted;
 - domain, application, and infrastructure tests with coverage thresholds in CI;
-- a script that prepares a signed, notarizable archive with a SHA-256 checksum.
+- a script that prepares a signed, notarizable archive and reports its SHA-256 digest.
 
 ## First-time setup
 
@@ -113,7 +113,7 @@ development script is not the final distribution method.
 ## Preparing a release
 
 On a machine with Xcode and a Developer ID identity, `Scripts/release.sh`
-produces a DMG and its SHA-256 checksum. The GitHub **Release** workflow can be
+produces a DMG and reports its SHA-256 digest. The GitHub **Release** workflow can be
 run manually to produce a DMG, attach it to a new release, sign it, and notarize
 it with an App Store Connect Team API key. See the detailed
 [release checklist](docs/RELEASE_CHECKLIST.md).

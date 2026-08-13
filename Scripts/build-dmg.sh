@@ -18,7 +18,6 @@ application_path="$binary_directory/Murmure.app"
 contents_path="$application_path/Contents"
 release_directory="$repository_directory/.build/release-artifacts"
 dmg_path="$release_directory/Murmure-$version-macos.dmg"
-checksum_path="$dmg_path.sha256"
 staging_directory=$(mktemp -d "${TMPDIR:-/tmp}/murmure-release.XXXXXX")
 
 cleanup() {
@@ -96,9 +95,9 @@ fi
 
 /bin/mv "$application_path" "$staging_directory/Murmure.app"
 /bin/ln -s /Applications "$staging_directory/Applications"
-/bin/rm -f -- "$dmg_path" "$checksum_path"
+/bin/rm -f -- "$dmg_path" "$dmg_path.sha256"
 /usr/bin/hdiutil create -volname "Murmure $version" -srcfolder "$staging_directory" -ov -format UDZO "$dmg_path"
-/usr/bin/shasum -a 256 "$dmg_path" > "$checksum_path"
+dmg_checksum=$(/usr/bin/shasum -a 256 "$dmg_path" | /usr/bin/cut -d ' ' -f 1)
 
 print "DMG: $dmg_path"
-print "Checksum: $checksum_path"
+print "DMG SHA-256: $dmg_checksum"

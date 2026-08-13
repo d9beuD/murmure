@@ -65,7 +65,6 @@ export MURMURE_SIGNING_IDENTITY="$signing_identity"
 "$script_directory/build-dmg.sh"
 
 dmg_path="$repository_directory/.build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg"
-checksum_path="$dmg_path.sha256"
 printf '%s' "$APP_STORE_CONNECT_KEY_BASE64" | /usr/bin/base64 -D > "$api_key_path"
 
 xcrun notarytool submit "$dmg_path" \
@@ -75,9 +74,9 @@ xcrun notarytool submit "$dmg_path" \
     --wait
 xcrun stapler staple "$dmg_path"
 xcrun stapler validate "$dmg_path"
-/usr/bin/shasum -a 256 "$dmg_path" > "$checksum_path"
+dmg_checksum=$(/usr/bin/shasum -a 256 "$dmg_path" | /usr/bin/cut -d ' ' -f 1)
 
 print "Notarized DMG: $dmg_path"
-print "Checksum: $checksum_path"
+print "Notarized DMG SHA-256: $dmg_checksum"
 print "Sparkle feed URL: $sparkle_feed_url"
 print "Appcast publication: GitHub Actions workflow signs and uploads appcast.xml as a release asset. Do not publish appcast manually."

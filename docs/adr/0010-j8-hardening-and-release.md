@@ -10,7 +10,7 @@ Logs no longer write `localizedDescription` for unknown errors. STT and TTT serv
 
 A test target covers preference migrations, endpoint normalization, log protection, and an injected dictation pipeline. CI builds with warnings treated as errors, runs these tests, and rejects known secret, signature, and audio-recording formats.
 
-`Scripts/release.sh` builds a Release bundle, applies Hardened Runtime, signs with a Developer ID identity supplied by the environment, produces a DMG and SHA-256 checksum, and can submit the archive to `notarytool` using a temporarily reconstructed App Store Connect Team API key.
+`Scripts/release.sh` builds a Release bundle, applies Hardened Runtime, signs with a Developer ID identity supplied by the environment, produces a DMG, reports its SHA-256 digest, and can submit the archive to `notarytool` using a temporarily reconstructed App Store Connect Team API key.
 
 ## Remaining final validation
 

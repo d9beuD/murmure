@@ -26,7 +26,7 @@ The repository is a Swift Package Manager project with no Xcode project. `Packag
 | Build, sign, verify, and launch the development app | `./Scripts/run-app.sh` |
 | Assemble without launching | `MURMURE_SKIP_OPEN=1 ./Scripts/run-app.sh` |
 | Verify an assembled app | `./Scripts/verify-app-bundle.sh "$(swift build --show-bin-path)/Murmure.app"` |
-| Build, sign, notarize, and checksum a release DMG | `./Scripts/release.sh` (requires release environment variables) |
+| Build, sign, notarize, and report the digest of a release DMG | `./Scripts/release.sh` (requires release environment variables) |
 
 **Never use `swift run Murmure` to validate application behavior.** It launches a raw executable without the app's `Info.plist`, entitlements, embedded frameworks, compiled localization catalogs, stable code signature, or LaunchServices behavior. Use `./Scripts/run-app.sh`.
 
@@ -120,5 +120,5 @@ When changing dependencies, preserve exact pinning unless the task explicitly ca
 - `./Scripts/release.sh` requires `MURMURE_VERSION`, `MURMURE_BUILD_NUMBER`, `DEVELOPER_ID_CERTIFICATE_BASE64`, `DEVELOPER_ID_CERTIFICATE_PASSWORD`, `BUILD_KEYCHAIN_PASSWORD`, `APP_STORE_CONNECT_KEY_BASE64`, `APP_STORE_CONNECT_KEY_ID`, and `APP_STORE_CONNECT_ISSUER_ID`.
 - `MURMURE_VERSION` is a semantic version without the `v` prefix; the Git tag uses `v`. `MURMURE_BUILD_NUMBER` is the monotonic Sparkle bundle version.
 - Release builds use Hardened Runtime, the same entitlements and embedded resources as development builds, Developer ID signing, notarization, stapling, DMG creation, and SHA-256 output.
-- The manual GitHub Actions release workflow also generates and signs `appcast.xml`, uploads it with the DMG/checksum, and creates the GitHub release. Do not publish a hand-written appcast.
+- The manual GitHub Actions release workflow also generates and signs `appcast.xml`, uploads it with the DMG, and creates the GitHub release. GitHub reports the DMG's SHA-256 digest. Do not publish a hand-written appcast.
 - Keep `SUFeedURL` and `SUPublicEDKey` in `Configuration/Info.plist` valid; the release script rejects placeholders. Follow `docs/RELEASE_CHECKLIST.md` for the human validation steps.

@@ -118,7 +118,6 @@ jobs:
           name: Murmure-${{ inputs.version }}-macos
           path: |
             .build/release-artifacts/*.dmg
-            .build/release-artifacts/*.sha256
             .build/release-artifacts/appcast.xml
           if-no-files-found: error
           retention-days: 7
@@ -132,7 +131,7 @@ jobs:
           tag="v$MURMURE_VERSION"
           notes_path="$RUNNER_TEMP/release-notes.md"
           printf '%s\n' "$RELEASE_NOTES" > "$notes_path"
-          release_args=("$tag" ".build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg" ".build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg.sha256" ".build/release-artifacts/appcast.xml" "--title" "Murmure $MURMURE_VERSION" "--notes-file" "$notes_path" "--draft")
+          release_args=("$tag" ".build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg" ".build/release-artifacts/appcast.xml" "--title" "Murmure $MURMURE_VERSION" "--notes-file" "$notes_path" "--draft")
           [[ "${{ inputs.prerelease }}" == "true" ]] && release_args+=("--prerelease")
           gh release create "${release_args[@]}"
 
