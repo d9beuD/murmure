@@ -11,6 +11,25 @@ struct MenuContent: View {
     var body: some View {
         let locale = model.interfaceLocale
 
+        Menu(MurmureLocalization.text("menu.language", defaultValue: "Language", locale: locale)) {
+            Button {
+                model.setSTTLanguage(.automatic)
+            } label: {
+                languageMenuLabel(.automatic, locale: locale, isSelected: model.preferences.sttLanguage == .automatic)
+            }
+
+            if !model.preferences.sttFavoriteLanguages.isEmpty {
+                Divider()
+                ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale).filter { model.preferences.sttFavoriteLanguages.contains($0) }) { language in
+                    Button {
+                        model.setSTTLanguage(language)
+                    } label: {
+                        languageMenuLabel(language, locale: locale, isSelected: model.preferences.sttLanguage == language)
+                    }
+                }
+            }
+        }
+
         Menu(MurmureLocalization.text("menu.mode", defaultValue: "Mode", locale: locale)) {
             ForEach(TriggerMode.allCases) { mode in
                 Button {
@@ -83,6 +102,16 @@ struct MenuContent: View {
 
         Button(MurmureLocalization.text("menu.quit", defaultValue: "Quit", locale: locale)) {
             NSApplication.shared.terminate(nil)
+        }
+    }
+
+    private func languageMenuLabel(_ language: TranscriptionLanguage, locale: Locale, isSelected: Bool) -> some View {
+        HStack {
+            Text(language.title(locale: locale))
+            if isSelected {
+                Spacer()
+                Image(systemName: "checkmark")
+            }
         }
     }
 }

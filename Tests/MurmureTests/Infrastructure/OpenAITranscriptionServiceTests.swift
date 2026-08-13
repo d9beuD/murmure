@@ -79,6 +79,33 @@ final class OpenAITranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(body.contains("name=\"prompt\""))
     }
 
+    func testAutomaticLanguageOmitsLanguageField() async throws {
+        let audioURL = try appTemporaryFile()
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+        let transport = HTTPStub { request in response(url: request.url!, data: Data("plain text".utf8)) }
+        let service = OpenAITranscriptionService(transport: transport, makeBoundary: { "B" })
+        let configuration = ProviderConfiguration(
+            name: "Whisper",
+            baseURL: "https://example.com/v1",
+            path: "audio/transcriptions",
+            model: "whisper-1",
+            authentication: .none
+        )
+
+        _ = try await service.transcribe(
+            audioURL: audioURL,
+            configuration: configuration,
+            apiKey: "",
+            prompt: nil,
+            language: nil
+        )
+
+        let requests = await transport.requests
+        let body = String(decoding: try XCTUnwrap(requests.first?.httpBody), as: UTF8.self)
+        XCTAssertFalse(body.contains("name=\"language\""))
+        XCTAssertFalse(body.contains("name=\"languages[]\""))
+    }
+
     func testAuthenticationModes() async throws {
         let audioURL = try appTemporaryFile()
         defer { try? FileManager.default.removeItem(at: audioURL) }

@@ -246,6 +246,114 @@
         "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Automatique" } }
       }
     },
+    "language.arabic" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Arabic" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Arabe" } }
+      }
+    },
+    "language.chinese" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Chinese" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Chinois" } }
+      }
+    },
+    "language.dutch" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dutch" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Néerlandais" } }
+      }
+    },
+    "language.english" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "English" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Anglais" } }
+      }
+    },
+    "language.french" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "French" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Français" } }
+      }
+    },
+    "language.german" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "German" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Allemand" } }
+      }
+    },
+    "language.hindi" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hindi" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Hindi" } }
+      }
+    },
+    "language.indonesian" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Indonesian" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Indonésien" } }
+      }
+    },
+    "language.italian" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Italian" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Italien" } }
+      }
+    },
+    "language.japanese" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Japanese" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Japonais" } }
+      }
+    },
+    "language.korean" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Korean" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Coréen" } }
+      }
+    },
+    "language.polish" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Polish" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Polonais" } }
+      }
+    },
+    "language.portuguese" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Portuguese" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Portugais" } }
+      }
+    },
+    "language.russian" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Russian" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Russe" } }
+      }
+    },
+    "language.spanish" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Spanish" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Espagnol" } }
+      }
+    },
+    "language.turkish" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Turkish" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Turc" } }
+      }
+    },
+    "language.ukrainian" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ukrainian" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Ukrainien" } }
+      }
+    },
+    "language.vietnamese" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Vietnamese" } },
+        "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Vietnamien" } }
+      }
+    },
     "output.clipboard" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Clipboard" } },
@@ -320,11 +428,13 @@
     "field.output" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Output" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Sortie" } } } },
     "field.path" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Path" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Path" } } } },
     "field.shortcut" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Shortcut:" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Raccourci :" } } } },
-    "field.stt_language_optional" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Language (optional)" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Language (facultatif)" } } } },
+    "field.stt_favorite_languages" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Languages in the menu" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Langues dans le menu" } } } },
+    "field.stt_language" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Transcription language" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Langue de transcription" } } } },
     "field.endpoint_scheme" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The endpoint must start with http:// or https://." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "L’endpoint doit commencer par http:// ou https://." } } } },
     "menu.check_for_updates" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Check for Updates…" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Rechercher des mises à jour…" } } } },
     "menu.getting_started" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Getting Started" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Premiers pas" } } } },
     "menu.logs" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Logs" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Journaux" } } } },
+    "menu.language" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Language" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Langue" } } } },
     "menu.mode" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Mode" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Mode" } } } },
     "menu.quit" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Quit" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Quitter" } } } },
     "menu.settings" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Réglages" } } } },

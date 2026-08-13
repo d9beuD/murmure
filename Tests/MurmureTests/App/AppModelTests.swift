@@ -7,7 +7,7 @@ final class AppModelTests: XCTestCase {
     @MainActor
     func testLoadsAndSavesPreferencesAndSecrets() {
         var preferences = AppPreferences()
-        preferences.sttLanguage = "fr"
+        preferences.sttLanguage = .french
         preferences.triggerMode = .toggle
         let secrets = [
             preferences.stt.id: "stt-key",
@@ -15,18 +15,18 @@ final class AppModelTests: XCTestCase {
         ]
         let context = makeContext(preferences: preferences, secrets: secrets)
 
-        XCTAssertEqual(context.model.preferences.sttLanguage, "fr")
+        XCTAssertEqual(context.model.preferences.sttLanguage, .french)
         XCTAssertEqual(context.model.mode, .toggle)
         XCTAssertEqual(context.model.sttAPIKey, "stt-key")
         XCTAssertEqual(context.model.cleanupAPIKey, "cleanup-key")
         XCTAssertEqual(Set(context.secretStore.readIDs), Set(secrets.keys))
 
-        context.model.preferences.sttLanguage = "en"
+        context.model.setSTTLanguage(.english)
         context.model.sttAPIKey = "new-stt"
         context.model.cleanupAPIKey = "new-cleanup"
         context.model.savePreferences()
 
-        XCTAssertEqual(context.preferencesStore.saved.last?.sttLanguage, "en")
+        XCTAssertEqual(context.preferencesStore.saved.last?.sttLanguage, .english)
         XCTAssertEqual(context.secretStore.saves.last?[preferences.stt.id], "new-stt")
         XCTAssertEqual(context.secretStore.saves.last?[preferences.cleanupProvider.id], "new-cleanup")
     }
@@ -44,6 +44,50 @@ final class AppModelTests: XCTestCase {
         context.model.setInterfaceLanguage(.english)
         XCTAssertEqual(context.model.interfaceLocale.identifier, "en")
         XCTAssertEqual(context.preferencesStore.saved.last?.interfaceLanguage, .english)
+    }
+
+    @MainActor
+    func testSelectingSTTLanguageAddsFavoriteAndCanBeChangedBackToAutomatic() {
+        let context = makeContext()
+
+        context.model.setSTTLanguage(.german)
+        XCTAssertEqual(context.model.preferences.sttLanguage, .german)
+        XCTAssertTrue(context.model.preferences.sttFavoriteLanguages.contains(.german))
+        XCTAssertEqual(context.preferencesStore.saved.last?.sttLanguage, .german)
+
+        context.model.setSTTLanguage(.automatic)
+        XCTAssertEqual(context.model.preferences.sttLanguage, .automatic)
+        XCTAssertTrue(context.model.preferences.sttFavoriteLanguages.contains(.german))
+    }
+
+    @MainActor
+    func testActiveSTTLanguageCannotBeRemovedFromFavorites() {
+        var preferences = AppPreferences()
+        preferences.sttLanguage = .french
+        let context = makeContext(preferences: preferences)
+
+        context.model.setSTTFavoriteLanguage(.french, enabled: false)
+        XCTAssertTrue(context.model.preferences.sttFavoriteLanguages.contains(.french))
+
+        context.model.setSTTFavoriteLanguage(.german, enabled: true)
+        XCTAssertTrue(context.model.preferences.sttFavoriteLanguages.contains(.german))
+        context.model.setSTTFavoriteLanguage(.german, enabled: false)
+        XCTAssertFalse(context.model.preferences.sttFavoriteLanguages.contains(.german))
+    }
+
+    @MainActor
+    func testSchemaSixMigrationPreservesPromptLibrary() {
+        let prompt = CleanupPrompt(name: "Existing", systemImageName: "quote.bubble", instructions: "Keep this prompt.")
+        let preferences = AppPreferences(
+            schemaVersion: 6,
+            cleanupPrompts: [prompt],
+            activeCleanupPromptID: prompt.id
+        )
+        let context = makeContext(preferences: preferences)
+
+        XCTAssertEqual(context.model.preferences.cleanupPrompts, [prompt])
+        XCTAssertEqual(context.model.preferences.activeCleanupPromptID, prompt.id)
+        XCTAssertEqual(context.preferencesStore.saved.last?.schemaVersion, AppPreferences.currentSchemaVersion)
     }
 
     @MainActor
@@ -247,7 +291,7 @@ final class AppModelTests: XCTestCase {
         let transcriber = AppTranscriberSpy(result: .success("verified text"))
         var preferences = AppPreferences()
         preferences.sttPrompt = "vocabulary"
-        preferences.sttLanguage = "fr"
+        preferences.sttLanguage = .french
         let context = makeContext(recorder: recorder, transcriber: transcriber, preferences: preferences)
         context.model.sttAPIKey = "connection-key"
 
