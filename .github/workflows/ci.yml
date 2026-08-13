@@ -36,6 +36,9 @@ jobs:
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 
+      - name: Check architecture boundaries
+        run: ./Scripts/check-architecture.sh
+
       - name: Test
         run: ./Scripts/check-coverage.sh
 

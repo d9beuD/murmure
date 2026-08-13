@@ -28,7 +28,17 @@ final class AppRecorderSpy: AudioRecording {
         return stopURL
     }
     func cancel() { cancelCount += 1 }
-    func deleteLastCapture() { deleteCount += 1 }
+    func deleteLastCapture() {
+        guard stopURL != nil else { return }
+        deleteCount += 1
+        stopURL = nil
+    }
+    func captureSize(at url: URL) -> Int { 0 }
+    func deleteCapture(at url: URL) {
+        deleteCount += 1
+        try? FileManager.default.removeItem(at: url)
+        if stopURL == url { stopURL = nil }
+    }
 }
 
 @MainActor
@@ -40,6 +50,8 @@ final class AppPendingPermissionRecorder: AudioRecording {
     func stop() -> URL? { nil }
     func cancel() { cancelCount += 1 }
     func deleteLastCapture() {}
+    func captureSize(at url: URL) -> Int { 0 }
+    func deleteCapture(at url: URL) {}
 }
 
 actor AppTranscriberSpy: SpeechTranscribing {
@@ -163,6 +175,7 @@ final class PreferencesStoreSpy: PreferencesStoring {
 
 final class SecretStoreSpy: SecretStoring {
     var secrets: [UUID: String]
+    var saveError: (any Error)?
     private(set) var readIDs: [UUID] = []
     private(set) var saves: [[UUID: String]] = []
 
@@ -176,6 +189,7 @@ final class SecretStoreSpy: SecretStoring {
     }
 
     func save(_ secrets: [UUID: String]) throws {
+        if let saveError { throw saveError }
         self.secrets = secrets
         saves.append(secrets)
     }

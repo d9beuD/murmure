@@ -4,13 +4,13 @@ import MurmureCore
 @MainActor
 enum CompositionRoot {
     enum LaunchState {
-        case ready(AppModel, recoveredPreferences: Bool)
+        case ready(AppEnvironment, recoveredPreferences: Bool)
         case incompatible(schemaVersion: Int)
     }
 
     static func makeLaunchState() -> LaunchState {
         let preferencesStore = UserDefaultsPreferencesStore()
-        let loadedPreferences: AppPreferences
+        var loadedPreferences: AppPreferences
         let recovered: Bool
 
         switch preferencesStore.load() {
@@ -24,16 +24,27 @@ enum CompositionRoot {
             return .incompatible(schemaVersion: schemaVersion)
         }
 
+        let migratedPreferences = PreferencesMigrator.migrate(
+            loadedPreferences,
+            localizedDefaultPrompt: MurmureLocalization.defaultCleanupPrompt(
+                locale: MurmureLocalization.locale(for: loadedPreferences.interfaceLanguage)
+            )
+        )
+        if migratedPreferences != loadedPreferences {
+            preferencesStore.save(migratedPreferences)
+            loadedPreferences = migratedPreferences
+        }
+
         return .ready(
-            makeAppModel(preferencesStore: preferencesStore, initialPreferences: loadedPreferences),
+            makeEnvironment(preferencesStore: preferencesStore, initialPreferences: loadedPreferences),
             recoveredPreferences: recovered
         )
     }
 
-    private static func makeAppModel(
+    private static func makeEnvironment(
         preferencesStore: UserDefaultsPreferencesStore,
         initialPreferences: AppPreferences
-    ) -> AppModel {
+    ) -> AppEnvironment {
         let audioRecorder = AudioRecorder()
         let permissions = SystemPermissionProvider()
         let logStore = AppLogStore()
@@ -41,6 +52,7 @@ enum CompositionRoot {
         let transcriber = OpenAITranscriptionService(transport: transport)
         let cleaner = OpenAITextCleanupService(transport: transport)
         let textDelivery = TextDelivery()
+        let sessionArbiter = SessionArbiter()
 
         let coordinator = DictationCoordinator(
             dependencies: DictationDependencies(
@@ -49,18 +61,20 @@ enum CompositionRoot {
                 textDelivery: textDelivery,
                 transcriber: transcriber,
                 cleaner: cleaner,
-                logger: logStore
+                logger: logStore,
+                sessionArbiter: sessionArbiter
             )
         )
-        let connectionTest = ConnectionTestModel(
+        let connectionTest = ConnectionTestCoordinator(
             audioRecorder: audioRecorder,
             microphonePermission: permissions,
             transcriber: transcriber,
             logger: logStore,
-            now: Date.init
+            now: Date.init,
+            sessionArbiter: sessionArbiter
         )
 
-        return AppModel(dependencies: AppDependencies(
+        let appStore = AppStore(dependencies: AppStoreDependencies(
             coordinator: coordinator,
             connectionTest: connectionTest,
             textDelivery: textDelivery,
@@ -75,7 +89,13 @@ enum CompositionRoot {
             ),
             permissions: permissions,
             logStore: logStore,
-            now: Date.init
+            now: Date.init,
+            sessionArbiter: sessionArbiter
         ), initialPreferences: initialPreferences)
+        return AppEnvironment(
+            appStore: appStore,
+            dictationCoordinator: coordinator,
+            connectionTestCoordinator: connectionTest
+        )
     }
 }

@@ -35,9 +35,15 @@ struct MurmureApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            if case .ready(let model, let recoveredPreferences) = launchState {
+            if case .ready(let environment, let recoveredPreferences) = launchState {
+                let model = environment.appStore
                 MenuContent(model: model, updater: appDelegate.updaterController.updater)
                     .environment(\.locale, model.interfaceLocale)
+                    .environment(model)
+                    .environment(model.preferencesModel)
+                    .environment(model.dictationSession)
+                    .environment(model.permissionsModel)
+                    .environment(model.promptLibrary)
                     .task {
                         guard model.requiresOnboarding, !recoveredPreferences, !didOpenOnboarding else { return }
                         didOpenOnboarding = true
@@ -74,6 +80,11 @@ struct MurmureApp: App {
             if let model = readyModel {
                 SettingsView(model: model, dockPresenceController: dockPresenceController)
                     .environment(\.locale, model.interfaceLocale)
+                    .environment(model)
+                    .environment(model.preferencesModel)
+                    .environment(model.dictationSession)
+                    .environment(model.permissionsModel)
+                    .environment(model.promptLibrary)
             }
         }
         .defaultLaunchBehavior(.suppressed)
@@ -96,6 +107,11 @@ struct MurmureApp: App {
             if let model = readyModel {
                 OnboardingView(model: model, dockPresenceController: dockPresenceController)
                     .environment(\.locale, model.interfaceLocale)
+                    .environment(model)
+                    .environment(model.preferencesModel)
+                    .environment(model.dictationSession)
+                    .environment(model.permissionsModel)
+                    .environment(model.promptLibrary)
             }
         }
         .defaultLaunchBehavior(.suppressed)
@@ -109,9 +125,9 @@ struct MurmureApp: App {
         .defaultLaunchBehavior(.suppressed)
     }
 
-    private var readyModel: AppModel? {
-        guard case .ready(let model, _) = launchState else { return nil }
-        return model
+    private var readyModel: AppStore? {
+        guard case .ready(let environment, _) = launchState else { return nil }
+        return environment.appStore
     }
 
     private var interfaceLocale: Locale {

@@ -111,6 +111,37 @@ final class PersistenceAndLoggingTests: XCTestCase {
         XCTAssertTrue(preferences.hasCompletedOnboarding)
     }
 
+    func testPreferencesMigratorRepairsLegacyAndLocalizedPrompts() throws {
+        let legacy = try JSONDecoder().decode(
+            AppPreferences.self,
+            from: Data("{\"schemaVersion\":4,\"cleanupPrompt\":\"\(AppPreferences.defaultCleanupPrompt)\"}".utf8)
+        )
+        let migrated = PreferencesMigrator.migrate(legacy, localizedDefaultPrompt: "Prompt localized")
+
+        XCTAssertEqual(migrated.schemaVersion, AppPreferences.currentSchemaVersion)
+        XCTAssertEqual(migrated.cleanupPrompts.count, 1)
+        XCTAssertEqual(migrated.cleanupPrompts.first?.name, "Standard")
+        XCTAssertEqual(migrated.cleanupPrompts.first?.instructions, "Prompt localized")
+        XCTAssertEqual(migrated.activeCleanupPromptID, migrated.cleanupPrompts.first?.id)
+    }
+
+    func testPreferencesMigratorPreservesCustomPromptAndRepairsReference() {
+        let prompt = CleanupPrompt(name: "Custom", systemImageName: "quote.bubble", instructions: "Keep wording")
+        var preferences = AppPreferences(
+            schemaVersion: 6,
+            cleanupPrompts: [prompt],
+            activeCleanupPromptID: UUID()
+        )
+        let migrated = PreferencesMigrator.migrate(preferences, localizedDefaultPrompt: "Localized")
+
+        XCTAssertEqual(migrated.cleanupPrompts, [prompt])
+        XCTAssertEqual(migrated.activeCleanupPromptID, prompt.id)
+        XCTAssertNotEqual(migrated.cleanupPrompt, "Localized")
+        preferences = AppPreferences()
+        let unchanged = PreferencesMigrator.migrate(preferences, localizedDefaultPrompt: AppPreferences.defaultCleanupPrompt)
+        XCTAssertEqual(unchanged, preferences)
+    }
+
     func testSafeLogMessages() {
         struct SensitiveError: LocalizedError {
             var errorDescription: String? { "secret transcript" }

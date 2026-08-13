@@ -34,13 +34,55 @@ A full Xcode installation is required for tests (`XCTest`) and app assembly (`xc
 
 Before rebuilding the development `.app`, quit a running Murmure instance. `run-app.sh` deliberately refuses to replace a live bundle so macOS can retain its permissions consistently.
 
+## Hexagonal architecture and package structure
+
+Murmure uses a lightweight hexagonal architecture while intentionally retaining two
+production SwiftPM targets. The targets provide the module boundary; folders make
+the four logical layers explicit:
+
+```text
+Sources/MurmureCore/
+  Domain/                 # pure entities, value objects, rules, errors, migrations
+  Application/            # use cases, orchestration, application state snapshots
+    Ports/                # outbound technical boundaries
+
+Sources/Murmure/
+  App/                    # @main, scenes, composition root, global configuration
+  Presentation/           # SwiftUI views, @Observable stores, AppKit presentation
+  Adapters/               # concrete system, network, persistence, and IO adapters
+  Resources/
+```
+
+Dependencies always point inward: `Presentation -> Application -> Domain`;
+`Adapters -> Application / Domain`; and `App` is the only layer permitted to
+assemble all layers. `MurmureCore` must not import SwiftUI, Observation, AppKit,
+AVFoundation, Security, URLSession, or any other UI/platform/technical framework.
+Foundation and Swift Concurrency are permitted there. Do not add a third target
+unless a subsystem has an independently managed lifecycle, meaningful reuse, or a
+genuine independent dependency boundary.
+
+SwiftUI is an incoming adapter. Views are declarative and thin: they render state,
+collect input, and make a single call to an injected Store. Feature Stores are
+`@MainActor @Observable`, own UI state exactly once, and delegate business work to
+application use cases. Use `@State` for view-local drafts/navigation and
+`@Bindable` only for editable Store state. Do not put validation, persistence,
+networking, request assembly, or multi-step business workflows in a view.
+
+Application services and coordinators are non-observable. They expose immutable
+`Sendable` snapshots and typed lifecycle events for Presentation to interpret.
+Define a protocol only for a real technical boundary (audio, permissions,
+transcription, cleanup, delivery, preferences, Keychain, logging, hotkeys, or a
+macOS service); keep test seams internal to an adapter when they do not cross that
+boundary. Concrete adapters belong under `Adapters/`; visual AppKit integrations,
+including the listening indicator, belong under `Presentation/`.
+
 ## Package structure
 
-- `Sources/MurmureCore/` — reusable domain types, the dictation coordinator, injected ports, and log-safety helpers. It must not depend on AppKit or concrete infrastructure.
-- `Sources/Murmure/` — executable target containing SwiftUI/AppKit presentation, application models, feature controllers, and live adapters.
-  - `App/` — `MurmureApp`, `CompositionRoot`, `AppModel`, dependencies, presentation mapping, and localization.
-  - `Features/` — menu bar, settings, onboarding, live logs, and the listening indicator.
-  - `Infrastructure/` — Accessibility, audio, cleanup, delivery, hotkeys, networking, persistence, system services, and transcription adapters.
+- `Sources/MurmureCore/` — reusable `Domain` and `Application` code plus outbound ports. It has no UI or concrete infrastructure dependency.
+- `Sources/Murmure/` — executable target containing the app composition, presentation Stores/views, and live adapters.
+  - `App/` — `MurmureApp`, `CompositionRoot`, `AppEnvironment`, scene wiring, diagnostics, and localization.
+  - `Presentation/` — menu bar, settings, onboarding, logs, listening indicator, error adaptation, and observable Stores.
+  - `Adapters/` — Accessibility, audio, cleanup, delivery, hotkeys, networking, persistence, Keychain, system services, and transcription implementations.
   - `Resources/` — `Localizable.xcstrings` and `InfoPlist.xcstrings`.
 - `Tests/MurmureCoreTests/` — domain and coordinator tests.
 - `Tests/MurmureTests/` — application, localization, feature, and infrastructure tests.
@@ -52,11 +94,11 @@ Before rebuilding the development `.app`, quit a running Murmure instance. `run-
 ## Architecture and runtime flow
 
 - Entry point: `Sources/Murmure/App/MurmureApp.swift` (`@main`).
-- `CompositionRoot.makeAppModel()` is the only place that builds the live object graph. Keep concrete adapters there.
-- `AppModel` is `@MainActor` and `@Observable`. It owns UI-facing orchestration: hotkey semantics, live language changes, permission refreshes, feedback sounds, indicator transitions, preferences, and Keychain-backed secrets.
-- `DictationCoordinator` is `@MainActor` and `@Observable`. It owns the session ID, state machine, recording watchdog, cancellation/stale-session protection, transcription, optional cleanup, delivery, and temporary-file cleanup.
-- `ConnectionTestModel` reuses the audio recorder and transcription port but has an independent UI state. Do not allow a connection test and dictation to run together.
-- Core dependencies enter through `DictationDependencies`; app-only dependencies enter through `AppDependencies`. Add a protocol/port when behavior needs a test double.
+- `CompositionRoot.makeLaunchState()` is the only place that builds the live object graph. Keep concrete adapter construction there.
+- `AppEnvironment` owns the shared feature Stores and application services. It is the ready result injected into scenes; it is not observable itself.
+- `DictationCoordinator` and `ConnectionTestCoordinator` are `@MainActor` application services. They own session state, cancellation/stale-session protection, cleanup, and typed snapshots/events; they never import Observation or know about views, panels, sounds, or localized labels.
+- Feature Stores own UI orchestration such as hotkey semantics, live language changes, permission refreshes, feedback sounds, and indicator transitions. Do not allow a connection test and dictation to run together.
+- Core dependencies enter through application dependency values and ports. Add a port only for a real external boundary, not merely because a test needs a double.
 - UI-facing types and all adapters touching AppKit, Accessibility, pasteboard, hotkeys, windows, or permissions stay on `@MainActor`. Domain values crossing concurrency boundaries must be `Sendable`.
 - Coordinator lifecycle callbacks drive presentation effects. Keep the indicator and sounds outside `MurmureCore`; the core should not know about panels, AppKit, or localized labels.
 

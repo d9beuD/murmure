@@ -67,4 +67,24 @@ final class ProviderConfigurationTests: XCTestCase {
         XCTAssertEqual(ProviderConfiguration.openAITranscription.path, "audio/transcriptions")
         XCTAssertEqual(ProviderConfiguration.openAIResponses.path, "responses")
     }
+
+    func testValidationIssuesAreStableAndOrdered() {
+        let configuration = ProviderConfiguration(
+            name: "Invalid", baseURL: "not a URL", path: "responses", model: " ",
+            authentication: .apiKey, customHeaderName: " "
+        )
+        XCTAssertEqual(configuration.validationIssues(apiKey: ""), [.invalidEndpoint, .missingModel, .missingHeaderName, .missingAPIKey])
+    }
+
+    func testValidationAuthenticationModes() {
+        let base = ProviderConfiguration(name: "Test", baseURL: "https://example.com", path: "responses", model: "model")
+        XCTAssertTrue(base.validationIssues(apiKey: "").contains(.missingAPIKey))
+        var apiKey = base
+        apiKey.authentication = .apiKey
+        apiKey.customHeaderName = "X-API-Key"
+        XCTAssertTrue(apiKey.validationIssues(apiKey: "secret").isEmpty)
+        var none = base
+        none.authentication = .none
+        XCTAssertTrue(none.validationIssues(apiKey: "").isEmpty)
+    }
 }

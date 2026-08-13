@@ -8,6 +8,7 @@ public struct DictationDependencies {
     public let transcriber: any SpeechTranscribing
     public let cleaner: any TextCleaning
     public let logger: any LogWriting
+    public let sessionArbiter: (any SessionArbitrating)?
 
     public init(
         audioRecorder: any AudioRecording,
@@ -15,7 +16,8 @@ public struct DictationDependencies {
         textDelivery: any TextDelivering,
         transcriber: any SpeechTranscribing,
         cleaner: any TextCleaning,
-        logger: any LogWriting
+        logger: any LogWriting,
+        sessionArbiter: (any SessionArbitrating)? = nil
     ) {
         self.audioRecorder = audioRecorder
         self.microphonePermission = microphonePermission
@@ -23,5 +25,6 @@ public struct DictationDependencies {
         self.transcriber = transcriber
         self.cleaner = cleaner
         self.logger = logger
+        self.sessionArbiter = sessionArbiter
     }
 }

@@ -29,7 +29,16 @@ final class RecorderSpy: AudioRecording {
     }
 
     func cancel() { cancelCount += 1 }
-    func deleteLastCapture() { deleteCount += 1 }
+    func deleteLastCapture() {
+        deleteCount += 1
+        stopURL = nil
+    }
+    func captureSize(at url: URL) -> Int { 0 }
+    func deleteCapture(at url: URL) {
+        deleteCount += 1
+        try? FileManager.default.removeItem(at: url)
+        if stopURL == url { stopURL = nil }
+    }
 }
 
 @MainActor
@@ -41,6 +50,8 @@ final class PendingPermissionRecorder: AudioRecording {
     func stop() -> URL? { nil }
     func cancel() { cancelCount += 1 }
     func deleteLastCapture() {}
+    func captureSize(at url: URL) -> Int { 0 }
+    func deleteCapture(at url: URL) {}
 }
 
 @MainActor

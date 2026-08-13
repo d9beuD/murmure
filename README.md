@@ -10,6 +10,8 @@ Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-com
 
 - a `Murmure` executable target;
 - a `MurmureCore` domain library;
+- a lightweight hexagonal architecture: `Domain` and `Application` in the core,
+  plus `App`, `Presentation`, and `Adapters` in the macOS target;
 - a composition root that injects shared audio, permission, networking, persistence,
   delivery, and feedback adapters;
 - `MenuBarExtra` and `Settings` interfaces;
