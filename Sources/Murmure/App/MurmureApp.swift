@@ -27,7 +27,7 @@ struct MurmureApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("Murmure", systemImage: iconName(for: model.state)) {
+        MenuBarExtra {
             MenuContent(model: model, updater: appDelegate.updaterController.updater)
                 .environment(\.locale, model.interfaceLocale)
                 .task {
@@ -35,6 +35,11 @@ struct MurmureApp: App {
                     didOpenOnboarding = true
                     openWindow(id: "onboarding")
                 }
+        } label: {
+            Image(systemName: iconName(for: model.state))
+                .font(.system(size: 14, weight: .semibold))
+                .imageScale(.large)
+                .accessibilityLabel("Murmure")
         }
         .menuBarExtraStyle(.menu)
 
