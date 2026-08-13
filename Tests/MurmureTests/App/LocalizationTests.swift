@@ -37,7 +37,12 @@ final class LocalizationTests: XCTestCase {
             "language.german",
             "connection_test.received_characters",
             "dictation.transcribing",
-            "dictation.improving"
+            "dictation.improving",
+            "action.quit",
+            "startup.incompatible.title",
+            "startup.incompatible.message",
+            "startup.recovered.title",
+            "startup.recovered.message"
         ] {
             let entry = try XCTUnwrap(strings[key] as? [String: Any])
             let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])

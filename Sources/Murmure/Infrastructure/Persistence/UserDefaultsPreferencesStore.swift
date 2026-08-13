@@ -4,20 +4,41 @@ import MurmureCore
 final class UserDefaultsPreferencesStore: PreferencesStoring {
     private let defaults: UserDefaults
     private let key = "murmure.preferences"
+    private let recoveryURL: URL
+    private let fileManager: FileManager
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        recoveryURL: URL? = nil,
+        fileManager: FileManager = .default
+    ) {
         self.defaults = defaults
+        self.fileManager = fileManager
+        let applicationSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
+        self.recoveryURL = recoveryURL ?? applicationSupportURL
+            .appendingPathComponent("Murmure", isDirectory: true)
+            .appendingPathComponent("preferences-recovery.json")
     }
 
-    var preferences: AppPreferences {
-        guard let data = defaults.data(forKey: key),
-              let value = try? decoder.decode(AppPreferences.self, from: data) else {
-            return AppPreferences()
+    func load() -> PreferencesLoadResult {
+        guard let data = defaults.data(forKey: key) else {
+            return .loaded(AppPreferences())
         }
-        guard value.schemaVersion <= AppPreferences.currentSchemaVersion else { return AppPreferences() }
-        return value
+
+        guard let value = try? decoder.decode(AppPreferences.self, from: data) else {
+            saveRecoveryCopy(data)
+            let recovered = AppPreferences()
+            save(recovered)
+            return .recovered(recovered)
+        }
+
+        guard value.schemaVersion <= AppPreferences.currentSchemaVersion else {
+            return .incompatible(schemaVersion: value.schemaVersion)
+        }
+        return .loaded(value)
     }
 
     func save(_ preferences: AppPreferences) {
@@ -29,5 +50,17 @@ final class UserDefaultsPreferencesStore: PreferencesStoring {
 
     func reset() {
         defaults.removeObject(forKey: key)
+    }
+
+    private func saveRecoveryCopy(_ data: Data) {
+        do {
+            try fileManager.createDirectory(
+                at: recoveryURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: recoveryURL, options: .atomic)
+        } catch {
+            // Recovery is best effort; the invalid value is still replaced with defaults.
+        }
     }
 }

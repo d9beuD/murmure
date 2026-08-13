@@ -22,6 +22,25 @@ if /usr/bin/pgrep -f "$application_path/Contents/MacOS/Murmure" >/dev/null; then
     exit 1
 fi
 
+production_application_path="/Applications/Murmure.app"
+production_executable_path="$production_application_path/Contents/MacOS/Murmure"
+if [[ -x "$production_executable_path" ]] && /usr/bin/pgrep -f "$production_executable_path" >/dev/null; then
+    print "Closing the installed Murmure app before launching the development build."
+    /usr/bin/osascript -e 'tell application "/Applications/Murmure.app" to quit'
+
+    for _ in {1..20}; do
+        if ! /usr/bin/pgrep -f "$production_executable_path" >/dev/null; then
+            break
+        fi
+        /bin/sleep 0.5
+    done
+
+    if /usr/bin/pgrep -f "$production_executable_path" >/dev/null; then
+        print -u2 "The installed Murmure app did not quit within 10 seconds; aborting without rebuilding the development app."
+        exit 1
+    fi
+fi
+
 /bin/rm -rf -- "$application_path"
 /bin/mkdir -p "$contents_path/MacOS" "$contents_path/Frameworks" "$contents_path/Resources"
 /usr/bin/install -m 755 "$binary_directory/Murmure" "$contents_path/MacOS/Murmure"

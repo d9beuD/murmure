@@ -15,8 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct MurmureApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model: AppModel
+    @State private var launchState: CompositionRoot.LaunchState
     @State private var didOpenOnboarding = false
+    @State private var didOpenRecoveryNotice = false
     @Environment(\.openWindow) private var openWindow
 
     init() {
@@ -26,20 +27,33 @@ struct MurmureApp: App {
         if KeyboardShortcutsDiagnostic.runIfRequested() {
             exit(0)
         }
-        _model = State(initialValue: CompositionRoot.makeAppModel())
+        _launchState = State(initialValue: CompositionRoot.makeLaunchState())
     }
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContent(model: model, updater: appDelegate.updaterController.updater)
-                .environment(\.locale, model.interfaceLocale)
+            if case .ready(let model, let recoveredPreferences) = launchState {
+                MenuContent(model: model, updater: appDelegate.updaterController.updater)
+                    .environment(\.locale, model.interfaceLocale)
+                    .task {
+                        guard model.requiresOnboarding, !recoveredPreferences, !didOpenOnboarding else { return }
+                        didOpenOnboarding = true
+                        openWindow(id: "onboarding")
+                    }
+                    .task {
+                        guard recoveredPreferences, !didOpenRecoveryNotice else { return }
+                        didOpenRecoveryNotice = true
+                        openWindow(id: "startup-recovery")
+                    }
+            } else {
+                Text(MurmureLocalization.text("startup.incompatible.title", defaultValue: "Murmure Update Required", locale: Locale(identifier: "en")))
                 .task {
-                    guard model.requiresOnboarding, !didOpenOnboarding else { return }
-                    didOpenOnboarding = true
-                    openWindow(id: "onboarding")
+                    guard case .incompatible = launchState else { return }
+                    openWindow(id: "startup-incompatible")
                 }
+            }
         } label: {
-            Image(systemName: iconName(for: model.state))
+            Image(systemName: iconName(for: readyModel?.state))
                 .font(.system(size: 14, weight: .semibold))
                 .imageScale(.large)
                 .accessibilityLabel("Murmure")
@@ -47,43 +61,139 @@ struct MurmureApp: App {
         .menuBarExtraStyle(.menu)
 
         Window(
-            MurmureLocalization.text("window.settings", defaultValue: "Murmure Settings", locale: model.interfaceLocale),
+            MurmureLocalization.text("window.settings", defaultValue: "Murmure Settings", locale: interfaceLocale),
             id: "settings"
         ) {
-            SettingsView(model: model)
-                .environment(\.locale, model.interfaceLocale)
+            if let model = readyModel {
+                SettingsView(model: model)
+                    .environment(\.locale, model.interfaceLocale)
+            }
         }
         .defaultLaunchBehavior(.suppressed)
 
         Window(
-            MurmureLocalization.text("window.logs", defaultValue: "Murmure Logs", locale: model.interfaceLocale),
+            MurmureLocalization.text("window.logs", defaultValue: "Murmure Logs", locale: interfaceLocale),
             id: "logs"
         ) {
-            LogsView(logStore: model.logStore)
-                .environment(\.locale, model.interfaceLocale)
+            if let model = readyModel {
+                LogsView(logStore: model.logStore)
+                    .environment(\.locale, model.interfaceLocale)
+            }
         }
         .defaultLaunchBehavior(.suppressed)
 
         Window(
-            MurmureLocalization.text("window.onboarding", defaultValue: "Welcome to Murmure", locale: model.interfaceLocale),
+            MurmureLocalization.text("window.onboarding", defaultValue: "Welcome to Murmure", locale: interfaceLocale),
             id: "onboarding"
         ) {
-            OnboardingView(model: model)
-                .environment(\.locale, model.interfaceLocale)
+            if let model = readyModel {
+                OnboardingView(model: model)
+                    .environment(\.locale, model.interfaceLocale)
+            }
+        }
+        .defaultLaunchBehavior(.suppressed)
+
+        Window(
+            MurmureLocalization.text("startup.recovered.title", defaultValue: "Settings Recovered", locale: interfaceLocale),
+            id: "startup-recovery"
+        ) {
+            StartupNoticeView(kind: .recovered, locale: interfaceLocale)
+        }
+        .defaultLaunchBehavior(.suppressed)
+
+        Window(
+            MurmureLocalization.text("startup.incompatible.title", defaultValue: "Murmure Update Required", locale: interfaceLocale),
+            id: "startup-incompatible"
+        ) {
+            if case .incompatible(let schemaVersion) = launchState {
+                StartupNoticeView(kind: .incompatible(schemaVersion: schemaVersion), locale: interfaceLocale)
+            }
         }
         .defaultLaunchBehavior(.suppressed)
     }
 
-    private func iconName(for state: DictationState) -> String {
+    private var readyModel: AppModel? {
+        guard case .ready(let model, _) = launchState else { return nil }
+        return model
+    }
+
+    private var interfaceLocale: Locale {
+        readyModel?.interfaceLocale ?? Locale(identifier: "en")
+    }
+
+    private func iconName(for state: DictationState?) -> String {
+        guard let state else { return "exclamationmark.triangle.fill" }
         switch state {
         case .recording:
-            "record.circle.fill"
+            return "record.circle.fill"
         case .transcribing:
-            "arrow.triangle.2.circlepath"
+            return "arrow.triangle.2.circlepath"
         case .error:
-            "exclamationmark.triangle.fill"
+            return "exclamationmark.triangle.fill"
         default:
-            "waveform"
+            return "waveform"
+        }
+    }
+}
+
+private enum StartupNoticeKind {
+    case recovered
+    case incompatible(schemaVersion: Int)
+}
+
+private struct StartupNoticeView: View {
+    let kind: StartupNoticeKind
+    let locale: Locale
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label(title, systemImage: iconName)
+                .font(.title2.bold())
+            Text(message)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button(MurmureLocalization.text("action.quit", defaultValue: "Quit", locale: locale)) {
+                    NSApplication.shared.terminate(nil)
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(28)
+        .frame(width: 520, height: 220)
+    }
+
+    private var iconName: String {
+        switch kind {
+        case .recovered: "exclamationmark.triangle"
+        case .incompatible: "arrow.down.circle"
+        }
+    }
+
+    private var title: String {
+        switch kind {
+        case .recovered:
+            MurmureLocalization.text("startup.recovered.title", defaultValue: "Settings Recovered", locale: locale)
+        case .incompatible:
+            MurmureLocalization.text("startup.incompatible.title", defaultValue: "Murmure Update Required", locale: locale)
+        }
+    }
+
+    private var message: String {
+        switch kind {
+        case .recovered:
+            return MurmureLocalization.text(
+                "startup.recovered.message",
+                defaultValue: "Murmure could not read its settings. It created fresh settings and kept a private recovery copy. Please review your providers and API keys.",
+                locale: locale
+            )
+        case .incompatible(let schemaVersion):
+            let format = MurmureLocalization.text(
+                "startup.incompatible.message",
+                defaultValue: "These settings were written by a newer version of Murmure (schema %lld). Update Murmure before using this installation so the newer settings are not overwritten.",
+                locale: locale
+            )
+            return String(format: format, locale: locale, arguments: [schemaVersion])
         }
     }
 }
