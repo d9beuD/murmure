@@ -187,7 +187,15 @@ private struct STTSettingsView: View {
                 TextField(MurmureLocalization.text("field.endpoint", defaultValue: "Endpoint", locale: locale), text: $model.preferences.stt.baseURL)
                 TextField(MurmureLocalization.text("field.path", defaultValue: "Path", locale: locale), text: $model.preferences.stt.path)
                 TextField(MurmureLocalization.text("field.model", defaultValue: "Model", locale: locale), text: $model.preferences.stt.model)
-                TextField(MurmureLocalization.text("field.stt_language_optional", defaultValue: "Language (optional)", locale: locale), text: $model.preferences.sttLanguage)
+                Picker(MurmureLocalization.text("field.stt_language", defaultValue: "Transcription language", locale: locale), selection: Binding(
+                    get: { model.preferences.sttLanguage },
+                    set: { model.setSTTLanguage($0) }
+                )) {
+                    ForEach(TranscriptionLanguage.allCases) { language in
+                        Text(language.title(locale: locale)).tag(language)
+                    }
+                }
+                .pickerStyle(.menu)
                 TextField(MurmureLocalization.text("field.context_prompt_optional", defaultValue: "Context prompt (optional)", locale: locale), text: $model.preferences.sttPrompt)
                 Picker(MurmureLocalization.text("field.authentication", defaultValue: "Authentication", locale: locale), selection: $model.preferences.stt.authentication) {
                     ForEach(AuthenticationMode.allCases) { Text($0.title(locale: locale)).tag($0) }
@@ -200,6 +208,15 @@ private struct STTSettingsView: View {
                 }
                 providerValidation(for: model.preferences.stt, locale: locale)
                 ConnectionTestControls(model: model)
+            }
+            Section(MurmureLocalization.text("field.stt_favorite_languages", defaultValue: "Languages in the menu", locale: locale)) {
+                ForEach(TranscriptionLanguage.selectableCases) { language in
+                    Toggle(language.title(locale: locale), isOn: Binding(
+                        get: { model.preferences.sttFavoriteLanguages.contains(language) },
+                        set: { model.setSTTFavoriteLanguage(language, enabled: $0) }
+                    ))
+                    .toggleStyle(.checkbox)
+                }
             }
         }
         .formStyle(.grouped)

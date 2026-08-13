@@ -8,8 +8,10 @@ final class PersistenceAndLoggingTests: XCTestCase {
         XCTAssertEqual(preferences.schemaVersion, AppPreferences.currentSchemaVersion)
         XCTAssertFalse(preferences.hasCompletedOnboarding)
         XCTAssertTrue(preferences.cleanupEnabled)
+        XCTAssertEqual(preferences.sttLanguage, .automatic)
+        XCTAssertEqual(preferences.sttFavoriteLanguages, [.french, .english])
 
-        preferences.sttLanguage = "fr"
+        preferences.sttLanguage = .french
         preferences.sttPrompt = "names"
         preferences.triggerMode = .toggle
         preferences.cleanupFormat = .chatCompletions
@@ -49,6 +51,23 @@ final class PersistenceAndLoggingTests: XCTestCase {
         XCTAssertEqual(preferences.cleanupProvider, .openAIResponses)
         XCTAssertEqual(preferences.cleanupPrompt, AppPreferences.defaultCleanupPrompt)
         XCTAssertFalse(preferences.hasCompletedOnboarding)
+        XCTAssertEqual(preferences.sttLanguage, .automatic)
+        XCTAssertEqual(preferences.sttFavoriteLanguages, [.french, .english])
+    }
+
+    func testTranscriptionLanguageCodesAndLegacyMigration() throws {
+        XCTAssertEqual(TranscriptionLanguage.french.apiCode, "fr")
+        XCTAssertNil(TranscriptionLanguage.automatic.apiCode)
+        XCTAssertEqual(TranscriptionLanguage(legacyCode: "fr-FR"), .french)
+        XCTAssertEqual(TranscriptionLanguage(legacyCode: "unknown"), .automatic)
+
+        let migrated = try JSONDecoder().decode(
+            AppPreferences.self,
+            from: Data("{\"schemaVersion\":6,\"sttLanguage\":\"de-DE\",\"sttFavoriteLanguages\":[\"fr\",\"fr\",\"automatic\",\"invalid\",\"en\"]}".utf8)
+        )
+
+        XCTAssertEqual(migrated.sttLanguage, .german)
+        XCTAssertEqual(migrated.sttFavoriteLanguages, [.french, .english, .german])
     }
 
     func testLocalizationDefaultsAndLegacyPromptMigration() throws {

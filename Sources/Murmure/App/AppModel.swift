@@ -65,6 +65,31 @@ final class AppModel {
         savePreferences()
     }
 
+    func setSTTLanguage(_ language: TranscriptionLanguage) {
+        var changed = preferences.sttLanguage != language
+        preferences.sttLanguage = language
+        if language != .automatic && !preferences.sttFavoriteLanguages.contains(language) {
+            preferences.sttFavoriteLanguages.append(language)
+            changed = true
+        }
+        if changed {
+            savePreferences()
+        }
+    }
+
+    func setSTTFavoriteLanguage(_ language: TranscriptionLanguage, enabled: Bool) {
+        guard language != .automatic else { return }
+        if enabled {
+            guard !preferences.sttFavoriteLanguages.contains(language) else { return }
+            preferences.sttFavoriteLanguages.append(language)
+        } else {
+            guard preferences.sttLanguage != language,
+                  let index = preferences.sttFavoriteLanguages.firstIndex(of: language) else { return }
+            preferences.sttFavoriteLanguages.remove(at: index)
+        }
+        savePreferences()
+    }
+
     var cleanupPromptForDisplay: String { activeCleanupPrompt?.instructions ?? "" }
 
     private var globalShortcutIsDown = false
@@ -372,7 +397,7 @@ final class AppModel {
                 configuration: preferences.stt,
                 apiKey: sttAPIKey,
                 prompt: preferences.sttPrompt,
-                language: preferences.sttLanguage
+                language: preferences.sttLanguage.apiCode
             ),
             cleanup: preferences.cleanupEnabled ? activeCleanupPrompt.map {
                 CleanupRequest(
@@ -411,7 +436,7 @@ final class AppModel {
             configuration: preferences.stt,
             apiKey: sttAPIKey,
             prompt: preferences.sttPrompt,
-            language: preferences.sttLanguage
+            language: preferences.sttLanguage.apiCode
         ))
     }
 
@@ -452,6 +477,9 @@ final class AppModel {
 
     private func migratePromptLibraryIfNeeded(wasSchemaVersion: Int) {
         if wasSchemaVersion < AppPreferences.currentSchemaVersion {
+            preferences.schemaVersion = AppPreferences.currentSchemaVersion
+        }
+        if wasSchemaVersion < 6 {
             let wasLocalized = preferences.cleanupPromptMode != .custom
             var migrated = preferences.cleanupPrompts.first
                 ?? CleanupPrompt(
@@ -468,7 +496,6 @@ final class AppModel {
             }
             preferences.cleanupPrompts = [migrated]
             preferences.activeCleanupPromptID = migrated.id
-            preferences.schemaVersion = AppPreferences.currentSchemaVersion
         } else if let activeID = preferences.activeCleanupPromptID {
             if !preferences.cleanupPrompts.contains(where: { $0.id == activeID }) {
                 preferences.activeCleanupPromptID = preferences.cleanupPrompts.first?.id

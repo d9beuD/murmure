@@ -9,9 +9,9 @@ final class PersistenceAndLoggingTests: XCTestCase {
             XCTAssertEqual(store.preferences, AppPreferences())
 
             var preferences = AppPreferences(schemaVersion: 1)
-            preferences.sttLanguage = "fr"
+            preferences.sttLanguage = .french
             store.save(preferences)
-            XCTAssertEqual(store.preferences.sttLanguage, "fr")
+            XCTAssertEqual(store.preferences.sttLanguage, .french)
             XCTAssertEqual(store.preferences.schemaVersion, AppPreferences.currentSchemaVersion)
 
             defaults.set(Data("not-json".utf8), forKey: "murmure.preferences")
@@ -25,7 +25,7 @@ final class PersistenceAndLoggingTests: XCTestCase {
     func testFuturePreferencesFallBackToDefaults() throws {
         try withStore { store, defaults in
             var preferences = AppPreferences(schemaVersion: AppPreferences.currentSchemaVersion + 1)
-            preferences.sttLanguage = "future"
+            preferences.sttLanguage = .automatic
             defaults.set(try JSONEncoder().encode(preferences), forKey: "murmure.preferences")
 
             XCTAssertEqual(store.preferences, AppPreferences())

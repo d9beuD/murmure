@@ -30,6 +30,11 @@ final class LocalizationTests: XCTestCase {
             "cleanup.default_prompt",
             "menu.settings",
             "settings.interface_language",
+            "field.stt_language",
+            "field.stt_favorite_languages",
+            "menu.language",
+            "language.french",
+            "language.german",
             "connection_test.received_characters",
             "dictation.transcribing",
             "dictation.improving"
@@ -39,6 +44,9 @@ final class LocalizationTests: XCTestCase {
             XCTAssertNotNil(localizations["en"])
             XCTAssertNotNil(localizations["fr-FR"])
         }
+
+        XCTAssertEqual(TranscriptionLanguage.french.title(locale: Locale(identifier: "en")), "French")
+        XCTAssertEqual(TranscriptionLanguage.french.title(locale: Locale(identifier: "fr-FR")), "Français")
 
     }
 

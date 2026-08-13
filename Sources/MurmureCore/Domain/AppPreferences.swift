@@ -1,12 +1,13 @@
 import Foundation
 
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 6
+    public static let currentSchemaVersion = 7
     public static let defaultCleanupPromptID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
     public var schemaVersion: Int
     public var interfaceLanguage: InterfaceLanguage
     public var stt: ProviderConfiguration
-    public var sttLanguage: String
+    public var sttLanguage: TranscriptionLanguage
+    public var sttFavoriteLanguages: [TranscriptionLanguage]
     public var sttPrompt: String
     public var triggerMode: TriggerMode
     public var cleanupEnabled: Bool
@@ -27,7 +28,9 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         schemaVersion: Int = AppPreferences.currentSchemaVersion,
         interfaceLanguage: InterfaceLanguage = .automatic,
         stt: ProviderConfiguration = .openAITranscription,
-        sttLanguage: String = "", sttPrompt: String = "", triggerMode: TriggerMode = .pushToTalk,
+        sttLanguage: TranscriptionLanguage = .automatic,
+        sttFavoriteLanguages: [TranscriptionLanguage] = [.french, .english],
+        sttPrompt: String = "", triggerMode: TriggerMode = .pushToTalk,
         cleanupEnabled: Bool = true, cleanupProvider: ProviderConfiguration = .openAIResponses,
         cleanupFormat: CleanupAPIFormat = .responses, cleanupPrompt: String = AppPreferences.defaultCleanupPrompt,
         cleanupPromptMode: CleanupPromptMode = .localizedDefault,
@@ -45,6 +48,11 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.interfaceLanguage = interfaceLanguage
         self.stt = stt
         self.sttLanguage = sttLanguage
+        var normalizedFavorites = Self.normalizedFavoriteLanguages(sttFavoriteLanguages)
+        if sttLanguage != .automatic && !normalizedFavorites.contains(sttLanguage) {
+            normalizedFavorites.append(sttLanguage)
+        }
+        self.sttFavoriteLanguages = normalizedFavorites
         self.sttPrompt = sttPrompt
         self.triggerMode = triggerMode
         self.cleanupEnabled = cleanupEnabled
@@ -64,7 +72,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public static let defaultCleanupPrompt = "Clean up the transcript without changing its meaning. Correct punctuation, mistakes, and hesitations. Return only the final text."
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, interfaceLanguage, stt, sttLanguage, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompts, activeCleanupPromptID, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
+        case schemaVersion, interfaceLanguage, stt, sttLanguage, sttFavoriteLanguages, sttPrompt, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompts, activeCleanupPromptID, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
     }
 
     public init(from decoder: Decoder) throws {
@@ -73,7 +81,19 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         schemaVersion = decodedSchemaVersion
         interfaceLanguage = try container.decodeIfPresent(InterfaceLanguage.self, forKey: .interfaceLanguage) ?? .automatic
         stt = try container.decodeIfPresent(ProviderConfiguration.self, forKey: .stt) ?? .openAITranscription
-        sttLanguage = try container.decodeIfPresent(String.self, forKey: .sttLanguage) ?? ""
+        if let rawLanguage = try? container.decode(String.self, forKey: .sttLanguage) {
+            sttLanguage = TranscriptionLanguage(legacyCode: rawLanguage)
+        } else {
+            sttLanguage = .automatic
+        }
+        if let rawFavorites = try? container.decode([String].self, forKey: .sttFavoriteLanguages) {
+            sttFavoriteLanguages = Self.normalizedFavoriteLanguages(rawFavorites.map(TranscriptionLanguage.init(legacyCode:)))
+        } else {
+            sttFavoriteLanguages = [.french, .english]
+        }
+        if sttLanguage != .automatic && !sttFavoriteLanguages.contains(sttLanguage) {
+            sttFavoriteLanguages.append(sttLanguage)
+        }
         sttPrompt = try container.decodeIfPresent(String.self, forKey: .sttPrompt) ?? ""
         triggerMode = try container.decodeIfPresent(TriggerMode.self, forKey: .triggerMode) ?? .pushToTalk
         cleanupEnabled = try container.decodeIfPresent(Bool.self, forKey: .cleanupEnabled) ?? true
@@ -104,5 +124,13 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         playFeedbackSounds = try container.decodeIfPresent(Bool.self, forKey: .playFeedbackSounds) ?? true
         hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? (decodedSchemaVersion < 4)
+    }
+
+    private static func normalizedFavoriteLanguages(_ languages: [TranscriptionLanguage]) -> [TranscriptionLanguage] {
+        var result: [TranscriptionLanguage] = []
+        for language in languages where language != .automatic && !result.contains(language) {
+            result.append(language)
+        }
+        return result
     }
 }

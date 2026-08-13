@@ -130,3 +130,55 @@ extension InterfaceLanguage {
         }
     }
 }
+
+extension TranscriptionLanguage {
+    func title(locale: Locale) -> String {
+        switch self {
+        case .automatic:
+            localizedName(key: "language.automatic", english: "Automatic", french: "Automatique", locale: locale)
+        case .arabic:
+            localizedName(key: "language.arabic", english: "Arabic", french: "Arabe", locale: locale)
+        case .chinese:
+            localizedName(key: "language.chinese", english: "Chinese", french: "Chinois", locale: locale)
+        case .dutch:
+            localizedName(key: "language.dutch", english: "Dutch", french: "Néerlandais", locale: locale)
+        case .english:
+            localizedName(key: "language.english", english: "English", french: "Anglais", locale: locale)
+        case .french:
+            localizedName(key: "language.french", english: "French", french: "Français", locale: locale)
+        case .german:
+            localizedName(key: "language.german", english: "German", french: "Allemand", locale: locale)
+        case .hindi:
+            localizedName(key: "language.hindi", english: "Hindi", french: "Hindi", locale: locale)
+        case .indonesian:
+            localizedName(key: "language.indonesian", english: "Indonesian", french: "Indonésien", locale: locale)
+        case .italian:
+            localizedName(key: "language.italian", english: "Italian", french: "Italien", locale: locale)
+        case .japanese:
+            localizedName(key: "language.japanese", english: "Japanese", french: "Japonais", locale: locale)
+        case .korean:
+            localizedName(key: "language.korean", english: "Korean", french: "Coréen", locale: locale)
+        case .polish:
+            localizedName(key: "language.polish", english: "Polish", french: "Polonais", locale: locale)
+        case .portuguese:
+            localizedName(key: "language.portuguese", english: "Portuguese", french: "Portugais", locale: locale)
+        case .russian:
+            localizedName(key: "language.russian", english: "Russian", french: "Russe", locale: locale)
+        case .spanish:
+            localizedName(key: "language.spanish", english: "Spanish", french: "Espagnol", locale: locale)
+        case .turkish:
+            localizedName(key: "language.turkish", english: "Turkish", french: "Turc", locale: locale)
+        case .ukrainian:
+            localizedName(key: "language.ukrainian", english: "Ukrainian", french: "Ukrainien", locale: locale)
+        case .vietnamese:
+            localizedName(key: "language.vietnamese", english: "Vietnamese", french: "Vietnamien", locale: locale)
+        }
+    }
+
+    private func localizedName(key: String, english: String, french: String, locale: Locale) -> String {
+        if locale.language.languageCode?.identifier == "fr" {
+            return french
+        }
+        return MurmureLocalization.text(key, defaultValue: english, locale: locale)
+    }
+}

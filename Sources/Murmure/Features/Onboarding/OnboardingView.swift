@@ -86,6 +86,15 @@ struct OnboardingView: View {
             TextField(MurmureLocalization.text("field.endpoint", defaultValue: "Endpoint", locale: model.interfaceLocale), text: $model.preferences.stt.baseURL)
             TextField(MurmureLocalization.text("field.path", defaultValue: "Path", locale: model.interfaceLocale), text: $model.preferences.stt.path)
             TextField(MurmureLocalization.text("field.model", defaultValue: "Model", locale: model.interfaceLocale), text: $model.preferences.stt.model)
+            Picker(MurmureLocalization.text("field.stt_language", defaultValue: "Transcription language", locale: model.interfaceLocale), selection: Binding(
+                get: { model.preferences.sttLanguage },
+                set: { model.setSTTLanguage($0) }
+            )) {
+                ForEach(TranscriptionLanguage.allCases) { language in
+                    Text(language.title(locale: model.interfaceLocale)).tag(language)
+                }
+            }
+            .pickerStyle(.menu)
             Picker(MurmureLocalization.text("field.authentication", defaultValue: "Authentication", locale: model.interfaceLocale), selection: $model.preferences.stt.authentication) {
                 ForEach(AuthenticationMode.allCases) { Text($0.title(locale: model.interfaceLocale)).tag($0) }
             }
