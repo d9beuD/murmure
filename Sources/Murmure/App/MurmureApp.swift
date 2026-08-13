@@ -147,10 +147,19 @@ struct MurmureApp: App {
             locale: locale
         )
         alert.informativeText = String(format: format, locale: locale, arguments: [schemaVersion])
+        alert.addButton(withTitle: MurmureLocalization.text(
+            "menu.check_for_updates",
+            defaultValue: "Check for Updates…",
+            locale: locale
+        ))
         alert.addButton(withTitle: MurmureLocalization.text("action.quit", defaultValue: "Quit", locale: locale))
         NSApplication.shared.activate(ignoringOtherApps: true)
-        alert.runModal()
-        NSApplication.shared.terminate(nil)
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            appDelegate.updaterController.updater.checkForUpdates()
+        } else {
+            NSApplication.shared.terminate(nil)
+        }
     }
 }
 
