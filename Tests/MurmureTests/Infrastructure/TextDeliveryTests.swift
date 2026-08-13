@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import Testing
@@ -19,10 +20,10 @@ struct TextDeliveryTests {
             pasteEventPoster: poster
         )
 
-        let result = delivery.deliver("native transcript", mode: .paste)
+        let result = delivery.deliver(" \n native   transcript \t ", mode: .paste)
 
         #expect(result == .inserted)
-        #expect(client.replacedTexts == ["native transcript"])
+        #expect(client.replacedTexts == ["native   transcript "])
         #expect(poster.postCount == 0)
     }
 
@@ -150,7 +151,7 @@ struct TextDeliveryTests {
         let result = delivery.deliver("fallback transcript", mode: .paste)
 
         #expect(result == .inserted)
-        #expect(client.replacedTexts == ["fallback transcript"])
+        #expect(client.replacedTexts == ["fallback transcript "])
         #expect(poster.postCount == 1)
     }
 
@@ -201,10 +202,11 @@ struct TextDeliveryTests {
             pasteEventPoster: poster
         )
 
-        let result = delivery.deliver("clipboard transcript", mode: .clipboard)
+        let result = delivery.deliver(" \n clipboard transcript \t ", mode: .clipboard)
 
         #expect(result == .copied)
         #expect(poster.postCount == 0)
+        #expect(NSPasteboard.general.string(forType: .string) == "clipboard transcript ")
     }
 
     @Test("reports a fallback when paste events cannot be created")
