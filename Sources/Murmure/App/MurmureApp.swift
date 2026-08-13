@@ -38,6 +38,11 @@ struct MurmureApp: App {
             if case .ready(let model, let recoveredPreferences) = launchState {
                 MenuContent(model: model, updater: appDelegate.updaterController.updater)
                     .environment(\.locale, model.interfaceLocale)
+                    .environment(model)
+                    .environment(model.preferencesModel)
+                    .environment(model.dictationSession)
+                    .environment(model.permissionsModel)
+                    .environment(model.promptLibrary)
                     .task {
                         guard model.requiresOnboarding, !recoveredPreferences, !didOpenOnboarding else { return }
                         didOpenOnboarding = true
@@ -74,6 +79,11 @@ struct MurmureApp: App {
             if let model = readyModel {
                 SettingsView(model: model, dockPresenceController: dockPresenceController)
                     .environment(\.locale, model.interfaceLocale)
+                    .environment(model)
+                    .environment(model.preferencesModel)
+                    .environment(model.dictationSession)
+                    .environment(model.permissionsModel)
+                    .environment(model.promptLibrary)
             }
         }
         .defaultLaunchBehavior(.suppressed)
@@ -96,6 +106,11 @@ struct MurmureApp: App {
             if let model = readyModel {
                 OnboardingView(model: model, dockPresenceController: dockPresenceController)
                     .environment(\.locale, model.interfaceLocale)
+                    .environment(model)
+                    .environment(model.preferencesModel)
+                    .environment(model.dictationSession)
+                    .environment(model.permissionsModel)
+                    .environment(model.promptLibrary)
             }
         }
         .defaultLaunchBehavior(.suppressed)
