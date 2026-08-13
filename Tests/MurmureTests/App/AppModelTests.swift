@@ -634,7 +634,8 @@ final class AppModelTests: XCTestCase {
             microphonePermission: permissions,
             transcriber: transcriber,
             logger: logs,
-            now: { clock.value }
+            now: { clock.value },
+            sessionArbiter: nil
         )
         let model = AppModel(dependencies: AppDependencies(
             coordinator: coordinator,
@@ -648,7 +649,8 @@ final class AppModelTests: XCTestCase {
             listeningIndicator: listeningIndicator,
             permissions: permissions,
             logStore: logs,
-            now: { clock.value }
+            now: { clock.value },
+            sessionArbiter: nil
         ), initialPreferences: preferences)
         return AppContext(
             model: model,

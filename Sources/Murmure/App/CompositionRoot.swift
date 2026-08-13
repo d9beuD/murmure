@@ -52,6 +52,7 @@ enum CompositionRoot {
         let transcriber = OpenAITranscriptionService(transport: transport)
         let cleaner = OpenAITextCleanupService(transport: transport)
         let textDelivery = TextDelivery()
+        let sessionArbiter = SessionArbiter()
 
         let coordinator = DictationCoordinator(
             dependencies: DictationDependencies(
@@ -60,7 +61,8 @@ enum CompositionRoot {
                 textDelivery: textDelivery,
                 transcriber: transcriber,
                 cleaner: cleaner,
-                logger: logStore
+                logger: logStore,
+                sessionArbiter: sessionArbiter
             )
         )
         let connectionTest = ConnectionTestModel(
@@ -68,7 +70,8 @@ enum CompositionRoot {
             microphonePermission: permissions,
             transcriber: transcriber,
             logger: logStore,
-            now: Date.init
+            now: Date.init,
+            sessionArbiter: sessionArbiter
         )
 
         return AppModel(dependencies: AppDependencies(
@@ -86,7 +89,8 @@ enum CompositionRoot {
             ),
             permissions: permissions,
             logStore: logStore,
-            now: Date.init
+            now: Date.init,
+            sessionArbiter: sessionArbiter
         ), initialPreferences: initialPreferences)
     }
 }

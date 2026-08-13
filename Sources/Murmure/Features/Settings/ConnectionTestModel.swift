@@ -40,11 +40,13 @@ final class ConnectionTestModel {
     private let transcriber: any SpeechTranscribing
     private let logger: any LogWriting
     private let now: () -> Date
+    private let sessionArbiter: (any SessionArbitrating)?
 
     private(set) var state: ConnectionTestState = .idle
     var onEvent: ((ConnectionTestEvent) -> Void)?
 
     private var sessionID: UUID?
+    private var sessionLease: SessionLease?
     private var startedAt: Date?
     private var task: Task<Void, Never>?
 
@@ -53,17 +55,23 @@ final class ConnectionTestModel {
         microphonePermission: any MicrophonePermissionRequesting,
         transcriber: any SpeechTranscribing,
         logger: any LogWriting,
-        now: @escaping () -> Date
+        now: @escaping () -> Date,
+        sessionArbiter: (any SessionArbitrating)? = nil
     ) {
         self.audioRecorder = audioRecorder
         self.microphonePermission = microphonePermission
         self.transcriber = transcriber
         self.logger = logger
         self.now = now
+        self.sessionArbiter = sessionArbiter
     }
 
     func start() {
         guard state.isInactive else { return }
+        if let sessionArbiter {
+            guard let lease = sessionArbiter.acquire(.connectionTest) else { return }
+            sessionLease = lease
+        }
         let sessionID = UUID()
         self.sessionID = sessionID
         state = .requestingPermission
@@ -73,6 +81,7 @@ final class ConnectionTestModel {
             guard await microphonePermission.requestMicrophonePermission() else {
                 guard self.sessionID == sessionID else { return }
                 self.sessionID = nil
+                self.releaseSessionLease()
                 self.state = .failed(.microphonePermissionDenied)
                 self.logger.log("Error: connection test: Microphone access was denied. Allow Murmure in System Settings.")
                 self.onEvent?(.failed)
@@ -87,6 +96,7 @@ final class ConnectionTestModel {
                 self.onEvent?(.recordingStarted)
             } catch {
                 self.sessionID = nil
+                self.releaseSessionLease()
                 self.state = .failed(.recordingFailed(message: userFacingMessage(for: error)))
                 self.logger.log("Error: connection test: \(safeLogMessage(for: error))")
                 self.onEvent?(.failed)
@@ -118,6 +128,7 @@ final class ConnectionTestModel {
                 if self.sessionID == sessionID {
                     self.sessionID = nil
                 }
+                self.releaseSessionLease()
             }
             do {
                 let host = request.configuration.endpointURL?.host ?? "configured endpoint"
@@ -154,5 +165,12 @@ final class ConnectionTestModel {
         startedAt = nil
         audioRecorder.cancel()
         state = .idle
+        releaseSessionLease()
+    }
+
+    private func releaseSessionLease() {
+        guard let sessionLease else { return }
+        sessionArbiter?.release(sessionLease)
+        self.sessionLease = nil
     }
 }

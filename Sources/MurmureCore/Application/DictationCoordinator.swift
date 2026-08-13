@@ -10,6 +10,7 @@ public final class DictationCoordinator {
 
     private let dependencies: DictationDependencies
     private var activeSessionID: UUID?
+    private var sessionLease: SessionLease?
     private var permissionTask: Task<Void, Never>?
     private var transcriptionTask: Task<Void, Never>?
     private var recordingWatchdog: Task<Void, Never>?
@@ -43,6 +44,10 @@ public final class DictationCoordinator {
 
     public func startRecording() {
         guard state == .idle else { return }
+        if let sessionArbiter = dependencies.sessionArbiter {
+            guard let lease = sessionArbiter.acquire(.dictation) else { return }
+            sessionLease = lease
+        }
         let sessionID = UUID()
         activeSessionID = sessionID
         state = .requestingPermission
@@ -51,6 +56,7 @@ public final class DictationCoordinator {
             guard await self.dependencies.microphonePermission.requestMicrophonePermission() else {
                 guard self.activeSessionID == sessionID else { return }
                 self.activeSessionID = nil
+                self.releaseSessionLease()
                 let message = "Microphone access was denied. Allow Murmure in System Settings."
                 self.dependencies.logger.log("Error: \(message)")
                 self.state = .error(.microphonePermissionDenied)
@@ -77,6 +83,7 @@ public final class DictationCoordinator {
             } catch {
                 guard self.activeSessionID == sessionID else { return }
                 self.activeSessionID = nil
+                self.releaseSessionLease()
                 self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
                 self.state = .error(.recordingFailed(message: userFacingMessage(for: error)))
             }
@@ -100,6 +107,7 @@ public final class DictationCoordinator {
             dependencies.logger.log("Recording discarded: less than 250 ms")
             activeSessionID = nil
             state = .idle
+            releaseSessionLease()
             return
         }
         lastAudioURL = dependencies.audioRecorder.stop()
@@ -109,12 +117,14 @@ public final class DictationCoordinator {
             let message = "No audio file was produced."
             dependencies.logger.log("Error: \(message)")
             state = .error(.audioUnavailable)
+            releaseSessionLease()
             return
         }
         guard let sessionID = activeSessionID else {
             let message = "Recording session not found."
             dependencies.logger.log("Error: \(message)")
             state = .error(.sessionUnavailable)
+            releaseSessionLease()
             return
         }
         state = .transcribing
@@ -127,6 +137,7 @@ public final class DictationCoordinator {
                     self.activeSessionID = nil
                     self.lastAudioURL = nil
                 }
+                self.releaseSessionLease()
             }
             do {
                 let sizeInBytes = (try? FileManager.default.attributesOfItem(atPath: audioURL.path)[.size] as? NSNumber)?.intValue ?? 0
@@ -221,10 +232,17 @@ public final class DictationCoordinator {
         dependencies.audioRecorder.cancel()
         lastAudioURL = nil
         state = .idle
+        releaseSessionLease()
     }
 
     public func deleteLastCapture() {
         dependencies.audioRecorder.deleteLastCapture()
         lastAudioURL = nil
+    }
+
+    private func releaseSessionLease() {
+        guard let sessionLease else { return }
+        dependencies.sessionArbiter?.release(sessionLease)
+        self.sessionLease = nil
     }
 }

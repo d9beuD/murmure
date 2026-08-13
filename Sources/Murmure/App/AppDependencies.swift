@@ -15,4 +15,5 @@ struct AppDependencies {
     let permissions: any PermissionProviding
     let logStore: AppLogStore
     let now: () -> Date
+    let sessionArbiter: (any SessionArbitrating)?
 }
