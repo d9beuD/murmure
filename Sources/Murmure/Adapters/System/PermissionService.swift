@@ -3,13 +3,6 @@ import AVFoundation
 import MurmureCore
 
 @MainActor
-protocol PermissionProviding: MicrophonePermissionRequesting {
-    var microphonePermission: PermissionStatus { get }
-    var accessibilityPermission: PermissionStatus { get }
-    func requestAccessibilityPermission()
-}
-
-@MainActor
 final class SystemPermissionProvider: PermissionProviding {
     func requestMicrophonePermission() async -> Bool {
         switch AVAudioApplication.shared.recordPermission {

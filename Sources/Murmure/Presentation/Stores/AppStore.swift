@@ -19,7 +19,6 @@ final class AppStore {
     private let listeningIndicator: any ListeningIndicatorPresenting
     let logStore: AppLogStore
 
-    private(set) var mode: TriggerMode
     var preferences: AppPreferences {
         get { preferencesModel.preferences }
         set { preferencesModel.update(newValue) }
@@ -34,6 +33,7 @@ final class AppStore {
         set { preferencesModel.updateCleanupAPIKey(newValue) }
     }
     var connectionTestState: ConnectionTestState { connectionTestStore.state }
+    var mode: TriggerMode { preferences.triggerMode }
     private var launchAtLoginErrorDetail: String?
     var launchAtLoginError: String? {
         guard let launchAtLoginErrorDetail else { return nil }
@@ -134,7 +134,6 @@ final class AppStore {
         soundFeedback = dependencies.feedback
         listeningIndicator = dependencies.listeningIndicator
         now = dependencies.now
-        mode = initialPreferences.triggerMode
         coordinator.onEvent = { [weak self] event in
             guard let self else { return }
             switch event {
@@ -263,7 +262,6 @@ final class AppStore {
 
     func setMode(_ newMode: TriggerMode) {
         guard state == .idle else { return }
-        mode = newMode
         preferences.triggerMode = newMode
         savePreferences()
     }
@@ -416,10 +414,4 @@ final class AppStore {
 
     private static let defaultCleanupPromptName = "Standard"
     private static let defaultCleanupPromptIcon = "wand.and.stars"
-}
-
-enum PermissionStatus: Equatable {
-    case granted
-    case denied
-    case notDetermined
 }

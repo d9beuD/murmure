@@ -1,16 +1,5 @@
 import AppKit
-
-enum FeedbackEvent: Equatable {
-    case recordingStarted
-    case recordingStopped
-    case connectionTestSucceeded
-    case error
-}
-
-@MainActor
-protocol FeedbackPlaying: AnyObject {
-    func play(_ event: FeedbackEvent)
-}
+import MurmureCore
 
 @MainActor
 final class SoundFeedback: FeedbackPlaying {

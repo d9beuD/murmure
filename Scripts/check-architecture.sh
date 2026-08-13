@@ -16,6 +16,12 @@ if rg -n '(@Observable|ObservableObject|@Published)' Sources/MurmureCore; then
     exit 1
 fi
 
+adapter_owned_ports='protocol (PermissionProviding|HotkeyHandling|LaunchAtLoginControlling|FeedbackPlaying)'
+if rg -n "$adapter_owned_ports" Sources/Murmure/Adapters; then
+    echo "System-facing ports must live in MurmureCore/Application/Ports." >&2
+    exit 1
+fi
+
 adapter_construction='\b(AudioRecorder|SystemPermissionProvider|AppLogStore|SafeNetworkSession|OpenAITranscriptionService|OpenAITextCleanupService|TextDelivery|KeychainStore|HotkeyService|LaunchAtLoginService|SoundFeedback|ListeningIndicatorController)\s*\('
 violations="$(rg -l "$adapter_construction" Sources/Murmure --glob '*.swift' | grep -v '^Sources/Murmure/App/CompositionRoot.swift$' || true)"
 if [[ -n "$violations" ]]; then

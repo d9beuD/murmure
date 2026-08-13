@@ -3,13 +3,6 @@ import KeyboardShortcuts
 @preconcurrency import MurmureCore
 
 @MainActor
-protocol HotkeyHandling: AnyObject {
-    var onKeyDown: (() -> Void)? { get set }
-    var onKeyUp: (() -> Void)? { get set }
-    var onEscape: (() -> Void)? { get set }
-}
-
-@MainActor
 extension KeyboardShortcuts.Name {
     static let dictation = Self("dictation")
     static let cancel = Self("cancel", default: .init(.escape))
