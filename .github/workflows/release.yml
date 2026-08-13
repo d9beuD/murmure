@@ -41,13 +41,27 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Show toolchain
+        id: toolchain
         run: |
-          xcodebuild -version
-          swift --version
+          xcode_version="$(xcodebuild -version)"
+          swift_version="$(swift --version 2>&1)"
+          printf '%s\n' "$xcode_version"
+          printf '%s\n' "$swift_version"
           xcrun --find xcstringstool
+          fingerprint="$(printf '%s\n%s\n' "$xcode_version" "$swift_version" | shasum -a 256 | cut -d ' ' -f 1)"
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      - name: Cache SwiftPM dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-
+          enableCrossOsArchive: false
 
       - name: Build and test
         run: |
@@ -99,7 +113,7 @@ jobs:
             "$artifacts_directory"
 
       - name: Upload release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Murmure-${{ inputs.version }}-macos
           path: |
@@ -107,6 +121,9 @@ jobs:
             .build/release-artifacts/*.sha256
             .build/release-artifacts/appcast.xml
           if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+          overwrite: true
 
       - name: Create GitHub release
         env:
