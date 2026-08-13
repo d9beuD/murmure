@@ -23,6 +23,9 @@ struct MurmureApp: App {
         if LocalizationDiagnostic.runIfRequested() {
             exit(0)
         }
+        if KeyboardShortcutsDiagnostic.runIfRequested() {
+            exit(0)
+        }
         _model = State(initialValue: CompositionRoot.makeAppModel())
     }
 

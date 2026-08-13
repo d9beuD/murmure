@@ -1,0 +1,5 @@
+--- Sources/KeyboardShortcuts/Utilities.swift
++++ Sources/KeyboardShortcuts/Utilities.swift
+@@ -18 +18 @@
+-		NSLocalizedString(self, bundle: .module, comment: self)
++		NSLocalizedString(self, bundle: Bundle.main.url(forResource: "KeyboardShortcuts_KeyboardShortcuts", withExtension: "bundle").flatMap(Bundle.init(url:)) ?? .module, comment: self)
