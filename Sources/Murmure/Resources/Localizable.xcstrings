@@ -121,6 +121,15 @@
         "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Amélioration du texte…" } }
       }
     },
+    "dictation_dictionary.add" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add term" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Ajouter un terme" } } } },
+    "dictation_dictionary.cancel" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Annuler" } } } },
+    "dictation_dictionary.column" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Dictionary String" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Chaîne du dictionnaire" } } } },
+    "dictation_dictionary.count" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld strings" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "%lld chaînes" } } } },
+    "dictation_dictionary.description" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add names, acronyms, or technical terms that should be recognized by dictation." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Ajoutez des noms, acronymes ou termes techniques que la dictée doit reconnaître." } } } },
+    "dictation_dictionary.entry_placeholder" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Term" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Terme" } } } },
+    "dictation_dictionary.invalid_entry" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a non-empty term that is not already in the dictionary." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez un terme non vide qui n’existe pas déjà dans le dictionnaire." } } } },
+    "dictation_dictionary.remove" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove term" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer le terme" } } } },
+    "dictation_dictionary.search" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search…" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Rechercher…" } } } },
     "error.launch_at_login" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not change the launch at login setting: %@" } },
@@ -419,7 +428,6 @@
     "connection_test.description" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The test records a short phrase and sends it to the configured STT provider." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Le test enregistre une courte phrase et l’envoie au fournisseur STT configuré." } } } },
     "field.api_key" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "API key" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "API key" } } } },
     "field.authentication" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Authentication" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Authentication" } } } },
-    "field.context_prompt_optional" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Context prompt (optional)" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Prompt de contexte (facultatif)" } } } },
     "field.dictation_output" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Dictation output" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Sortie de dictée" } } } },
     "field.endpoint" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Endpoint" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Endpoint" } } } },
     "field.format" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Format" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Format" } } } },
@@ -470,6 +478,7 @@
     "settings.source_code" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Source code on GitHub" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Code source sur GitHub" } } } },
     "settings.version" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Murmure 0.1.0 — MIT License" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Murmure 0.1.0 — Licence MIT" } } } },
     "settings.stt" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "STT Transcription" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Transcription STT" } } } },
+    "settings.dictation_dictionary" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Dictation Dictionary" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Dictionnaire de dictée" } } } },
     "settings.ttt" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "TTT Cleanup" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Nettoyage TTT" } } } },
     "menu.prompt" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Prompt" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Prompt" } } } },
     "menu.prompt_enabled" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "TTT cleanup enabled" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Nettoyage TTT activé" } } } },

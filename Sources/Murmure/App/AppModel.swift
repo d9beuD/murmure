@@ -90,6 +90,21 @@ final class AppModel {
         savePreferences()
     }
 
+    @discardableResult
+    func addDictationDictionaryTerm(_ rawTerm: String) -> Bool {
+        guard let term = AppPreferences.normalizedDictationDictionary([rawTerm]).first,
+              !preferences.dictationDictionary.contains(term) else { return false }
+        preferences.dictationDictionary.append(term)
+        savePreferences()
+        return true
+    }
+
+    func removeDictationDictionaryTerm(_ term: String) {
+        guard let index = preferences.dictationDictionary.firstIndex(of: term) else { return }
+        preferences.dictationDictionary.remove(at: index)
+        savePreferences()
+    }
+
     var cleanupPromptForDisplay: String { activeCleanupPrompt?.instructions ?? "" }
 
     private var globalShortcutIsDown = false
@@ -396,7 +411,7 @@ final class AppModel {
             transcription: TranscriptionRequest(
                 configuration: preferences.stt,
                 apiKey: sttAPIKey,
-                prompt: preferences.sttPrompt,
+                prompt: preferences.dictationDictionaryPrompt,
                 language: preferences.sttLanguage.apiCode
             ),
             cleanup: preferences.cleanupEnabled ? activeCleanupPrompt.map {
@@ -435,7 +450,7 @@ final class AppModel {
         connectionTest.finish(request: TranscriptionRequest(
             configuration: preferences.stt,
             apiKey: sttAPIKey,
-            prompt: preferences.sttPrompt,
+            prompt: preferences.dictationDictionaryPrompt,
             language: preferences.sttLanguage.apiCode
         ))
     }

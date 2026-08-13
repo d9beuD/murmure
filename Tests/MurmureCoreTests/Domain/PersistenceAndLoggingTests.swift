@@ -4,15 +4,17 @@ import XCTest
 
 final class PersistenceAndLoggingTests: XCTestCase {
     func testPreferencesDefaultsAndRoundTrip() throws {
-        var preferences = AppPreferences()
+        var preferences = AppPreferences(dictationDictionary: ["  Symfony ", "CapRover", "Symfony", "  "])
         XCTAssertEqual(preferences.schemaVersion, AppPreferences.currentSchemaVersion)
         XCTAssertFalse(preferences.hasCompletedOnboarding)
         XCTAssertTrue(preferences.cleanupEnabled)
         XCTAssertEqual(preferences.sttLanguage, .automatic)
         XCTAssertEqual(preferences.sttFavoriteLanguages, [.french, .english])
+        XCTAssertEqual(preferences.dictationDictionary, ["Symfony", "CapRover"])
+        XCTAssertEqual(preferences.dictationDictionaryPrompt, "Symfony, CapRover")
 
         preferences.sttLanguage = .french
-        preferences.sttPrompt = "names"
+        preferences.dictationDictionary = ["Symfony", "CapRover"]
         preferences.triggerMode = .toggle
         preferences.cleanupFormat = .chatCompletions
         preferences.cleanupFailurePolicy = .stop
@@ -53,6 +55,7 @@ final class PersistenceAndLoggingTests: XCTestCase {
         XCTAssertFalse(preferences.hasCompletedOnboarding)
         XCTAssertEqual(preferences.sttLanguage, .automatic)
         XCTAssertEqual(preferences.sttFavoriteLanguages, [.french, .english])
+        XCTAssertTrue(preferences.dictationDictionary.isEmpty)
     }
 
     func testTranscriptionLanguageCodesAndLegacyMigration() throws {
@@ -63,11 +66,13 @@ final class PersistenceAndLoggingTests: XCTestCase {
 
         let migrated = try JSONDecoder().decode(
             AppPreferences.self,
-            from: Data("{\"schemaVersion\":6,\"sttLanguage\":\"de-DE\",\"sttFavoriteLanguages\":[\"fr\",\"fr\",\"automatic\",\"invalid\",\"en\"]}".utf8)
+            from: Data("{\"schemaVersion\":6,\"sttPrompt\":\"legacy context\",\"dictationDictionary\":[\"  Symfony \",\"CapRover\",\"Symfony\",\"  \"],\"sttLanguage\":\"de-DE\",\"sttFavoriteLanguages\":[\"fr\",\"fr\",\"automatic\",\"invalid\",\"en\"]}".utf8)
         )
 
         XCTAssertEqual(migrated.sttLanguage, .german)
         XCTAssertEqual(migrated.sttFavoriteLanguages, [.french, .english, .german])
+        XCTAssertEqual(migrated.dictationDictionary, ["Symfony", "CapRover"])
+        XCTAssertNotEqual(migrated.dictationDictionaryPrompt, "legacy context")
     }
 
     func testLocalizationDefaultsAndLegacyPromptMigration() throws {
