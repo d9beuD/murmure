@@ -79,6 +79,7 @@ struct MenuContent: View {
         } label: {
             Label(MurmureLocalization.text("menu.settings", defaultValue: "Settings", locale: locale), systemImage: "gear")
         }
+        .keyboardShortcut(",", modifiers: .command)
 
         Button {
             NSApp.activate(ignoringOtherApps: true)
