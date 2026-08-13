@@ -606,7 +606,7 @@ final class AppModelTests: XCTestCase {
             permissions: permissions,
             logStore: logs,
             now: { clock.value }
-        ))
+        ), initialPreferences: preferences)
         return AppContext(
             model: model,
             delivery: delivery,

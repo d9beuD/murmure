@@ -151,6 +151,8 @@ final class PreferencesStoreSpy: PreferencesStoring {
         self.preferences = preferences
     }
 
+    func load() -> PreferencesLoadResult { .loaded(preferences) }
+
     func save(_ preferences: AppPreferences) {
         self.preferences = preferences
         saved.append(preferences)

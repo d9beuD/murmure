@@ -96,7 +96,7 @@ final class AppModel {
     private var lastShortcutEventAt: Date?
     private let now: () -> Date
 
-    init(dependencies: AppDependencies) {
+    init(dependencies: AppDependencies, initialPreferences: AppPreferences) {
         coordinator = dependencies.coordinator
         connectionTest = dependencies.connectionTest
         hotkeys = dependencies.hotkeys
@@ -109,7 +109,7 @@ final class AppModel {
         listeningIndicator = dependencies.listeningIndicator
         permissionProvider = dependencies.permissions
         now = dependencies.now
-        let storedPreferences = preferencesStore.preferences
+        let storedPreferences = initialPreferences
         preferences = storedPreferences
         mode = storedPreferences.triggerMode
         migratePromptLibraryIfNeeded(wasSchemaVersion: storedPreferences.schemaVersion)

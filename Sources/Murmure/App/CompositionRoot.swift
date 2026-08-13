@@ -3,7 +3,37 @@ import MurmureCore
 
 @MainActor
 enum CompositionRoot {
-    static func makeAppModel() -> AppModel {
+    enum LaunchState {
+        case ready(AppModel, recoveredPreferences: Bool)
+        case incompatible(schemaVersion: Int)
+    }
+
+    static func makeLaunchState() -> LaunchState {
+        let preferencesStore = UserDefaultsPreferencesStore()
+        let loadedPreferences: AppPreferences
+        let recovered: Bool
+
+        switch preferencesStore.load() {
+        case .loaded(let preferences):
+            loadedPreferences = preferences
+            recovered = false
+        case .recovered(let preferences):
+            loadedPreferences = preferences
+            recovered = true
+        case .incompatible(let schemaVersion):
+            return .incompatible(schemaVersion: schemaVersion)
+        }
+
+        return .ready(
+            makeAppModel(preferencesStore: preferencesStore, initialPreferences: loadedPreferences),
+            recoveredPreferences: recovered
+        )
+    }
+
+    private static func makeAppModel(
+        preferencesStore: UserDefaultsPreferencesStore,
+        initialPreferences: AppPreferences
+    ) -> AppModel {
         let audioRecorder = AudioRecorder()
         let permissions = SystemPermissionProvider()
         let logStore = AppLogStore()
@@ -34,7 +64,7 @@ enum CompositionRoot {
             coordinator: coordinator,
             connectionTest: connectionTest,
             textDelivery: textDelivery,
-            preferencesStore: UserDefaultsPreferencesStore(),
+            preferencesStore: preferencesStore,
             keychain: KeychainStore(),
             hotkeys: HotkeyService(),
             launchAtLogin: LaunchAtLoginService(),
@@ -46,6 +76,6 @@ enum CompositionRoot {
             permissions: permissions,
             logStore: logStore,
             now: Date.init
-        ))
+        ), initialPreferences: initialPreferences)
     }
 }
