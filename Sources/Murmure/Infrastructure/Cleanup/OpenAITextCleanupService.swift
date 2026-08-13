@@ -1,7 +1,7 @@
 import Foundation
 import MurmureCore
 
-final class OpenAITextCleanupService: TextCleaning, @unchecked Sendable {
+struct OpenAITextCleanupService: TextCleaning {
     private static let instructionEchoContainmentThreshold = 40
     private let transport: any HTTPTransporting
 

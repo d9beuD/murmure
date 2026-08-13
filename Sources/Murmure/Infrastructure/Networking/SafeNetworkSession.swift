@@ -16,6 +16,7 @@ struct SafeNetworkSession: HTTPTransporting {
     }
 }
 
+// URLSession retains this delegate and invokes it serially; it owns no mutable state.
 final class SameOriginRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     func urlSession(
         _ session: URLSession,

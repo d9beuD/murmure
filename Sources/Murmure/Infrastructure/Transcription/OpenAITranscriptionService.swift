@@ -1,7 +1,7 @@
 import Foundation
 import MurmureCore
 
-final class OpenAITranscriptionService: SpeechTranscribing, @unchecked Sendable {
+struct OpenAITranscriptionService: SpeechTranscribing {
     private let transport: any HTTPTransporting
     private let makeBoundary: @Sendable () -> String
 
