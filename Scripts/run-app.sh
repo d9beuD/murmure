@@ -47,6 +47,20 @@ fi
 /bin/cp "$repository_directory/Configuration/Info.plist" "$contents_path/Info.plist"
 /usr/bin/ditto "$repository_directory/Configuration/AppIcon/Murmure.icon" "$contents_path/Resources/Murmure.icon"
 
+if ! actool_path=$(/usr/bin/xcrun --find actool 2>/dev/null); then
+    print -u2 "A full Xcode installation is required to compile the app icon."
+    exit 1
+fi
+icon_partial_plist="$contents_path/Resources/Murmure-icon-partial.plist"
+"$actool_path" \
+    --compile "$contents_path/Resources" \
+    --platform macosx \
+    --minimum-deployment-target 26.0 \
+    --app-icon Murmure \
+    --output-partial-info-plist "$icon_partial_plist" \
+    "$repository_directory/Configuration/AppIcon/Murmure.icon" >/dev/null
+/bin/rm -f -- "$icon_partial_plist"
+
 sparkle_framework="$binary_directory/Sparkle.framework"
 if [[ ! -d "$sparkle_framework" ]]; then
     print -u2 "Missing Sparkle framework: $sparkle_framework"
