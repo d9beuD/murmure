@@ -20,7 +20,7 @@ struct MenuContent: View {
 
             if !model.preferences.sttFavoriteLanguages.isEmpty {
                 Divider()
-                ForEach(model.preferences.sttFavoriteLanguages.sorted { $0.title(locale: locale) < $1.title(locale: locale) }) { language in
+                ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale).filter { model.preferences.sttFavoriteLanguages.contains($0) }) { language in
                     Button {
                         model.setSTTLanguage(language)
                     } label: {

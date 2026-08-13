@@ -132,6 +132,18 @@ extension InterfaceLanguage {
 }
 
 extension TranscriptionLanguage {
+    static func sortedForDisplay(locale: Locale, includingAutomatic: Bool = true) -> [Self] {
+        let languages = includingAutomatic ? allCases : selectableCases
+        return languages.sorted {
+            $0.title(locale: locale).compare(
+                $1.title(locale: locale),
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: nil,
+                locale: locale
+            ) == .orderedAscending
+        }
+    }
+
     func title(locale: Locale) -> String {
         switch self {
         case .automatic:

@@ -48,6 +48,14 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(TranscriptionLanguage.french.title(locale: Locale(identifier: "en")), "French")
         XCTAssertEqual(TranscriptionLanguage.french.title(locale: Locale(identifier: "fr-FR")), "Français")
 
+        let englishOrder = TranscriptionLanguage.sortedForDisplay(locale: Locale(identifier: "en"))
+        XCTAssertEqual(englishOrder.first, .arabic)
+        XCTAssertEqual(englishOrder.last, .vietnamese)
+
+        let frenchOrder = TranscriptionLanguage.sortedForDisplay(locale: Locale(identifier: "fr-FR"))
+        XCTAssertEqual(frenchOrder.first, .german)
+        XCTAssertEqual(frenchOrder.last, .vietnamese)
+
     }
 
     func testApplicationBundleResourcePathUsesContentsResources() {

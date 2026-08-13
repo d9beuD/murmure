@@ -191,7 +191,7 @@ private struct STTSettingsView: View {
                     get: { model.preferences.sttLanguage },
                     set: { model.setSTTLanguage($0) }
                 )) {
-                    ForEach(TranscriptionLanguage.allCases) { language in
+                    ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale)) { language in
                         Text(language.title(locale: locale)).tag(language)
                     }
                 }
@@ -210,7 +210,7 @@ private struct STTSettingsView: View {
                 ConnectionTestControls(model: model)
             }
             Section(MurmureLocalization.text("field.stt_favorite_languages", defaultValue: "Languages in the menu", locale: locale)) {
-                ForEach(TranscriptionLanguage.selectableCases) { language in
+                ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale, includingAutomatic: false)) { language in
                     Toggle(language.title(locale: locale), isOn: Binding(
                         get: { model.preferences.sttFavoriteLanguages.contains(language) },
                         set: { model.setSTTFavoriteLanguage(language, enabled: $0) }
