@@ -5,15 +5,17 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
-    let coordinator: DictationCoordinator
+    let dictationSession: DictationSessionModel
     let preferencesModel: PreferencesModel
+    let permissionsModel: PermissionsModel
+    let promptLibrary: PromptLibraryModel
+    var coordinator: DictationCoordinator { dictationSession.coordinator }
     private let connectionTest: ConnectionTestModel
     private let hotkeys: any HotkeyHandling
     private let textDelivery: any TextDelivering
     private let launchAtLoginService: any LaunchAtLoginControlling
     private let soundFeedback: any FeedbackPlaying
     private let listeningIndicator: any ListeningIndicatorPresenting
-    private let permissionProvider: any PermissionProviding
     let logStore: AppLogStore
 
     private(set) var mode: TriggerMode
@@ -41,7 +43,7 @@ final class AppModel {
         )
         return String(format: format, locale: interfaceLocale, arguments: [launchAtLoginErrorDetail])
     }
-    private(set) var permissionsRevision = 0
+    var permissionsRevision: Int { permissionsModel.revision }
     var lastAudioURL: URL? { coordinator.lastAudioURL }
 
     var lastTranscript: String? { coordinator.lastTranscript }
@@ -52,18 +54,13 @@ final class AppModel {
     }
 
     var activeCleanupPrompt: CleanupPrompt? {
-        guard let activeID = preferences.activeCleanupPromptID else { return nil }
-        return preferences.cleanupPrompts.first { $0.id == activeID }
+        promptLibrary.activePrompt
     }
 
     var hasActiveCleanupPrompt: Bool { activeCleanupPrompt != nil }
 
     var cleanupPromptLibraryDiffersFromDefault: Bool {
-        guard preferences.cleanupPrompts.count == 1,
-              let prompt = preferences.cleanupPrompts.first else { return true }
-        return prompt.name != Self.defaultCleanupPromptName
-            || prompt.systemImageName != Self.defaultCleanupPromptIcon
-            || prompt.instructions != MurmureLocalization.defaultCleanupPrompt(locale: interfaceLocale)
+        promptLibrary.differsFromDefault
     }
 
     func setInterfaceLanguage(_ language: InterfaceLanguage) {
@@ -120,7 +117,10 @@ final class AppModel {
     private let now: () -> Date
 
     init(dependencies: AppDependencies, initialPreferences: AppPreferences) {
-        coordinator = dependencies.coordinator
+        dictationSession = DictationSessionModel(
+            coordinator: dependencies.coordinator,
+            connectionTest: dependencies.connectionTest
+        )
         connectionTest = dependencies.connectionTest
         hotkeys = dependencies.hotkeys
         textDelivery = dependencies.textDelivery
@@ -130,10 +130,11 @@ final class AppModel {
             keychain: dependencies.keychain,
             initialPreferences: initialPreferences
         )
+        permissionsModel = PermissionsModel(provider: dependencies.permissions)
+        promptLibrary = PromptLibraryModel(preferencesModel: preferencesModel)
         launchAtLoginService = dependencies.launchAtLogin
         soundFeedback = dependencies.feedback
         listeningIndicator = dependencies.listeningIndicator
-        permissionProvider = dependencies.permissions
         now = dependencies.now
         mode = initialPreferences.triggerMode
         coordinator.onRecordingTimeout = { [weak self] in
@@ -202,13 +203,11 @@ final class AppModel {
     var requiresOnboarding: Bool { !preferences.hasCompletedOnboarding }
 
     var microphonePermission: PermissionStatus {
-        _ = permissionsRevision
-        return permissionProvider.microphonePermission
+        permissionsModel.microphonePermission
     }
 
     var accessibilityPermission: PermissionStatus {
-        _ = permissionsRevision
-        return permissionProvider.accessibilityPermission
+        permissionsModel.accessibilityPermission
     }
 
     var launchAtLoginEnabled: Bool {
@@ -221,28 +220,15 @@ final class AppModel {
     }
 
     func requestMicrophonePermission() {
-        Task { [weak self] in
-            guard let self else { return }
-            _ = await self.permissionProvider.requestMicrophonePermission()
-            self.refreshPermissions()
-        }
+        permissionsModel.requestMicrophonePermission()
     }
 
     func requestAccessibilityPermission() {
-        permissionProvider.requestAccessibilityPermission()
-        refreshPermissions()
-        Task { [weak self] in
-            for _ in 0..<30 {
-                try? await Task.sleep(for: .seconds(1))
-                guard let self else { return }
-                self.refreshPermissions()
-                if self.accessibilityPermission == .granted { return }
-            }
-        }
+        permissionsModel.requestAccessibilityPermission()
     }
 
     func refreshPermissions() {
-        permissionsRevision &+= 1
+        permissionsModel.refresh()
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -258,74 +244,20 @@ final class AppModel {
     }
 
     func setActiveCleanupPrompt(_ id: UUID?) {
-        guard id == nil || preferences.cleanupPrompts.contains(where: { $0.id == id }) else { return }
-        guard preferences.activeCleanupPromptID != id else { return }
-        preferences.activeCleanupPromptID = id
-        if let activeCleanupPrompt {
-            preferences.cleanupPrompt = activeCleanupPrompt.instructions
-            preferences.cleanupPromptMode = .custom
-        }
-        savePreferences()
+        promptLibrary.setActive(id)
     }
 
     @discardableResult
     func saveCleanupPrompt(_ prompt: CleanupPrompt) -> CleanupPromptValidationError? {
-        let name = prompt.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return .emptyName }
-        guard !prompt.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .emptyInstructions
-        }
-        let normalizedName = name.filter { !$0.isWhitespace }
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        if preferences.cleanupPrompts.contains(where: {
-            $0.id != prompt.id
-                && $0.name.trimmingCharacters(in: .whitespacesAndNewlines).filter { !$0.isWhitespace }
-                    .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == normalizedName
-        }) {
-            return .duplicateName
-        }
-        guard CleanupPrompt.allowedSystemImageNames.contains(prompt.systemImageName) else {
-            return .invalidIcon
-        }
-
-        var value = prompt
-        value.name = name
-        if let index = preferences.cleanupPrompts.firstIndex(where: { $0.id == prompt.id }) {
-            preferences.cleanupPrompts[index] = value
-        } else {
-            preferences.cleanupPrompts.append(value)
-        }
-        if preferences.activeCleanupPromptID == nil {
-            preferences.activeCleanupPromptID = value.id
-        }
-        if preferences.activeCleanupPromptID == value.id {
-            preferences.cleanupPrompt = value.instructions
-            preferences.cleanupPromptMode = .custom
-        }
-        savePreferences()
-        return nil
+        promptLibrary.save(prompt)
     }
 
     func deleteCleanupPrompt(id: UUID) {
-        guard let index = preferences.cleanupPrompts.firstIndex(where: { $0.id == id }) else { return }
-        preferences.cleanupPrompts.remove(at: index)
-        if preferences.activeCleanupPromptID == id {
-            preferences.activeCleanupPromptID = preferences.cleanupPrompts.first?.id
-            if let activeCleanupPrompt {
-                preferences.cleanupPrompt = activeCleanupPrompt.instructions
-                preferences.cleanupPromptMode = .custom
-            }
-        }
-        savePreferences()
+        promptLibrary.delete(id: id)
     }
 
     func resetPromptLibrary() {
-        let prompt = defaultCleanupPromptDefinition()
-        preferences.cleanupPrompts = [prompt]
-        preferences.activeCleanupPromptID = prompt.id
-        preferences.cleanupPrompt = prompt.instructions
-        preferences.cleanupPromptMode = .localizedDefault
-        savePreferences()
+        promptLibrary.reset()
     }
 
     func resetCleanupPrompt() { resetPromptLibrary() }
