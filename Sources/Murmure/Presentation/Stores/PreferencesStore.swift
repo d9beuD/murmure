@@ -13,7 +13,7 @@ enum PreferencesPersistenceError: Error, Equatable {
 
 @MainActor
 @Observable
-final class PreferencesModel {
+final class PreferencesStore {
     static let debounceDuration: Duration = .milliseconds(400)
 
     var preferences: AppPreferences {

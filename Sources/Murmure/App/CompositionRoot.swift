@@ -4,7 +4,7 @@ import MurmureCore
 @MainActor
 enum CompositionRoot {
     enum LaunchState {
-        case ready(AppModel, recoveredPreferences: Bool)
+        case ready(AppEnvironment, recoveredPreferences: Bool)
         case incompatible(schemaVersion: Int)
     }
 
@@ -36,15 +36,15 @@ enum CompositionRoot {
         }
 
         return .ready(
-            makeAppModel(preferencesStore: preferencesStore, initialPreferences: loadedPreferences),
+            makeEnvironment(preferencesStore: preferencesStore, initialPreferences: loadedPreferences),
             recoveredPreferences: recovered
         )
     }
 
-    private static func makeAppModel(
+    private static func makeEnvironment(
         preferencesStore: UserDefaultsPreferencesStore,
         initialPreferences: AppPreferences
-    ) -> AppModel {
+    ) -> AppEnvironment {
         let audioRecorder = AudioRecorder()
         let permissions = SystemPermissionProvider()
         let logStore = AppLogStore()
@@ -65,7 +65,7 @@ enum CompositionRoot {
                 sessionArbiter: sessionArbiter
             )
         )
-        let connectionTest = ConnectionTestModel(
+        let connectionTest = ConnectionTestCoordinator(
             audioRecorder: audioRecorder,
             microphonePermission: permissions,
             transcriber: transcriber,
@@ -74,7 +74,7 @@ enum CompositionRoot {
             sessionArbiter: sessionArbiter
         )
 
-        return AppModel(dependencies: AppDependencies(
+        let appStore = AppStore(dependencies: AppStoreDependencies(
             coordinator: coordinator,
             connectionTest: connectionTest,
             textDelivery: textDelivery,
@@ -92,5 +92,10 @@ enum CompositionRoot {
             now: Date.init,
             sessionArbiter: sessionArbiter
         ), initialPreferences: initialPreferences)
+        return AppEnvironment(
+            appStore: appStore,
+            dictationCoordinator: coordinator,
+            connectionTestCoordinator: connectionTest
+        )
     }
 }

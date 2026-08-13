@@ -3,7 +3,7 @@ import MurmureCore
 import SwiftUI
 
 struct OnboardingView: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
     let dockPresenceController: DockPresenceController
     @Environment(\.dismiss) private var dismiss
     @State private var step = 0

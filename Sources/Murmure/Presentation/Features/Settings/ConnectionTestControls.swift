@@ -2,7 +2,7 @@ import MurmureCore
 import SwiftUI
 
 struct ConnectionTestControls: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
 
     var body: some View {
         let locale = model.interfaceLocale

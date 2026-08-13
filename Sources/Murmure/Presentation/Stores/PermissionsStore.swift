@@ -3,7 +3,7 @@ import Observation
 
 @MainActor
 @Observable
-final class PermissionsModel {
+final class PermissionsStore {
     private let provider: any PermissionProviding
     private(set) var revision = 0
     private var accessibilityPollingTask: Task<Void, Never>?

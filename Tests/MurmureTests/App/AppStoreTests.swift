@@ -3,7 +3,7 @@ import XCTest
 import MurmureCore
 @testable import Murmure
 
-final class AppModelTests: XCTestCase {
+final class AppStoreTests: XCTestCase {
     @MainActor
     func testLoadsAndSavesPreferencesAndSecrets() {
         var preferences = AppPreferences()
@@ -629,7 +629,7 @@ final class AppModelTests: XCTestCase {
             now: { clock.value },
             sleep: { duration in try await Task.sleep(for: duration) }
         )
-        let connectionTest = ConnectionTestModel(
+        let connectionTest = ConnectionTestCoordinator(
             audioRecorder: recorder,
             microphonePermission: permissions,
             transcriber: transcriber,
@@ -637,7 +637,7 @@ final class AppModelTests: XCTestCase {
             now: { clock.value },
             sessionArbiter: nil
         )
-        let model = AppModel(dependencies: AppDependencies(
+        let model = AppStore(dependencies: AppStoreDependencies(
             coordinator: coordinator,
             connectionTest: connectionTest,
             textDelivery: delivery,
@@ -669,7 +669,7 @@ final class AppModelTests: XCTestCase {
 
 @MainActor
 private struct AppContext {
-    let model: AppModel
+    let model: AppStore
     let delivery: AppDeliverySpy
     let preferencesStore: PreferencesStoreSpy
     let secretStore: SecretStoreSpy

@@ -1,4 +1,5 @@
 import Foundation
+import MurmureCore
 import Security
 
 enum KeychainStoreError: LocalizedError {
@@ -9,11 +10,6 @@ enum KeychainStoreError: LocalizedError {
         case .unexpectedStatus(let status): "Keychain error (\(status))."
         }
     }
-}
-
-protocol SecretStoring: AnyObject {
-    func read(profileIDs: [UUID]) throws -> [UUID: String]
-    func save(_ secrets: [UUID: String]) throws
 }
 
 protocol KeychainAccessing: Sendable {

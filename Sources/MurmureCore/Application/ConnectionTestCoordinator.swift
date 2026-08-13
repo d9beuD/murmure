@@ -1,8 +1,6 @@
 import Foundation
-import MurmureCore
-import Observation
 
-enum ConnectionTestFailure: Equatable {
+public enum ConnectionTestFailure: Equatable, Sendable {
     case invalidConfiguration([ProviderValidationIssue])
     case microphonePermissionDenied
     case recordingFailed(message: UserFacingErrorMessage)
@@ -10,7 +8,7 @@ enum ConnectionTestFailure: Equatable {
     case transcriptionFailed(message: UserFacingErrorMessage)
 }
 
-enum ConnectionTestState: Equatable {
+public enum ConnectionTestState: Equatable, Sendable {
     case idle
     case requestingPermission
     case recording
@@ -18,7 +16,7 @@ enum ConnectionTestState: Equatable {
     case succeeded(characterCount: Int)
     case failed(ConnectionTestFailure)
 
-    var isInactive: Bool {
+    public var isInactive: Bool {
         switch self {
         case .idle, .succeeded, .failed: true
         case .requestingPermission, .recording, .testing: false
@@ -26,16 +24,21 @@ enum ConnectionTestState: Equatable {
     }
 }
 
-enum ConnectionTestEvent: Equatable {
+public enum ConnectionTestEvent: Equatable, Sendable {
     case recordingStarted
     case recordingStopped
     case succeeded
     case failed
 }
 
+public struct ConnectionTestSnapshot: Equatable, Sendable {
+    public let state: ConnectionTestState
+
+    public init(state: ConnectionTestState) { self.state = state }
+}
+
 @MainActor
-@Observable
-final class ConnectionTestModel {
+public final class ConnectionTestCoordinator {
     private let audioRecorder: any AudioRecording
     private let microphonePermission: any MicrophonePermissionRequesting
     private let transcriber: any SpeechTranscribing
@@ -43,15 +46,31 @@ final class ConnectionTestModel {
     private let now: () -> Date
     private let sessionArbiter: (any SessionArbitrating)?
 
-    private(set) var state: ConnectionTestState = .idle
-    var onEvent: ((ConnectionTestEvent) -> Void)?
+    public private(set) var state: ConnectionTestState = .idle {
+        didSet { onSnapshot?(snapshot) }
+    }
+    public var onEvent: ((ConnectionTestEvent) -> Void)?
+    public var onSnapshot: ((ConnectionTestSnapshot) -> Void)? {
+        didSet { onSnapshot?(snapshot) }
+    }
+    public var snapshot: ConnectionTestSnapshot { ConnectionTestSnapshot(state: state) }
 
     private var sessionID: UUID?
     private var sessionLease: SessionLease?
     private var startedAt: Date?
     private var task: Task<Void, Never>?
 
-    init(
+    public convenience init(
+        audioRecorder: any AudioRecording,
+        microphonePermission: any MicrophonePermissionRequesting,
+        transcriber: any SpeechTranscribing,
+        logger: any LogWriting,
+        sessionArbiter: (any SessionArbitrating)? = nil
+    ) {
+        self.init(audioRecorder: audioRecorder, microphonePermission: microphonePermission, transcriber: transcriber, logger: logger, now: Date.init, sessionArbiter: sessionArbiter)
+    }
+
+    public init(
         audioRecorder: any AudioRecording,
         microphonePermission: any MicrophonePermissionRequesting,
         transcriber: any SpeechTranscribing,
@@ -67,11 +86,11 @@ final class ConnectionTestModel {
         self.sessionArbiter = sessionArbiter
     }
 
-    func start(request: TranscriptionRequest? = nil) {
+    public func start(request: TranscriptionRequest? = nil) {
         guard state.isInactive else { return }
         if let request {
             let issues = request.configuration.validationIssues(apiKey: request.apiKey)
-            if !issues.isEmpty {
+            guard issues.isEmpty else {
                 state = .failed(.invalidConfiguration(issues))
                 onEvent?(.failed)
                 return
@@ -87,7 +106,7 @@ final class ConnectionTestModel {
         task?.cancel()
         task = Task { [weak self] in
             guard let self else { return }
-            guard await microphonePermission.requestMicrophonePermission() else {
+            guard await self.microphonePermission.requestMicrophonePermission() else {
                 guard self.sessionID == sessionID else { return }
                 self.sessionID = nil
                 self.releaseSessionLease()
@@ -113,19 +132,18 @@ final class ConnectionTestModel {
         }
     }
 
-    func finish(request: TranscriptionRequest) {
+    public func finish(request: TranscriptionRequest) {
         guard state == .recording, let sessionID else { return }
         let duration = startedAt.map { now().timeIntervalSince($0) } ?? 0
         startedAt = nil
-        guard duration >= DictationTiming.minimumRecordingDuration,
-              let audioURL = audioRecorder.stop() else {
+        guard duration >= DictationTiming.minimumRecordingDuration, let audioURL = audioRecorder.stop() else {
             audioRecorder.cancel()
             self.sessionID = nil
             state = .failed(.insufficientAudio)
             onEvent?(.failed)
+            releaseSessionLease()
             return
         }
-
         state = .testing
         logger.log("Connection test recording ended")
         onEvent?(.recordingStopped)
@@ -134,21 +152,13 @@ final class ConnectionTestModel {
             guard let self else { return }
             defer {
                 self.audioRecorder.deleteCapture(at: audioURL)
-                if self.sessionID == sessionID {
-                    self.sessionID = nil
-                }
+                if self.sessionID == sessionID { self.sessionID = nil }
                 self.releaseSessionLease()
             }
             do {
                 let host = request.configuration.endpointURL?.host ?? "configured endpoint"
                 self.logger.log("Testing STT connection with \(host)")
-                let text = try await self.transcriber.transcribe(
-                    audioURL: audioURL,
-                    configuration: request.configuration,
-                    apiKey: request.apiKey,
-                    prompt: request.prompt,
-                    language: request.language
-                )
+                let text = try await self.transcriber.transcribe(audioURL: audioURL, configuration: request.configuration, apiKey: request.apiKey, prompt: request.prompt, language: request.language)
                 guard self.sessionID == sessionID else { return }
                 self.state = .succeeded(characterCount: text.count)
                 self.logger.log("STT connection test succeeded (\(text.count) chars)")
@@ -167,7 +177,7 @@ final class ConnectionTestModel {
         }
     }
 
-    func cancel() {
+    public func cancel() {
         sessionID = nil
         task?.cancel()
         task = nil

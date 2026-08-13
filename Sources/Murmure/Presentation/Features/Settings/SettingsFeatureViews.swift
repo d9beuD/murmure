@@ -4,7 +4,7 @@ import Observation
 import SwiftUI
 
 struct GeneralSettingsView: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
 
     var body: some View {
         let locale = model.interfaceLocale
@@ -61,7 +61,7 @@ struct GeneralSettingsView: View {
 }
 
 private struct PermissionsSettings: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
 
     var body: some View {
         let locale = model.interfaceLocale
@@ -93,7 +93,7 @@ private struct PermissionsSettings: View {
 }
 
 struct STTSettingsView: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
 
     var body: some View {
         let locale = model.interfaceLocale
@@ -140,7 +140,7 @@ struct STTSettingsView: View {
 }
 
 struct DictationDictionaryView: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
     @State private var searchText = ""
     @State private var isAdding = false
     @State private var newTerm = ""
@@ -299,7 +299,7 @@ struct DictationDictionaryView: View {
 }
 
 struct CleanupSettingsView: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
 
     var body: some View {
         let locale = model.interfaceLocale
@@ -379,7 +379,7 @@ final class PromptLibraryNavigationState {
         path.append(.edit(id, token: UUID()))
     }
 
-    func beginEditing(_ id: UUID, model: AppModel) {
+    func beginEditing(_ id: UUID, model: AppStore) {
         guard draft?.id != id || originalDraft == nil else { return }
         draft = model.preferences.cleanupPrompts.first { $0.id == id }
         originalDraft = draft
@@ -394,7 +394,7 @@ final class PromptLibraryNavigationState {
     }
 
     @discardableResult
-    func save(model: AppModel) -> Bool {
+    func save(model: AppStore) -> Bool {
         guard let draft else { return true }
         if let validationError = model.saveCleanupPrompt(draft) {
             self.validationError = validationError
@@ -425,7 +425,7 @@ final class PromptLibraryNavigationState {
 }
 
 struct PromptLibraryView: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
     @Bindable var state: PromptLibraryNavigationState
     let onLeaveSettings: (SettingsSection?) -> Void
 
@@ -480,7 +480,7 @@ struct PromptLibraryView: View {
 }
 
 private struct PromptListPage: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
     @Bindable var state: PromptLibraryNavigationState
 
     var body: some View {
@@ -562,7 +562,7 @@ private struct PromptListPage: View {
 }
 
 private struct PromptEditorPage: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
     @Bindable var state: PromptLibraryNavigationState
     let destination: PromptDestination
 

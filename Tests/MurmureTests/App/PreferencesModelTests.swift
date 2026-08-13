@@ -3,12 +3,12 @@ import XCTest
 @testable import Murmure
 import MurmureCore
 
-final class PreferencesModelTests: XCTestCase {
+final class PreferencesStoreTests: XCTestCase {
     @MainActor
     func testPreferencesAndSecretsHaveIndependentPersistence() {
         let store = PreferencesStoreSpy()
         let keychain = SecretStoreSpy()
-        let model = PreferencesModel(
+        let model = PreferencesStore(
             preferencesStore: store,
             keychain: keychain,
             initialPreferences: AppPreferences()
@@ -33,7 +33,7 @@ final class PreferencesModelTests: XCTestCase {
     func testDebouncedWritesCanBeFlushedAndSuperseded() {
         let store = PreferencesStoreSpy()
         let keychain = SecretStoreSpy()
-        let model = PreferencesModel(
+        let model = PreferencesStore(
             preferencesStore: store,
             keychain: keychain,
             initialPreferences: AppPreferences()
@@ -59,7 +59,7 @@ final class PreferencesModelTests: XCTestCase {
         let store = PreferencesStoreSpy()
         let keychain = SecretStoreSpy()
         keychain.saveError = AppStubError.failure
-        let model = PreferencesModel(
+        let model = PreferencesStore(
             preferencesStore: store,
             keychain: keychain,
             initialPreferences: AppPreferences()

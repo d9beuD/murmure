@@ -4,7 +4,7 @@ import Sparkle
 import SwiftUI
 
 struct MenuContent: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
     let updater: SPUUpdater
     @Environment(\.openWindow) private var openWindow
 

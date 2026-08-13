@@ -4,13 +4,14 @@ import Observation
 
 @MainActor
 @Observable
-final class AppModel {
-    let dictationSession: DictationSessionModel
-    let preferencesModel: PreferencesModel
-    let permissionsModel: PermissionsModel
-    let promptLibrary: PromptLibraryModel
+final class AppStore {
+    let dictationSession: DictationStore
+    let connectionTestStore: ConnectionTestStore
+    let preferencesModel: PreferencesStore
+    let permissionsModel: PermissionsStore
+    let promptLibrary: PromptLibraryStore
     var coordinator: DictationCoordinator { dictationSession.coordinator }
-    private let connectionTest: ConnectionTestModel
+    private var connectionTest: ConnectionTestCoordinator { connectionTestStore.coordinator }
     private let hotkeys: any HotkeyHandling
     private let textDelivery: any TextDelivering
     private let launchAtLoginService: any LaunchAtLoginControlling
@@ -32,7 +33,7 @@ final class AppModel {
         get { preferencesModel.cleanupAPIKey }
         set { preferencesModel.updateCleanupAPIKey(newValue) }
     }
-    var connectionTestState: ConnectionTestState { connectionTest.state }
+    var connectionTestState: ConnectionTestState { connectionTestStore.state }
     private var launchAtLoginErrorDetail: String?
     var launchAtLoginError: String? {
         guard let launchAtLoginErrorDetail else { return nil }
@@ -44,9 +45,9 @@ final class AppModel {
         return String(format: format, locale: interfaceLocale, arguments: [launchAtLoginErrorDetail])
     }
     var permissionsRevision: Int { permissionsModel.revision }
-    var lastAudioURL: URL? { coordinator.lastAudioURL }
+    var lastAudioURL: URL? { dictationSession.lastAudioURL }
 
-    var lastTranscript: String? { coordinator.lastTranscript }
+    var lastTranscript: String? { dictationSession.lastTranscript }
 
     var interfaceLocale: Locale {
         _ = interfaceLanguageRevision
@@ -116,22 +117,19 @@ final class AppModel {
     private var lastShortcutEventAt: Date?
     private let now: () -> Date
 
-    init(dependencies: AppDependencies, initialPreferences: AppPreferences) {
-        dictationSession = DictationSessionModel(
-            coordinator: dependencies.coordinator,
-            connectionTest: dependencies.connectionTest
-        )
-        connectionTest = dependencies.connectionTest
+    init(dependencies: AppStoreDependencies, initialPreferences: AppPreferences) {
+        dictationSession = DictationStore(coordinator: dependencies.coordinator)
+        connectionTestStore = ConnectionTestStore(coordinator: dependencies.connectionTest)
         hotkeys = dependencies.hotkeys
         textDelivery = dependencies.textDelivery
         logStore = dependencies.logStore
-        preferencesModel = PreferencesModel(
+        preferencesModel = PreferencesStore(
             preferencesStore: dependencies.preferencesStore,
             keychain: dependencies.keychain,
             initialPreferences: initialPreferences
         )
-        permissionsModel = PermissionsModel(provider: dependencies.permissions)
-        promptLibrary = PromptLibraryModel(preferencesModel: preferencesModel)
+        permissionsModel = PermissionsStore(provider: dependencies.permissions)
+        promptLibrary = PromptLibraryStore(preferencesModel: preferencesModel)
         launchAtLoginService = dependencies.launchAtLogin
         soundFeedback = dependencies.feedback
         listeningIndicator = dependencies.listeningIndicator
@@ -261,7 +259,7 @@ final class AppModel {
 
     func resetCleanupPrompt() { resetPromptLibrary() }
 
-    var state: DictationState { coordinator.state }
+    var state: DictationState { dictationSession.state }
 
     func setMode(_ newMode: TriggerMode) {
         guard state == .idle else { return }
@@ -418,13 +416,6 @@ final class AppModel {
 
     private static let defaultCleanupPromptName = "Standard"
     private static let defaultCleanupPromptIcon = "wand.and.stars"
-}
-
-enum CleanupPromptValidationError: Error, Equatable {
-    case emptyName
-    case duplicateName
-    case emptyInstructions
-    case invalidIcon
 }
 
 enum PermissionStatus: Equatable {

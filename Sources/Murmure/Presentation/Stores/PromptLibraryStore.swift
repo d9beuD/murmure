@@ -4,10 +4,10 @@ import Observation
 
 @MainActor
 @Observable
-final class PromptLibraryModel {
-    private let preferencesModel: PreferencesModel
+final class PromptLibraryStore {
+    private let preferencesModel: PreferencesStore
 
-    init(preferencesModel: PreferencesModel) {
+    init(preferencesModel: PreferencesStore) {
         self.preferencesModel = preferencesModel
     }
 
@@ -37,26 +37,11 @@ final class PromptLibraryModel {
 
     @discardableResult
     func save(_ prompt: CleanupPrompt) -> CleanupPromptValidationError? {
-        let name = prompt.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return .emptyName }
-        guard !prompt.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .emptyInstructions
+        let value: CleanupPrompt
+        switch CleanupPromptLibrary.validatedSaving(prompt, into: preferences.cleanupPrompts) {
+        case .success(let prompt): value = prompt
+        case .failure(let error): return error
         }
-        let normalizedName = name.filter { !$0.isWhitespace }
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        if preferences.cleanupPrompts.contains(where: {
-            $0.id != prompt.id
-                && $0.name.trimmingCharacters(in: .whitespacesAndNewlines).filter { !$0.isWhitespace }
-                    .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == normalizedName
-        }) {
-            return .duplicateName
-        }
-        guard CleanupPrompt.allowedSystemImageNames.contains(prompt.systemImageName) else {
-            return .invalidIcon
-        }
-
-        var value = prompt
-        value.name = name
         if let index = preferences.cleanupPrompts.firstIndex(where: { $0.id == prompt.id }) {
             preferences.cleanupPrompts[index] = value
         } else {

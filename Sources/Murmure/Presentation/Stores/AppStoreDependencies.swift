@@ -2,9 +2,9 @@ import Foundation
 import MurmureCore
 
 @MainActor
-struct AppDependencies {
+struct AppStoreDependencies {
     let coordinator: DictationCoordinator
-    let connectionTest: ConnectionTestModel
+    let connectionTest: ConnectionTestCoordinator
     let textDelivery: any TextDelivering
     let preferencesStore: any PreferencesStoring
     let keychain: any SecretStoring

@@ -3,11 +3,11 @@ import XCTest
 import MurmureCore
 @testable import Murmure
 
-final class ConnectionTestModelTests: XCTestCase {
+final class ConnectionTestCoordinatorTests: XCTestCase {
     @MainActor
     func testInvalidConfigurationFailsBeforePermissionOrCapture() async {
         let recorder = AppRecorderSpy()
-        let model = ConnectionTestModel(
+        let model = ConnectionTestCoordinator(
             audioRecorder: recorder, microphonePermission: PermissionSpy(),
             transcriber: AppTranscriberSpy(), logger: AppLogStore(), now: Date.init
         )
@@ -29,7 +29,7 @@ final class ConnectionTestModelTests: XCTestCase {
         let permissions = PermissionSpy()
         permissions.microphoneResult = false
         let logStore = AppLogStore()
-        let model = ConnectionTestModel(
+        let model = ConnectionTestCoordinator(
             audioRecorder: recorder,
             microphonePermission: permissions,
             transcriber: AppTranscriberSpy(),
@@ -56,7 +56,7 @@ final class ConnectionTestModelTests: XCTestCase {
         let transcriber = AppTranscriberSpy(result: .success("verified"))
         let permissions = PermissionSpy()
         let clock = AppDate()
-        let model = ConnectionTestModel(
+        let model = ConnectionTestCoordinator(
             audioRecorder: recorder,
             microphonePermission: permissions,
             transcriber: transcriber,
@@ -92,7 +92,7 @@ final class ConnectionTestModelTests: XCTestCase {
         let recorder = AppRecorderSpy()
         recorder.stopURL = try appTemporaryFile()
         let clock = AppDate()
-        let model = ConnectionTestModel(
+        let model = ConnectionTestCoordinator(
             audioRecorder: recorder,
             microphonePermission: PermissionSpy(),
             transcriber: AppTranscriberSpy(result: .failure(.failure)),

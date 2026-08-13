@@ -1,12 +1,16 @@
 import Foundation
-import Observation
 
 @MainActor
-@Observable
 public final class DictationCoordinator {
-    public private(set) var state: DictationState = .idle
-    public private(set) var lastAudioURL: URL?
-    public private(set) var lastTranscript: String?
+    public private(set) var state: DictationState = .idle {
+        didSet { onSnapshot?(snapshot) }
+    }
+    public private(set) var lastAudioURL: URL? {
+        didSet { onSnapshot?(snapshot) }
+    }
+    public private(set) var lastTranscript: String? {
+        didSet { onSnapshot?(snapshot) }
+    }
 
     private let dependencies: DictationDependencies
     private var activeSessionID: UUID?
@@ -25,6 +29,13 @@ public final class DictationCoordinator {
     public var onTextCleanupStarted: (() -> Void)?
     public var onProcessingFinished: (() -> Void)?
     public var onEvent: ((DictationEvent) -> Void)?
+    public var onSnapshot: ((DictationSnapshot) -> Void)? {
+        didSet { onSnapshot?(snapshot) }
+    }
+
+    public var snapshot: DictationSnapshot {
+        DictationSnapshot(state: state, lastAudioURL: lastAudioURL, lastTranscript: lastTranscript)
+    }
 
     public convenience init(dependencies: DictationDependencies) {
         self.init(

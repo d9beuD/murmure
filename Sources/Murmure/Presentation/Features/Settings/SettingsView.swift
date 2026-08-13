@@ -2,7 +2,7 @@ import MurmureCore
 import SwiftUI
 
 struct SettingsView: View {
-    @Bindable var model: AppModel
+    @Bindable var model: AppStore
     let dockPresenceController: DockPresenceController
     @State private var selection: SettingsSection? = .general
     @State private var promptNavigation = PromptLibraryNavigationState()
