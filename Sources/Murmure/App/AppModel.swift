@@ -127,28 +127,12 @@ final class AppModel {
         let storedPreferences = initialPreferences
         preferences = storedPreferences
         mode = storedPreferences.triggerMode
-        migratePromptLibraryIfNeeded(wasSchemaVersion: storedPreferences.schemaVersion)
-        var shouldPersistPromptMigration = storedPreferences.schemaVersion < AppPreferences.currentSchemaVersion
-            || preferences.cleanupPrompts != storedPreferences.cleanupPrompts
-            || preferences.activeCleanupPromptID != storedPreferences.activeCleanupPromptID
-        if storedPreferences.schemaVersion == AppPreferences.currentSchemaVersion,
-           !storedPreferences.hasCompletedOnboarding,
-           storedPreferences.cleanupPromptMode == .localizedDefault,
-           preferences.cleanupPrompts.count == 1,
-           preferences.cleanupPrompts[0].instructions == AppPreferences.defaultCleanupPrompt {
-            preferences.cleanupPrompts[0].instructions = MurmureLocalization.defaultCleanupPrompt(locale: interfaceLocale)
-            shouldPersistPromptMigration = true
-        }
         let secrets = (try? keychain.read(profileIDs: [
             storedPreferences.stt.id,
             storedPreferences.cleanupProvider.id
         ])) ?? [:]
         sttAPIKey = secrets[storedPreferences.stt.id] ?? ""
         cleanupAPIKey = secrets[storedPreferences.cleanupProvider.id] ?? ""
-        if shouldPersistPromptMigration {
-            savePreferences()
-        }
-
         coordinator.onRecordingTimeout = { [weak self] in
             self?.stopRecording()
         }
@@ -488,36 +472,6 @@ final class AppModel {
     private func playFeedback(_ event: FeedbackEvent) {
         guard preferences.playFeedbackSounds else { return }
         soundFeedback.play(event)
-    }
-
-    private func migratePromptLibraryIfNeeded(wasSchemaVersion: Int) {
-        if wasSchemaVersion < AppPreferences.currentSchemaVersion {
-            preferences.schemaVersion = AppPreferences.currentSchemaVersion
-        }
-        if wasSchemaVersion < 6 {
-            let wasLocalized = preferences.cleanupPromptMode != .custom
-            var migrated = preferences.cleanupPrompts.first
-                ?? CleanupPrompt(
-                    name: wasLocalized ? Self.defaultCleanupPromptName : "Existing Prompt",
-                    systemImageName: wasLocalized ? Self.defaultCleanupPromptIcon : "text.badge.checkmark",
-                    instructions: preferences.cleanupPrompt
-                )
-            if wasLocalized {
-                migrated.name = Self.defaultCleanupPromptName
-                migrated.systemImageName = Self.defaultCleanupPromptIcon
-                migrated.instructions = MurmureLocalization.defaultCleanupPrompt(locale: interfaceLocale)
-            } else {
-                migrated.name = "Existing Prompt"
-            }
-            preferences.cleanupPrompts = [migrated]
-            preferences.activeCleanupPromptID = migrated.id
-        } else if let activeID = preferences.activeCleanupPromptID {
-            if !preferences.cleanupPrompts.contains(where: { $0.id == activeID }) {
-                preferences.activeCleanupPromptID = preferences.cleanupPrompts.first?.id
-            }
-        } else if !preferences.cleanupPrompts.isEmpty {
-            preferences.activeCleanupPromptID = preferences.cleanupPrompts.first?.id
-        }
     }
 
     private func defaultCleanupPromptDefinition() -> CleanupPrompt {

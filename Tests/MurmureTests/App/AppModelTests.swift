@@ -64,7 +64,8 @@ final class AppModelTests: XCTestCase {
     func testActiveSTTLanguageCannotBeRemovedFromFavorites() {
         var preferences = AppPreferences()
         preferences.sttLanguage = .french
-        let context = makeContext(preferences: preferences)
+        let migrated = PreferencesMigrator.migrate(preferences, localizedDefaultPrompt: "Localized default")
+        let context = makeContext(preferences: migrated)
 
         context.model.setSTTFavoriteLanguage(.french, enabled: false)
         XCTAssertTrue(context.model.preferences.sttFavoriteLanguages.contains(.french))
@@ -100,18 +101,20 @@ final class AppModelTests: XCTestCase {
             cleanupPrompts: [prompt],
             activeCleanupPromptID: prompt.id
         )
-        let context = makeContext(preferences: preferences)
+        let migrated = PreferencesMigrator.migrate(preferences, localizedDefaultPrompt: "Localized default")
+        let context = makeContext(preferences: migrated)
 
         XCTAssertEqual(context.model.preferences.cleanupPrompts, [prompt])
         XCTAssertEqual(context.model.preferences.activeCleanupPromptID, prompt.id)
-        XCTAssertEqual(context.preferencesStore.saved.last?.schemaVersion, AppPreferences.currentSchemaVersion)
+        XCTAssertTrue(context.preferencesStore.saved.isEmpty)
     }
 
     @MainActor
     func testOnboardingPromptModeAndStateTitles() {
         var preferences = AppPreferences(interfaceLanguage: .english)
         preferences.cleanupPrompt = "custom"
-        let context = makeContext(preferences: preferences)
+        let migrated = PreferencesMigrator.migrate(preferences, localizedDefaultPrompt: "Localized default")
+        let context = makeContext(preferences: migrated)
 
         XCTAssertTrue(context.model.requiresOnboarding)
         context.model.completeOnboarding()
@@ -171,10 +174,11 @@ final class AppModelTests: XCTestCase {
     func testInvalidActivePromptReferenceIsRepairedAndPersisted() {
         var preferences = AppPreferences()
         preferences.activeCleanupPromptID = UUID()
-        let context = makeContext(preferences: preferences)
+        let migrated = PreferencesMigrator.migrate(preferences, localizedDefaultPrompt: "Localized default")
+        let context = makeContext(preferences: migrated)
 
         XCTAssertEqual(context.model.preferences.activeCleanupPromptID, context.model.preferences.cleanupPrompts.first?.id)
-        XCTAssertEqual(context.preferencesStore.saved.last?.activeCleanupPromptID, context.model.preferences.activeCleanupPromptID)
+        XCTAssertTrue(context.preferencesStore.saved.isEmpty)
     }
 
     @MainActor

@@ -10,7 +10,7 @@ enum CompositionRoot {
 
     static func makeLaunchState() -> LaunchState {
         let preferencesStore = UserDefaultsPreferencesStore()
-        let loadedPreferences: AppPreferences
+        var loadedPreferences: AppPreferences
         let recovered: Bool
 
         switch preferencesStore.load() {
@@ -22,6 +22,17 @@ enum CompositionRoot {
             recovered = true
         case .incompatible(let schemaVersion):
             return .incompatible(schemaVersion: schemaVersion)
+        }
+
+        let migratedPreferences = PreferencesMigrator.migrate(
+            loadedPreferences,
+            localizedDefaultPrompt: MurmureLocalization.defaultCleanupPrompt(
+                locale: MurmureLocalization.locale(for: loadedPreferences.interfaceLanguage)
+            )
+        )
+        if migratedPreferences != loadedPreferences {
+            preferencesStore.save(migratedPreferences)
+            loadedPreferences = migratedPreferences
         }
 
         return .ready(
