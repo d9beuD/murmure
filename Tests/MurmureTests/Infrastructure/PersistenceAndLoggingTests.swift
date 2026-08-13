@@ -37,13 +37,14 @@ final class PersistenceAndLoggingTests: XCTestCase {
         try withStore { store, defaults in
             var preferences = AppPreferences(schemaVersion: AppPreferences.currentSchemaVersion + 1)
             preferences.sttLanguage = .automatic
-            defaults.set(try JSONEncoder().encode(preferences), forKey: "murmure.preferences")
+            let originalData = try JSONEncoder().encode(preferences)
+            defaults.set(originalData, forKey: "murmure.preferences")
 
             guard case .incompatible(let schemaVersion) = store.load() else {
                 return XCTFail("Expected future schema to be rejected")
             }
             XCTAssertEqual(schemaVersion, AppPreferences.currentSchemaVersion + 1)
-            XCTAssertEqual(defaults.data(forKey: "murmure.preferences"), try JSONEncoder().encode(preferences))
+            XCTAssertEqual(defaults.data(forKey: "murmure.preferences"), originalData)
         }
     }
 
