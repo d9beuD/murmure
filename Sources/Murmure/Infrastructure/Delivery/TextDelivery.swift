@@ -15,8 +15,9 @@ final class TextDelivery: TextDelivering {
     }
 
     func copy(_ text: String) {
+        let deliverableText = prepareForDelivery(text)
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        NSPasteboard.general.setString(deliverableText, forType: .string)
     }
 
     func copyAndPaste(_ text: String) {
@@ -44,7 +45,7 @@ final class TextDelivery: TextDelivering {
         if let focusedTextElement,
            focusedTextElement.isEditable,
            !focusedTextElement.isWebEditor,
-           resolver.client.replaceSelectedText(text, in: focusedTextElement.element) {
+           resolver.client.replaceSelectedText(prepareForDelivery(text), in: focusedTextElement.element) {
             return .inserted
         }
 
@@ -53,5 +54,11 @@ final class TextDelivery: TextDelivering {
             return .fallbackCopied(reason: "paste event could not be posted")
         }
         return .inserted
+    }
+
+    private func prepareForDelivery(_ text: String) -> String {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return "" }
+        return "\(trimmedText) "
     }
 }
