@@ -14,6 +14,7 @@ fi
 script_directory=${0:A:h}
 repository_directory=${script_directory:h}
 binary_directory=$(swift build --package-path "$repository_directory" -c release --show-bin-path)
+"$repository_directory/Scripts/patch-keyboard-shortcuts-resources.sh"
 application_path="$binary_directory/Murmure.app"
 contents_path="$application_path/Contents"
 release_directory="$repository_directory/.build/release-artifacts"

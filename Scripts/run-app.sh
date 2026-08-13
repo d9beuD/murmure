@@ -7,6 +7,8 @@ repository_directory=${script_directory:h}
 
 swift build --package-path "$repository_directory"
 binary_directory=$(swift build --package-path "$repository_directory" --show-bin-path)
+"$repository_directory/Scripts/patch-keyboard-shortcuts-resources.sh"
+swift build --package-path "$repository_directory"
 application_path="$binary_directory/Murmure.app"
 contents_path="$application_path/Contents"
 

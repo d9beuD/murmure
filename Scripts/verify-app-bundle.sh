@@ -13,6 +13,7 @@ executable_path="$contents_path/MacOS/Murmure"
 sparkle_binary="$contents_path/Frameworks/Sparkle.framework/Versions/B/Sparkle"
 localization_bundle="$contents_path/Resources/Murmure_Murmure.bundle"
 icon_path="$contents_path/Resources/Murmure.icon"
+keyboard_shortcuts_bundle="$contents_path/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle"
 binary_directory="$application_path:h"
 raw_resource_bundle="$binary_directory/Murmure_Murmure.bundle"
 disabled_resource_bundle="$raw_resource_bundle.integration-disabled"
@@ -28,6 +29,10 @@ trap restore_raw_bundle EXIT
 [[ -x "$executable_path" ]] || { print -u2 "Missing executable: $executable_path"; exit 1; }
 [[ -x "$sparkle_binary" ]] || { print -u2 "Missing Sparkle framework binary: $sparkle_binary"; exit 1; }
 [[ -f "$icon_path/icon.json" ]] || { print -u2 "Missing layered app icon: $icon_path"; exit 1; }
+[[ -d "$keyboard_shortcuts_bundle" ]] || {
+    print -u2 "Missing KeyboardShortcuts resource bundle: $keyboard_shortcuts_bundle"
+    exit 1
+}
 icon_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$contents_path/Info.plist" 2>/dev/null || true)
 [[ "$icon_name" == "Murmure" ]] || { print -u2 "Unexpected app icon name: $icon_name"; exit 1; }
 for localization in en fr-FR; do
@@ -78,5 +83,12 @@ assert_output "automatic" $'locale=fr-FR\nonboarding.welcome.title=Bienvenue dan
     -AppleLanguages '(fr-FR)'
 assert_output "automatic" $'locale=en\nonboarding.welcome.title=Welcome to Murmure\nmenu.settings=Settings\naction.next=Next' \
     -AppleLanguages '(de-DE)'
+
+keyboard_shortcuts_output="$("$executable_path" --verify-keyboard-shortcuts)"
+if [[ "$keyboard_shortcuts_output" != "keyboardShortcuts.resourceBundle=available" ]]; then
+    print -u2 "KeyboardShortcuts resource bundle verification failed:"
+    print -u2 "$keyboard_shortcuts_output"
+    exit 1
+fi
 
 print "Verified app bundle: $application_path"
