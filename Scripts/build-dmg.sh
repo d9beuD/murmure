@@ -35,6 +35,7 @@ swift build --package-path "$repository_directory" -c release
 /bin/mkdir -p "$contents_path/MacOS" "$contents_path/Frameworks" "$contents_path/Resources" "$release_directory" "$staging_directory"
 /usr/bin/install -m 755 "$binary_directory/Murmure" "$contents_path/MacOS/Murmure"
 /bin/cp "$repository_directory/Configuration/Info.plist" "$contents_path/Info.plist"
+/usr/bin/ditto "$repository_directory/Configuration/AppIcon/Murmure.icon" "$contents_path/Resources/Murmure.icon"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$contents_path/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$contents_path/Info.plist"
 

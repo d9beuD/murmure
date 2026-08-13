@@ -24,6 +24,7 @@ fi
 /bin/mkdir -p "$contents_path/MacOS" "$contents_path/Frameworks" "$contents_path/Resources"
 /usr/bin/install -m 755 "$binary_directory/Murmure" "$contents_path/MacOS/Murmure"
 /bin/cp "$repository_directory/Configuration/Info.plist" "$contents_path/Info.plist"
+/usr/bin/ditto "$repository_directory/Configuration/AppIcon/Murmure.icon" "$contents_path/Resources/Murmure.icon"
 
 sparkle_framework="$binary_directory/Sparkle.framework"
 if [[ ! -d "$sparkle_framework" ]]; then

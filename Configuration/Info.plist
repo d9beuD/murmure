@@ -8,6 +8,8 @@
 	<string>Murmure</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.d9beuD.Murmure</string>
+	<key>CFBundleIconName</key>
+	<string>Murmure</string>
 	<key>CFBundleName</key>
 	<string>Murmure</string>
 	<key>CFBundleDevelopmentRegion</key>
