@@ -130,6 +130,7 @@
     "dictation_dictionary.invalid_entry" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a non-empty term that is not already in the dictionary." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Saisissez un terme non vide qui n’existe pas déjà dans le dictionnaire." } } } },
     "dictation_dictionary.remove" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove term" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer le terme" } } } },
     "dictation_dictionary.search" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search…" } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Rechercher…" } } } },
+    "dictation_dictionary.warning" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This may improve recognition, but it is not 100% effective and depends on the selected transcription model." } }, "fr-FR" : { "stringUnit" : { "state" : "translated", "value" : "Cela peut améliorer la reconnaissance, mais ce n’est pas efficace à 100 % et les résultats dépendent du modèle de transcription sélectionné." } } } },
     "error.launch_at_login" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Could not change the launch at login setting: %@" } },

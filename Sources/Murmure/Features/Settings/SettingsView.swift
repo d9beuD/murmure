@@ -287,6 +287,20 @@ private struct DictationDictionaryView: View {
             }
             .padding(.bottom, 16)
 
+            Label {
+                Text(MurmureLocalization.text(
+                    "dictation_dictionary.warning",
+                    defaultValue: "This may improve recognition, but it is not 100% effective and depends on the selected transcription model.",
+                    locale: locale
+                ))
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.bottom, 12)
+
             HStack {
                 Text(MurmureLocalization.text("dictation_dictionary.column", defaultValue: "Dictionary String", locale: locale))
                     .font(.caption.weight(.medium))
