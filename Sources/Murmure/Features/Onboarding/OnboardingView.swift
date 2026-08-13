@@ -1,10 +1,10 @@
-import AppKit
 import KeyboardShortcuts
 import MurmureCore
 import SwiftUI
 
 struct OnboardingView: View {
     @Bindable var model: AppModel
+    let dockPresenceController: DockPresenceController
     @Environment(\.dismiss) private var dismiss
     @State private var step = 0
 
@@ -51,7 +51,7 @@ struct OnboardingView: View {
         }
         .padding(28)
         .frame(width: 620, height: 500)
-        .background(OnboardingWindowFocus())
+        .background(DockPresenceWindowFocus(controller: dockPresenceController))
     }
 
     private var welcome: some View {
@@ -178,20 +178,5 @@ struct OnboardingView: View {
         guard model.preferences.stt.endpointURL != nil else { return false }
         guard !model.preferences.stt.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         return model.preferences.stt.authentication == .none || !model.sttAPIKey.isEmpty
-    }
-}
-
-private struct OnboardingWindowFocus: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { NSView(frame: .zero) }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
-            NSApp.unhide(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            window.orderFrontRegardless()
-            window.makeMain()
-            window.makeKey()
-        }
     }
 }

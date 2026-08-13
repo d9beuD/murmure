@@ -13,6 +13,8 @@ executable_path="$contents_path/MacOS/Murmure"
 sparkle_binary="$contents_path/Frameworks/Sparkle.framework/Versions/B/Sparkle"
 localization_bundle="$contents_path/Resources/Murmure_Murmure.bundle"
 icon_path="$contents_path/Resources/Murmure.icon"
+compiled_icon_path="$contents_path/Resources/Murmure.icns"
+compiled_assets_path="$contents_path/Resources/Assets.car"
 keyboard_shortcuts_bundle="$contents_path/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle"
 binary_directory="$application_path:h"
 raw_resource_bundle="$binary_directory/Murmure_Murmure.bundle"
@@ -29,12 +31,16 @@ trap restore_raw_bundle EXIT
 [[ -x "$executable_path" ]] || { print -u2 "Missing executable: $executable_path"; exit 1; }
 [[ -x "$sparkle_binary" ]] || { print -u2 "Missing Sparkle framework binary: $sparkle_binary"; exit 1; }
 [[ -f "$icon_path/icon.json" ]] || { print -u2 "Missing layered app icon: $icon_path"; exit 1; }
+[[ -f "$compiled_icon_path" ]] || { print -u2 "Missing compiled app icon: $compiled_icon_path"; exit 1; }
+[[ -f "$compiled_assets_path" ]] || { print -u2 "Missing compiled asset catalog: $compiled_assets_path"; exit 1; }
 [[ -d "$keyboard_shortcuts_bundle" ]] || {
     print -u2 "Missing KeyboardShortcuts resource bundle: $keyboard_shortcuts_bundle"
     exit 1
 }
 icon_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$contents_path/Info.plist" 2>/dev/null || true)
 [[ "$icon_name" == "Murmure" ]] || { print -u2 "Unexpected app icon name: $icon_name"; exit 1; }
+icon_file=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$contents_path/Info.plist" 2>/dev/null || true)
+[[ "$icon_file" == "Murmure" ]] || { print -u2 "Unexpected app icon file: $icon_file"; exit 1; }
 for localization in en fr-FR; do
     [[ -f "$localization_bundle/$localization.lproj/Localizable.strings" ]] || {
         print -u2 "Missing compiled localization: $localization_bundle/$localization.lproj/Localizable.strings"

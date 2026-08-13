@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct MurmureApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var launchState: CompositionRoot.LaunchState
+    @State private var dockPresenceController: DockPresenceController
     @State private var didOpenOnboarding = false
     @State private var didOpenRecoveryNotice = false
     @State private var didShowIncompatibleAlert = false
@@ -29,6 +30,7 @@ struct MurmureApp: App {
             exit(0)
         }
         _launchState = State(initialValue: CompositionRoot.makeLaunchState())
+        _dockPresenceController = State(initialValue: DockPresenceController())
     }
 
     var body: some Scene {
@@ -70,7 +72,7 @@ struct MurmureApp: App {
             id: "settings"
         ) {
             if let model = readyModel {
-                SettingsView(model: model)
+                SettingsView(model: model, dockPresenceController: dockPresenceController)
                     .environment(\.locale, model.interfaceLocale)
             }
         }
@@ -92,7 +94,7 @@ struct MurmureApp: App {
             id: "onboarding"
         ) {
             if let model = readyModel {
-                OnboardingView(model: model)
+                OnboardingView(model: model, dockPresenceController: dockPresenceController)
                     .environment(\.locale, model.interfaceLocale)
             }
         }

@@ -1,4 +1,3 @@
-import AppKit
 import KeyboardShortcuts
 import MurmureCore
 import Observation
@@ -6,6 +5,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var model: AppModel
+    let dockPresenceController: DockPresenceController
     @State private var selection: SettingsSection? = .general
     @State private var promptNavigation = PromptLibraryNavigationState()
 
@@ -58,7 +58,7 @@ struct SettingsView: View {
         .onChange(of: model.preferences) { _, _ in model.savePreferences() }
         .onChange(of: model.sttAPIKey) { _, _ in model.savePreferences() }
         .onChange(of: model.cleanupAPIKey) { _, _ in model.savePreferences() }
-        .background(SettingsWindowFocus())
+        .background(DockPresenceWindowFocus(controller: dockPresenceController))
     }
 }
 
@@ -838,21 +838,5 @@ private func providerValidation(for provider: ProviderConfiguration, locale: Loc
         Label(MurmureLocalization.text("validation.model_required", defaultValue: "A model is required.", locale: locale), systemImage: "exclamationmark.triangle")
             .foregroundStyle(.orange)
             .font(.caption)
-    }
-}
-
-/// A menubar-only app is not automatically activated when its Settings scene opens.
-private struct SettingsWindowFocus: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { NSView(frame: .zero) }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
-            NSApp.unhide(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            window.orderFrontRegardless()
-            window.makeMain()
-            window.makeKey()
-        }
     }
 }
