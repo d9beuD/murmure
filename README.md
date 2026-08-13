@@ -1,5 +1,7 @@
 # Murmure
 
+<img src="docs/murmure-icon-light.png" alt="Murmure" width="160">
+
 Murmure is a macOS voice dictation app designed to live in the menu bar. It uses STT and TTT endpoints compatible with the OpenAI API format.
 
 ## Project status
