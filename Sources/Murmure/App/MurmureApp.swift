@@ -18,6 +18,7 @@ struct MurmureApp: App {
     @State private var launchState: CompositionRoot.LaunchState
     @State private var didOpenOnboarding = false
     @State private var didOpenRecoveryNotice = false
+    @State private var didShowIncompatibleAlert = false
     @Environment(\.openWindow) private var openWindow
 
     init() {
@@ -48,8 +49,12 @@ struct MurmureApp: App {
             } else {
                 Text(MurmureLocalization.text("startup.incompatible.title", defaultValue: "Murmure Update Required", locale: Locale(identifier: "en")))
                 .task {
-                    guard case .incompatible = launchState else { return }
-                    openWindow(id: "startup-incompatible")
+                    guard case .incompatible(let schemaVersion) = launchState, !didShowIncompatibleAlert else { return }
+                    didShowIncompatibleAlert = true
+                    presentIncompatibleAlert(schemaVersion: schemaVersion)
+                }
+                Button(MurmureLocalization.text("action.quit", defaultValue: "Quit", locale: Locale(identifier: "en"))) {
+                    NSApplication.shared.terminate(nil)
                 }
             }
         } label: {
@@ -100,16 +105,6 @@ struct MurmureApp: App {
             StartupNoticeView(kind: .recovered, locale: interfaceLocale)
         }
         .defaultLaunchBehavior(.suppressed)
-
-        Window(
-            MurmureLocalization.text("startup.incompatible.title", defaultValue: "Murmure Update Required", locale: interfaceLocale),
-            id: "startup-incompatible"
-        ) {
-            if case .incompatible(let schemaVersion) = launchState {
-                StartupNoticeView(kind: .incompatible(schemaVersion: schemaVersion), locale: interfaceLocale)
-            }
-        }
-        .defaultLaunchBehavior(.suppressed)
     }
 
     private var readyModel: AppModel? {
@@ -134,11 +129,31 @@ struct MurmureApp: App {
             return "waveform"
         }
     }
+
+    private func presentIncompatibleAlert(schemaVersion: Int) {
+        let locale = Locale(identifier: "en")
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = MurmureLocalization.text(
+            "startup.incompatible.title",
+            defaultValue: "Murmure Update Required",
+            locale: locale
+        )
+        let format = MurmureLocalization.text(
+            "startup.incompatible.message",
+            defaultValue: "These settings were written by a newer version of Murmure (schema %lld). Update Murmure before using this installation so the newer settings are not overwritten.",
+            locale: locale
+        )
+        alert.informativeText = String(format: format, locale: locale, arguments: [schemaVersion])
+        alert.addButton(withTitle: MurmureLocalization.text("action.quit", defaultValue: "Quit", locale: locale))
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        alert.runModal()
+        NSApplication.shared.terminate(nil)
+    }
 }
 
 private enum StartupNoticeKind {
     case recovered
-    case incompatible(schemaVersion: Int)
 }
 
 private struct StartupNoticeView: View {
@@ -166,7 +181,6 @@ private struct StartupNoticeView: View {
     private var iconName: String {
         switch kind {
         case .recovered: "exclamationmark.triangle"
-        case .incompatible: "arrow.down.circle"
         }
     }
 
@@ -174,8 +188,6 @@ private struct StartupNoticeView: View {
         switch kind {
         case .recovered:
             MurmureLocalization.text("startup.recovered.title", defaultValue: "Settings Recovered", locale: locale)
-        case .incompatible:
-            MurmureLocalization.text("startup.incompatible.title", defaultValue: "Murmure Update Required", locale: locale)
         }
     }
 
@@ -187,13 +199,6 @@ private struct StartupNoticeView: View {
                 defaultValue: "Murmure could not read its settings. It created fresh settings and kept a private recovery copy. Please review your providers and API keys.",
                 locale: locale
             )
-        case .incompatible(let schemaVersion):
-            let format = MurmureLocalization.text(
-                "startup.incompatible.message",
-                defaultValue: "These settings were written by a newer version of Murmure (schema %lld). Update Murmure before using this installation so the newer settings are not overwritten.",
-                locale: locale
-            )
-            return String(format: format, locale: locale, arguments: [schemaVersion])
         }
     }
 }
