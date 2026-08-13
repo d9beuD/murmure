@@ -21,6 +21,8 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
     private let positionProvider: ListeningIndicatorPositionProvider
     private let audioLevelProvider: any AudioLevelProviding
     private let logger: any LogWriting
+    private let positionTracker: ListeningIndicatorPositionTracker
+    private let audioMonitor: ListeningIndicatorAudioMonitor
     private var panel: NSPanel?
     private var hostingView: NSHostingView<ListeningIndicatorView>?
     private var positionTrackingTask: Task<Void, Never>?
@@ -44,12 +46,16 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
         self.positionProvider = positionProvider
         self.audioLevelProvider = audioLevelProvider
         self.logger = logger
+        self.positionTracker = ListeningIndicatorPositionTracker(provider: positionProvider, logger: logger)
+        self.audioMonitor = ListeningIndicatorAudioMonitor(provider: audioLevelProvider)
     }
 
     func show(label: String) {
         positionTrackingTask?.cancel()
         audioLevelTask?.cancel()
         audioLevelTask = nil
+        audioMonitor.stop()
+        positionTracker.stop()
 
         panelSize = Self.panelSize(for: label)
         let panel = makePanelIfNeeded()
@@ -351,12 +357,12 @@ struct ListeningIndicatorAnchor {
     }
 }
 
-private final class ListeningIndicatorPanel: NSPanel {
+final class ListeningIndicatorPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }
 
-private struct ListeningIndicatorView: View {
+struct ListeningIndicatorView: View {
     let label: String
     let audioLevel: CGFloat
     let panelWidth: CGFloat
