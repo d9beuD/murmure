@@ -181,7 +181,8 @@ private struct OnboardingWindowFocus: NSViewRepresentable {
             NSApp.unhide(nil)
             NSApp.activate(ignoringOtherApps: true)
             window.orderFrontRegardless()
-            window.makeKeyAndOrderFront(nil)
+            window.makeMain()
+            window.makeKey()
         }
     }
 }
