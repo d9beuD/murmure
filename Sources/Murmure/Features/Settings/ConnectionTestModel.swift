@@ -124,7 +124,7 @@ final class ConnectionTestModel {
         task = Task { [weak self] in
             guard let self else { return }
             defer {
-                self.audioRecorder.deleteLastCapture()
+                self.audioRecorder.deleteCapture(at: audioURL)
                 if self.sessionID == sessionID {
                     self.sessionID = nil
                 }

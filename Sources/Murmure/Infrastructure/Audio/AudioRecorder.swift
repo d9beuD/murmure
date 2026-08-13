@@ -78,6 +78,15 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         try? FileManager.default.removeItem(at: currentURL)
         self.currentURL = nil
     }
+
+    func captureSize(at url: URL) -> Int {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue ?? 0
+    }
+
+    func deleteCapture(at url: URL) {
+        try? FileManager.default.removeItem(at: url)
+        if currentURL == url { currentURL = nil }
+    }
 }
 
 enum RecorderError: LocalizedError, LogSafeError, UserFacingErrorProviding {

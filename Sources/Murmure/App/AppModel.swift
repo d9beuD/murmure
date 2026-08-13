@@ -137,35 +137,34 @@ final class AppModel {
         listeningIndicator = dependencies.listeningIndicator
         now = dependencies.now
         mode = initialPreferences.triggerMode
-        coordinator.onRecordingTimeout = { [weak self] in
-            self?.stopRecording()
-        }
-
-        coordinator.onRecordingStarted = { [weak self] in
+        coordinator.onEvent = { [weak self] event in
             guard let self else { return }
-            self.listeningIndicator.show(label: MurmureLocalization.text(
-                "dictation.listening",
-                defaultValue: "Listening…",
-                locale: self.interfaceLocale
-            ))
-            self.playFeedback(.recordingStarted)
-        }
-
-        coordinator.onRecordingStopped = { [weak self] in
-            self?.playFeedback(.recordingStopped)
-        }
-
-        coordinator.onProcessingFinished = { [weak self] in
-            self?.listeningIndicator.hide()
-        }
-
-        coordinator.onTextCleanupStarted = { [weak self] in
-            guard let self else { return }
-            self.listeningIndicator.update(label: MurmureLocalization.text(
-                "dictation.improving",
-                defaultValue: "Improving text…",
-                locale: self.interfaceLocale
-            ))
+            switch event {
+            case .recordingTimedOut:
+                self.stopRecording()
+            case .recordingStarted:
+                self.listeningIndicator.show(label: MurmureLocalization.text(
+                    "dictation.listening",
+                    defaultValue: "Listening…",
+                    locale: self.interfaceLocale
+                ))
+                self.playFeedback(.recordingStarted)
+            case .recordingStopped:
+                self.playFeedback(.recordingStopped)
+                self.listeningIndicator.update(label: MurmureLocalization.text(
+                    "dictation.transcribing",
+                    defaultValue: "Transcribing…",
+                    locale: self.interfaceLocale
+                ))
+            case .cleanupStarted:
+                self.listeningIndicator.update(label: MurmureLocalization.text(
+                    "dictation.improving",
+                    defaultValue: "Improving text…",
+                    locale: self.interfaceLocale
+                ))
+            case .sessionEnded:
+                self.listeningIndicator.hide()
+            }
         }
 
         connectionTest.onEvent = { [weak self] event in
@@ -349,19 +348,9 @@ final class AppModel {
             } : nil,
             outputMode: preferences.outputMode
         ))
-        if coordinator.state == .transcribing {
-            listeningIndicator.update(label: MurmureLocalization.text(
-                "dictation.transcribing",
-                defaultValue: "Transcribing…",
-                locale: interfaceLocale
-            ))
-        } else {
-            listeningIndicator.hide()
-        }
     }
 
     func cancelRecording() {
-        listeningIndicator.hide()
         coordinator.cancelRecording()
     }
 
