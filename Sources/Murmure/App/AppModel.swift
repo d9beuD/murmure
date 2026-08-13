@@ -356,7 +356,12 @@ final class AppModel {
 
     func startSTTConnectionTest() {
         guard coordinator.state == .idle, connectionTestState.isInactive else { return }
-        connectionTest.start()
+        connectionTest.start(request: TranscriptionRequest(
+            configuration: preferences.stt,
+            apiKey: sttAPIKey,
+            prompt: preferences.dictationDictionaryPrompt,
+            language: preferences.sttLanguage.apiCode
+        ))
     }
 
     func finishSTTConnectionTest() {

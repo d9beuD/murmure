@@ -121,7 +121,7 @@ struct STTSettingsView: View {
                         TextField(MurmureLocalization.text("field.header_name", defaultValue: "Header name", locale: locale), text: $model.preferences.stt.customHeaderName)
                     }
                 }
-                providerValidation(for: model.preferences.stt, locale: locale)
+                providerValidation(for: model.preferences.stt, apiKey: model.sttAPIKey, locale: locale)
                 ConnectionTestControls(model: model)
             }
             Section(MurmureLocalization.text("field.stt_favorite_languages", defaultValue: "Languages in the menu", locale: locale)) {
@@ -338,7 +338,7 @@ struct CleanupSettingsView: View {
                     Picker(MurmureLocalization.text("cleanup.on_failure", defaultValue: "On failure", locale: locale), selection: $model.preferences.cleanupFailurePolicy) {
                         ForEach(CleanupFailurePolicy.allCases) { Text($0.title(locale: locale)).tag($0) }
                     }
-                    providerValidation(for: model.preferences.cleanupProvider, locale: locale)
+                    providerValidation(for: model.preferences.cleanupProvider, apiKey: model.cleanupAPIKey, locale: locale)
                 }
             }
             Section {
@@ -740,14 +740,21 @@ private extension CleanupPromptValidationError {
 }
 
 @ViewBuilder
-private func providerValidation(for provider: ProviderConfiguration, locale: Locale) -> some View {
-    if provider.endpointURL == nil {
-        Label(MurmureLocalization.text("validation.invalid_url", defaultValue: "Invalid URL: use http:// or https://", locale: locale), systemImage: "exclamationmark.triangle")
+private func providerValidation(for provider: ProviderConfiguration, apiKey: String, locale: Locale) -> some View {
+    if let issue = provider.validationIssues(apiKey: apiKey).first {
+        Label(issue.localizedTitle(locale: locale), systemImage: "exclamationmark.triangle")
             .foregroundStyle(.orange)
             .font(.caption)
-    } else if provider.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        Label(MurmureLocalization.text("validation.model_required", defaultValue: "A model is required.", locale: locale), systemImage: "exclamationmark.triangle")
-            .foregroundStyle(.orange)
-            .font(.caption)
+    }
+}
+
+private extension ProviderValidationIssue {
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .invalidEndpoint: MurmureLocalization.text("validation.invalid_url", defaultValue: "Invalid URL: use http:// or https://", locale: locale)
+        case .missingModel: MurmureLocalization.text("validation.model_required", defaultValue: "A model is required.", locale: locale)
+        case .missingHeaderName: MurmureLocalization.text("validation.header_required", defaultValue: "An authentication header name is required.", locale: locale)
+        case .missingAPIKey: MurmureLocalization.text("validation.api_key_required", defaultValue: "An API key is required for this authentication mode.", locale: locale)
+        }
     }
 }

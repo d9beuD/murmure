@@ -604,7 +604,7 @@ final class AppModelTests: XCTestCase {
         transcriber: any SpeechTranscribing = AppTranscriberSpy(),
         cleaner: any TextCleaning = AppCleanerStub(),
         preferences: AppPreferences = AppPreferences(interfaceLanguage: .english),
-        secrets: [UUID: String] = [:],
+        secrets: [UUID: String]? = nil,
         permissions: PermissionSpy = PermissionSpy()
     ) -> AppContext {
         let delivery = AppDeliverySpy()
@@ -618,7 +618,7 @@ final class AppModelTests: XCTestCase {
             logger: logs
         )
         let preferencesStore = PreferencesStoreSpy(preferences: preferences)
-        let secretStore = SecretStoreSpy(secrets: secrets)
+        let secretStore = SecretStoreSpy(secrets: secrets ?? [preferences.stt.id: "test-stt-key"])
         let hotkeys = HotkeySpy()
         let launch = LaunchAtLoginSpy()
         let feedback = FeedbackSpy()

@@ -5,6 +5,25 @@ import MurmureCore
 
 final class ConnectionTestModelTests: XCTestCase {
     @MainActor
+    func testInvalidConfigurationFailsBeforePermissionOrCapture() async {
+        let recorder = AppRecorderSpy()
+        let model = ConnectionTestModel(
+            audioRecorder: recorder, microphonePermission: PermissionSpy(),
+            transcriber: AppTranscriberSpy(), logger: AppLogStore(), now: Date.init
+        )
+        let request = TranscriptionRequest(
+            configuration: ProviderConfiguration(name: "Invalid", baseURL: "", path: "responses", model: ""),
+            apiKey: "", prompt: nil, language: nil
+        )
+
+        model.start(request: request)
+
+        XCTAssertEqual(model.state, .failed(.invalidConfiguration([.invalidEndpoint, .missingModel, .missingAPIKey])))
+        XCTAssertEqual(recorder.startCount, 0)
+        XCTAssertEqual(recorder.cancelCount, 0)
+    }
+
+    @MainActor
     func testPermissionDeniedProducesTypedFailureAndEvent() async {
         let recorder = AppRecorderSpy()
         let permissions = PermissionSpy()

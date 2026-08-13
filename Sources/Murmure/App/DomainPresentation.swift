@@ -165,6 +165,8 @@ extension ConnectionTestState {
             MurmureLocalization.characterCount(characterCount, locale: locale)
         case .failed(let failure):
             switch failure {
+            case .invalidConfiguration(let issues):
+                issues.map { $0.localizedTitle(locale: locale) }.joined(separator: " ")
             case .microphonePermissionDenied:
                 localized("failure.microphone_denied", "Microphone access was denied. Allow Murmure in System Settings.", locale: locale)
             case .recordingFailed(let message), .transcriptionFailed(let message):
@@ -176,6 +178,21 @@ extension ConnectionTestState {
     }
 
     var title: String { localizedTitle(locale: .english) }
+}
+
+private extension ProviderValidationIssue {
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .invalidEndpoint:
+            localized("validation.invalid_url", "Invalid URL: use http:// or https://", locale: locale)
+        case .missingModel:
+            localized("validation.model_required", "A model is required.", locale: locale)
+        case .missingHeaderName:
+            localized("validation.header_required", "An authentication header name is required.", locale: locale)
+        case .missingAPIKey:
+            localized("validation.api_key_required", "An API key is required for this authentication mode.", locale: locale)
+        }
+    }
 }
 
 extension PermissionStatus {

@@ -3,6 +3,7 @@ import MurmureCore
 import Observation
 
 enum ConnectionTestFailure: Equatable {
+    case invalidConfiguration([ProviderValidationIssue])
     case microphonePermissionDenied
     case recordingFailed(message: UserFacingErrorMessage)
     case insufficientAudio
@@ -66,8 +67,16 @@ final class ConnectionTestModel {
         self.sessionArbiter = sessionArbiter
     }
 
-    func start() {
+    func start(request: TranscriptionRequest? = nil) {
         guard state.isInactive else { return }
+        if let request {
+            let issues = request.configuration.validationIssues(apiKey: request.apiKey)
+            if !issues.isEmpty {
+                state = .failed(.invalidConfiguration(issues))
+                onEvent?(.failed)
+                return
+            }
+        }
         if let sessionArbiter {
             guard let lease = sessionArbiter.acquire(.connectionTest) else { return }
             sessionLease = lease
