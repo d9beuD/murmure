@@ -32,7 +32,7 @@ The repository is a Swift Package Manager project with no Xcode project. `Packag
 
 A full Xcode installation is required for tests (`XCTest`) and app assembly (`xcstringstool`). Command Line Tools alone are insufficient. If necessary, select Xcode with `xcode-select` or `DEVELOPER_DIR`.
 
-Before rebuilding the development `.app`, quit a running Murmure instance. `run-app.sh` deliberately refuses to replace a live bundle so macOS can retain its permissions consistently.
+Before rebuilding the development `.app`, `run-app.sh` stops every running Murmure instance, including instances launched from another development environment, so it can safely replace and launch the requested bundle.
 
 ## Hexagonal architecture and package structure
 

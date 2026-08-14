@@ -17,27 +17,32 @@ if [[ "$application_path" != "$binary_directory/Murmure.app" || "$binary_directo
     exit 1
 fi
 
-if /usr/bin/pgrep -f "$application_path/Contents/MacOS/Murmure" >/dev/null; then
-    print -u2 "Murmure is running. Quit it before rebuilding the development app so macOS can retain its permissions."
-    exit 1
-fi
-
-production_application_path="/Applications/Murmure.app"
-production_executable_path="$production_application_path/Contents/MacOS/Murmure"
-if [[ -x "$production_executable_path" ]] && /usr/bin/pgrep -f "$production_executable_path" >/dev/null; then
-    print "Closing the installed Murmure app before launching the development build."
-    /usr/bin/osascript -e 'tell application "/Applications/Murmure.app" to quit'
+if /usr/bin/pgrep -x Murmure >/dev/null; then
+    print "Closing all running Murmure instances before launching the development build."
+    /usr/bin/pkill -TERM -x Murmure || true
 
     for _ in {1..20}; do
-        if ! /usr/bin/pgrep -f "$production_executable_path" >/dev/null; then
+        if ! /usr/bin/pgrep -x Murmure >/dev/null; then
             break
         fi
         /bin/sleep 0.5
     done
 
-    if /usr/bin/pgrep -f "$production_executable_path" >/dev/null; then
-        print -u2 "The installed Murmure app did not quit within 10 seconds; aborting without rebuilding the development app."
-        exit 1
+    if /usr/bin/pgrep -x Murmure >/dev/null; then
+        print "Some Murmure instances did not quit within 10 seconds; forcing them to stop."
+        /usr/bin/pkill -KILL -x Murmure || true
+
+        for _ in {1..10}; do
+            if ! /usr/bin/pgrep -x Murmure >/dev/null; then
+                break
+            fi
+            /bin/sleep 0.1
+        done
+
+        if /usr/bin/pgrep -x Murmure >/dev/null; then
+            print -u2 "Unable to stop every Murmure instance; aborting without rebuilding the development app."
+            exit 1
+        fi
     fi
 fi
 
