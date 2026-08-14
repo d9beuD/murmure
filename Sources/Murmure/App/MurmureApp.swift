@@ -66,9 +66,7 @@ struct MurmureApp: App {
                 }
             }
         } label: {
-            Image(systemName: iconName(for: readyModel?.state))
-                .font(.system(size: 14, weight: .semibold))
-                .imageScale(.large)
+            Image(nsImage: menuBarImage(for: readyModel?.state))
                 .accessibilityLabel("Murmure")
         }
         .menuBarExtraStyle(.menu)
@@ -146,6 +144,21 @@ struct MurmureApp: App {
         default:
             return "waveform"
         }
+    }
+
+    private func menuBarImage(for state: DictationState?) -> NSImage {
+        let size: CGFloat = 18
+        let configuration = NSImage.SymbolConfiguration(pointSize: size, weight: .semibold)
+        guard let image = NSImage(
+            systemSymbolName: iconName(for: state),
+            accessibilityDescription: "Murmure"
+        )?.withSymbolConfiguration(configuration) else {
+            return NSImage(size: .init(width: size, height: size))
+        }
+
+        image.size = .init(width: size, height: size)
+        image.isTemplate = true
+        return image
     }
 
     private func presentIncompatibleAlert(schemaVersion: Int) {
