@@ -1,15 +1,15 @@
-# Murmure
+# Entrevoix
 
-<img src="docs/murmure-icon-light.png" alt="Murmure" width="160">
+<img src="docs/entrevoix-icon-light.png" alt="Entrevoix" width="160">
 
-Murmure is a macOS voice dictation app designed to live in the menu bar. It uses STT and TTT endpoints compatible with the OpenAI API format.
+Entrevoix is a macOS voice dictation app designed to live in the menu bar. It uses STT and TTT endpoints compatible with the OpenAI API format.
 
 ## Project status
 
 Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-complete from source, build, test, and bundle-script evidence, but final menu-bar-only runtime validation requires an interactive Xcode-signed `.app` launch. Some J0 checks still require manual, interactive macOS validation, especially global events, cross-app paste, and sandbox behavior. Current feature set includes:
 
-- a `Murmure` executable target;
-- a `MurmureCore` domain library;
+- an `Entrevoix` executable target;
+- a `EntrevoixCore` domain library;
 - a lightweight hexagonal architecture: `Domain` and `Application` in the core,
   plus `App`, `Presentation`, and `Adapters` in the macOS target;
 - a composition root that injects shared audio, permission, networking, persistence,
@@ -48,7 +48,7 @@ Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-com
 
 ## First-time setup
 
-On first launch, Murmure opens a guide for configuring an STT provider, choosing
+On first launch, Entrevoix opens a guide for configuring an STT provider, choosing
 a global shortcut, testing the connection, and selecting an output mode. All of
 these settings remain editable from **Settings** in the menu bar.
 
@@ -56,14 +56,14 @@ The STT test requests microphone access, records a short phrase, then sends the
 audio file to the configured provider. It never runs in the background.
 
 **Insert Automatically** requires Accessibility permission. Without it—and for
-secure fields—Murmure always copies the result to the clipboard instead.
+secure fields—Entrevoix always copies the result to the clipboard instead.
 
 ## Privacy
 
 - API keys are stored in the macOS Keychain, never in `UserDefaults` or logs.
 - Audio is created in the macOS temporary directory and deleted after every
   transcription, whether it succeeds, fails, or is canceled.
-- Murmure has no accounts or servers of its own: audio and, when enabled, the
+- Entrevoix has no accounts or servers of its own: audio and, when enabled, the
   transcript are sent only to the STT and TTT endpoints you choose.
 - The Logs window keeps events only in memory and displays no secrets, audio,
   transcripts, or prompts.
@@ -82,17 +82,17 @@ Command Line Tools alone are not sufficient for launching or releasing the
 localized bundle. Select the full Xcode toolchain with `xcode-select` (or
 `DEVELOPER_DIR`) before running the app scripts.
 
-The script builds a real `Murmure.app` bundle, applies `Info.plist`, signs it
+The script builds a real `Entrevoix.app` bundle, applies `Info.plist`, signs it
 locally, and launches it through LaunchServices. Use this script to test the UI,
-windows, shortcuts, and permissions. `swift run Murmure` produces only a raw
+windows, shortcuts, and permissions. `swift run Entrevoix` produces only a raw
 executable without macOS application metadata and is suitable only for basic
 diagnostics.
 
 To assemble and verify the development bundle without opening it, run:
 
 ```shell
-MURMURE_SKIP_OPEN=1 ./Scripts/run-app.sh
-./Scripts/verify-app-bundle.sh "$(swift build --show-bin-path)/Murmure.app"
+ENTREVOIX_SKIP_OPEN=1 ./Scripts/run-app.sh
+./Scripts/verify-app-bundle.sh "$(swift build --show-bin-path)/Entrevoix.app"
 ```
 
 The verification checks that the app contains `Sparkle.framework`, has the
@@ -124,5 +124,5 @@ it with an App Store Connect Team API key. See the detailed
 
 ## License
 
-Murmure is distributed under the MIT License. See [LICENSE](LICENSE).
+Entrevoix is distributed under the MIT License. See [LICENSE](LICENSE).
 Dependency notices are available in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

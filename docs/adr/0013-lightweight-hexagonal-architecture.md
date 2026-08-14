@@ -4,7 +4,7 @@ Status: implemented
 
 ## Decision
 
-Murmure retains exactly two production SwiftPM targets. `MurmureCore` contains
+Entrevoix retains exactly two production SwiftPM targets. `EntrevoixCore` contains
 only `Domain` and `Application`, including outbound ports, pure rules, use cases,
 typed lifecycle events, and immutable `Sendable` snapshots. It imports neither
 Observation nor UI/platform/infrastructure frameworks.
@@ -28,7 +28,7 @@ assemble it. Existing preference schema, Keychain identifiers, network and audio
 formats, localization behavior, and privacy guarantees remain unchanged.
 
 `Scripts/check-architecture.sh`, run in CI and release builds, prevents technical
-imports or observation state in `MurmureCore` and rejects concrete adapter
+imports or observation state in `EntrevoixCore` and rejects concrete adapter
 construction outside `CompositionRoot`.
 
 ## Supersedes

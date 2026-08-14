@@ -1,4 +1,4 @@
-# Murmure — Technical Plan
+# Entrevoix — Technical Plan
 
 Status: initial plan approved for project launch
 Document version: 1.0
@@ -6,7 +6,7 @@ Date: August 5, 2026
 
 ## 1. Vision
 
-Murmure is an open-source macOS voice dictation app distributed under the MIT License. It lives only in the menu bar, records speech from a global shortcut, sends audio to a transcription API compatible with the OpenAI format, can clean up the transcript with a text model, then copies or inserts the result into the active application.
+Entrevoix is an open-source macOS voice dictation app distributed under the MIT License. It lives only in the menu bar, records speech from a global shortcut, sends audio to a transcription API compatible with the OpenAI format, can clean up the transcript with a text model, then copies or inserts the result into the active application.
 
 The first goal is a reliable personal tool that is easy to audit. The bounded-file dictation flow takes priority. Realtime transcription is intentionally deferred until after the first stable release.
 
@@ -66,7 +66,7 @@ flowchart LR
 - Realtime or partial transcription while speaking.
 - Dictation history.
 - iCloud synchronization.
-- User accounts or a Murmure backend.
+- User accounts or a Entrevoix backend.
 - Selecting a microphone other than the default system input.
 - App-side automatic language detection.
 - Diarization and subtitles.
@@ -80,7 +80,7 @@ flowchart LR
 
 ### FR-01 — Menu Bar Presence
 
-Murmure starts with a `MenuBarExtra`. No main `WindowGroup` is created. `LSUIElement` hides the Dock icon. The SwiftUI Settings window remains available from the menu.
+Entrevoix starts with a `MenuBarExtra`. No main `WindowGroup` is created. `LSUIElement` hides the Dock icon. The SwiftUI Settings window remains available from the menu.
 
 ### FR-02 — Visible State
 
@@ -145,7 +145,7 @@ If insertion is not authorized or fails, the text is kept on the clipboard and t
 
 ### FR-08 — Sensitive-Field Safety
 
-Murmure does not attempt to inject text into a field identified as secure or as a password field. The result is instead placed on the clipboard with a warning.
+Entrevoix does not attempt to inject text into a field identified as secure or as a password field. The result is instead placed on the clipboard with a warning.
 
 ### FR-09 — User Control
 
@@ -614,7 +614,7 @@ Content:
 - Copy action;
 - fallback indication after a cleanup or insertion failure;
 - access to Settings;
-- Quit Murmure.
+- Quit Entrevoix.
 
 ### 13.2 Settings
 
@@ -641,7 +641,7 @@ A setup page guides the user through:
 
 The OpenAI preset uses `https://api.openai.com/v1`, `audio/transcriptions`, and the transcription model recommended by the documentation at release time. A Custom profile selects no model by default and remains fully editable.
 
-### 13.4 Murmure Accessibility
+### 13.4 Entrevoix Accessibility
 
 - VoiceOver labels for every icon.
 - Announced processing state.
@@ -693,17 +693,17 @@ The latest raw and cleaned text exists only in memory during the session or unti
 ## 16. Target Directory Structure
 
 ```text
-Murmure/
+Entrevoix/
 ├── Package.swift
 ├── Sources/
-│   ├── MurmureCore/
+│   ├── EntrevoixCore/
 │   │   ├── Domain/
 │   │   ├── Application/
 │   │   ├── Ports/
 │   │   └── Support/
-│   └── Murmure/
+│   └── Entrevoix/
 │       ├── App/
-│       │   ├── MurmureApp.swift
+│       │   ├── EntrevoixApp.swift
 │       │   ├── AppModel.swift
 │       │   ├── AppDependencies.swift
 │       │   └── CompositionRoot.swift
@@ -722,8 +722,8 @@ Murmure/
 │           ├── Persistence/
 │           └── System/
 ├── Tests/
-│   ├── MurmureCoreTests/
-│   └── MurmureTests/
+│   ├── EntrevoixCoreTests/
+│   └── EntrevoixTests/
 ├── Configuration/Info.plist
 ├── docs/
 │   └── adr/
@@ -871,8 +871,8 @@ Reference command:
 
 ```shell
 xcodebuild test \
-  -project Murmure.xcodeproj \
-  -scheme Murmure \
+  -project Entrevoix.xcodeproj \
+  -scheme Entrevoix \
   -destination 'platform=macOS'
 ```
 
@@ -1008,7 +1008,7 @@ Deliverables:
 - UI accessibility;
 - README and notices.
 
-Exit criterion: a new user can install and configure Murmure without external documentation.
+Exit criterion: a new user can install and configure Entrevoix without external documentation.
 
 ### J8 — Hardening and Release 0.1.0
 
@@ -1041,7 +1041,7 @@ Exit criterion: all acceptance criteria are satisfied on a clean macOS 26 instal
 
 ## 25. Version 1 Acceptance Criteria
 
-1. Murmure runs on macOS 26 and displays no Dock icon.
+1. Entrevoix runs on macOS 26 and displays no Dock icon.
 2. The user configures an STT endpoint and model without changing code.
 3. Secrets persist only in Keychain.
 4. Hold mode starts on press and stops on release.

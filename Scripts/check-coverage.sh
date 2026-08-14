@@ -22,9 +22,9 @@ print_files() {
         | select(.filename | startswith($root))
         | select(
             if $group == "core" then
-                .filename | contains("/Sources/MurmureCore/")
+                .filename | contains("/Sources/EntrevoixCore/")
             else
-                .filename | test("/Sources/Murmure/(Presentation/Stores/(AppStore|ConnectionTestStore|PreferencesStore)|Presentation/Features/Settings/ConnectionTestCoordinator|Adapters/(Accessibility/FocusedTextElementResolver|Delivery/TextDelivery|Keychain/KeychainStore|Persistence/UserDefaultsPreferencesStore|Cleanup/OpenAITextCleanupService|Transcription/OpenAITranscriptionService|Networking/SafeNetworkSession))\\.swift$")
+                .filename | test("/Sources/Entrevoix/(Presentation/Stores/(AppStore|ConnectionTestStore|PreferencesStore)|Presentation/Features/Settings/ConnectionTestCoordinator|Adapters/(Accessibility/FocusedTextElementResolver|Delivery/TextDelivery|Keychain/KeychainStore|Persistence/UserDefaultsPreferencesStore|Cleanup/OpenAITextCleanupService|Transcription/OpenAITranscriptionService|Networking/SafeNetworkSession))\\.swift$")
             end
         )
         | "  \(.filename | sub($root; "")): \(.summary.lines.covered)/\(.summary.lines.count) lines (\(.summary.lines.percent * 100 | round / 100)%)"' \
@@ -43,9 +43,9 @@ check_group() {
           | select(.filename | startswith($root))
           | select(
               if $group == "core" then
-                  .filename | contains("/Sources/MurmureCore/")
+                  .filename | contains("/Sources/EntrevoixCore/")
               else
-                  .filename | test("/Sources/Murmure/(Presentation/Stores/(AppStore|ConnectionTestStore|PreferencesStore)|Presentation/Features/Settings/ConnectionTestCoordinator|Adapters/(Accessibility/FocusedTextElementResolver|Delivery/TextDelivery|Keychain/KeychainStore|Persistence/UserDefaultsPreferencesStore|Cleanup/OpenAITextCleanupService|Transcription/OpenAITranscriptionService|Networking/SafeNetworkSession))\\.swift$")
+                  .filename | test("/Sources/Entrevoix/(Presentation/Stores/(AppStore|ConnectionTestStore|PreferencesStore)|Presentation/Features/Settings/ConnectionTestCoordinator|Adapters/(Accessibility/FocusedTextElementResolver|Delivery/TextDelivery|Keychain/KeychainStore|Persistence/UserDefaultsPreferencesStore|Cleanup/OpenAITextCleanupService|Transcription/OpenAITranscriptionService|Networking/SafeNetworkSession))\\.swift$")
               end
           )
           | .summary.lines]
@@ -73,6 +73,6 @@ check_group() {
 }
 
 failure=0
-check_group "MurmureCore" "core" 85 || failure=1
+check_group "EntrevoixCore" "core" 85 || failure=1
 check_group "Testable application logic" "application" 80 || failure=1
 exit "$failure"

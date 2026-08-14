@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleExecutable</key>
-	<string>Murmure</string>
+	<string>Entrevoix</string>
 	<key>CFBundleDisplayName</key>
-	<string>Murmure</string>
+	<string>Entrevoix</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.d9beuD.Murmure</string>
+	<string>com.d9beuD.Entrevoix</string>
 	<key>CFBundleIconName</key>
-	<string>Murmure</string>
+	<string>Entrevoix</string>
 	<key>CFBundleIconFile</key>
-	<string>Murmure</string>
+	<string>Entrevoix</string>
 	<key>CFBundleName</key>
-	<string>Murmure</string>
+	<string>Entrevoix</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleLocalizations</key>
@@ -32,13 +32,13 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://github.com/d9beuD/murmure/releases/latest/download/appcast.xml</string>
+	<string>https://github.com/entrevoix-app/entrevoix-macos/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>sRwKdYot+QHIWzJxiyxgiyDynf8TAc8DcPgZfJSe35Q=</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Murmure uses the microphone to record your dictation.</string>
+	<string>Entrevoix uses the microphone to record your dictation.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

@@ -44,8 +44,8 @@ jobs:
 
       - name: Verify app bundle
         run: |
-          MURMURE_SKIP_OPEN=1 ./Scripts/run-app.sh
-          ./Scripts/verify-app-bundle.sh "$(swift build --show-bin-path)/Murmure.app"
+          ENTREVOIX_SKIP_OPEN=1 ./Scripts/run-app.sh
+          ./Scripts/verify-app-bundle.sh "$(swift build --show-bin-path)/Entrevoix.app"
 
       - name: Audit repository contents
         run: |

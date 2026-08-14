@@ -2,7 +2,7 @@
 
 ## KeyboardShortcuts
 
-Murmure uses [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)
+Entrevoix uses [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)
 to register global shortcuts.
 
 Copyright © Sindre Sorhus

@@ -3,8 +3,8 @@
 set -euo pipefail
 
 required_variables=(
-    MURMURE_VERSION
-    MURMURE_BUILD_NUMBER
+    ENTREVOIX_VERSION
+    ENTREVOIX_BUILD_NUMBER
     DEVELOPER_ID_CERTIFICATE_BASE64
     DEVELOPER_ID_CERTIFICATE_PASSWORD
     BUILD_KEYCHAIN_PASSWORD
@@ -23,16 +23,16 @@ done
 script_directory=${0:A:h}
 repository_directory=${script_directory:h}
 info_plist_path="$repository_directory/Configuration/Info.plist"
-temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/murmure-signing.XXXXXX")
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/entrevoix-signing.XXXXXX")
 certificate_path="$temporary_directory/developer-id.p12"
-keychain_path="$temporary_directory/murmure-signing.keychain-db"
+keychain_path="$temporary_directory/entrevoix-signing.keychain-db"
 api_key_path="$temporary_directory/AuthKey_$APP_STORE_CONNECT_KEY_ID.p8"
 original_keychains=("${(@f)$(security list-keychains -d user | sed 's/^[[:space:]]*"\(.*\)"$/\1/')}")
 
 sparkle_feed_url=$(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$info_plist_path" 2>/dev/null || true)
 sparkle_public_ed_key=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$info_plist_path" 2>/dev/null || true)
-if [[ -z "$sparkle_feed_url" || "$sparkle_feed_url" == "https://example.com/murmure/appcast.xml" || "$sparkle_feed_url" != "https://github.com/d9beuD/murmure/releases/latest/download/appcast.xml" ]]; then
-    print -u2 "Set SUFeedURL in Configuration/Info.plist to https://github.com/d9beuD/murmure/releases/latest/download/appcast.xml before release. Sparkle appcast feed URL required."
+if [[ -z "$sparkle_feed_url" || "$sparkle_feed_url" == "https://example.com/entrevoix/appcast.xml" || "$sparkle_feed_url" != "https://github.com/entrevoix-app/entrevoix-macos/releases/latest/download/appcast.xml" ]]; then
+    print -u2 "Set SUFeedURL in Configuration/Info.plist to https://github.com/entrevoix-app/entrevoix-macos/releases/latest/download/appcast.xml before release. Sparkle appcast feed URL required."
     exit 1
 fi
 if [[ -z "$sparkle_public_ed_key" || "$sparkle_public_ed_key" == "REPLACE_WITH_SPARKLE_ED25519_PUBLIC_KEY" || "$sparkle_public_ed_key" == "TODO_REPLACE_WITH_PRODUCTION_SPARKLE_ED25519_PUBLIC_KEY_DO_NOT_RELEASE" || "$sparkle_public_ed_key" == TODO_* ]]; then
@@ -61,10 +61,10 @@ if [[ -z "$signing_identity" ]]; then
     exit 1
 fi
 
-export MURMURE_SIGNING_IDENTITY="$signing_identity"
+export ENTREVOIX_SIGNING_IDENTITY="$signing_identity"
 "$script_directory/build-dmg.sh"
 
-dmg_path="$repository_directory/.build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg"
+dmg_path="$repository_directory/.build/release-artifacts/Entrevoix-$ENTREVOIX_VERSION-macos.dmg"
 printf '%s' "$APP_STORE_CONNECT_KEY_BASE64" | /usr/bin/base64 -D > "$api_key_path"
 
 xcrun notarytool submit "$dmg_path" \

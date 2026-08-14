@@ -4,9 +4,9 @@ Status: implemented, awaiting interactive Xcode validation
 
 ## Decision
 
-STT and TTT configurations are `Codable` values in `MurmureCore`. `AppPreferences` carries a schema number (currently 6, including the prompt library) and is encoded as a single JSON value in `UserDefaults`. An unknown version is ignored and falls back to defaults; the prompt-library migration from schema 5 to schema 6 is handled at application startup.
+STT and TTT configurations are `Codable` values in `EntrevoixCore`. `AppPreferences` carries a schema number (currently 6, including the prompt library) and is encoded as a single JSON value in `UserDefaults`. An unknown version is ignored and falls back to defaults; the prompt-library migration from schema 5 to schema 6 is handled at application startup.
 
-API keys are not part of `AppPreferences`. `KeychainStore` stores them as one generic password under the `com.d9beuD.Murmure` service; its JSON content maps each connection UUID to its key. An empty key is removed from this content. Keychain errors are reduced to a system status and never reveal the value.
+API keys are not part of `AppPreferences`. `KeychainStore` stores them as one generic password under the `com.d9beuD.Entrevoix` service; its JSON content maps each connection UUID to its key. An empty key is removed from this content. Keychain errors are reduced to a system status and never reveal the value.
 
 At startup, the secrets for STT and TTT profiles are read from one JSON-encoded Keychain entry so the Keychain is queried only once. Missing profiles are treated as empty keys. Entries from previous versions, which stored one key per profile UUID, are read one last time and then migrated automatically to this single entry.
 
