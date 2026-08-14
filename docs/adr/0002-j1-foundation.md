@@ -6,8 +6,8 @@ Status: superseded in part by ADR 0011; runtime validation remains pending
 
 The J1 foundation is implemented with Swift Package Manager and two production targets:
 
-- `MurmureCore`: domain, application coordination, ports, and log safety;
-- `Murmure`: SwiftUI app, `MenuBarExtra`, `Settings`, and macOS adapters.
+- `EntrevoixCore`: domain, application coordination, ports, and log safety;
+- `Entrevoix`: SwiftUI app, `MenuBarExtra`, `Settings`, and macOS adapters.
 
 This organization allows compilation and testing with the repository CI commands while maintaining clear separation between app UI/adapters and core domain logic. Runtime validation still depends on launching an Xcode-capable, signed macOS application bundle.
 
@@ -17,7 +17,7 @@ The original `AppEnvironment` boundary was later replaced by `DictationDependenc
 
 ## Metadata
 
-`Configuration/Info.plist` contains the keys required for menu bar presence, including `LSUIElement`, and the microphone request. `Sources/Murmure/App/MurmureApp.swift` provides the `MenuBarExtra` and `Settings` scenes.
+`Configuration/Info.plist` contains the keys required for menu bar presence, including `LSUIElement`, and the microphone request. `Sources/Entrevoix/App/EntrevoixApp.swift` provides the `MenuBarExtra` and `Settings` scenes.
 
 ## Shortcut dependency
 
@@ -41,7 +41,7 @@ Remaining manual validation: launch the Xcode-signed `.app` bundle in a graphica
 
 ## Post-J2 fix — development bundle
 
-`swift run Murmure` launches a raw Mach-O executable: `Configuration/Info.plist` is not linked to it, and LaunchServices does not consider it an application bundle. This notably makes activation of windows from a menu bar app unreliable. `Scripts/run-app.sh` now builds a `Murmure.app`, copies resources, applies `Info.plist`, performs ad hoc signing, and opens the bundle through LaunchServices.
+`swift run Entrevoix` launches a raw Mach-O executable: `Configuration/Info.plist` is not linked to it, and LaunchServices does not consider it an application bundle. This notably makes activation of windows from a menu bar app unreliable. `Scripts/run-app.sh` now builds a `Entrevoix.app`, copies resources, applies `Info.plist`, performs ad hoc signing, and opens the bundle through LaunchServices.
 
 ## Consequence
 

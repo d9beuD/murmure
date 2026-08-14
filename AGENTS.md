@@ -1,6 +1,6 @@
-# Murmure — Agent Instructions
+# Entrevoix — Agent Instructions
 
-Murmure is a privacy-conscious macOS 26 menu-bar dictation app. It records speech, sends it to an OpenAI-compatible speech-to-text (STT) endpoint, optionally cleans the transcript through an OpenAI-compatible text endpoint (TTT), then copies or inserts the result into the active app.
+Entrevoix is a privacy-conscious macOS 26 menu-bar dictation app. It records speech, sends it to an OpenAI-compatible speech-to-text (STT) endpoint, optionally cleans the transcript through an OpenAI-compatible text endpoint (TTT), then copies or inserts the result into the active app.
 
 The repository is a Swift Package Manager project with no Xcode project. `Package.swift` uses Swift tools 6.2; development and CI currently use Xcode 26, Swift 6.3, and the macOS 26 SDK.
 
@@ -24,29 +24,29 @@ The repository is a Swift Package Manager project with no Xcode project. `Packag
 | Test as CI | `swift test -Xswiftc -warnings-as-errors` |
 | Test with coverage gates | `./Scripts/check-coverage.sh` |
 | Build, sign, verify, and launch the development app | `./Scripts/run-app.sh` |
-| Assemble without launching | `MURMURE_SKIP_OPEN=1 ./Scripts/run-app.sh` |
-| Verify an assembled app | `./Scripts/verify-app-bundle.sh "$(swift build --show-bin-path)/Murmure.app"` |
+| Assemble without launching | `ENTREVOIX_SKIP_OPEN=1 ./Scripts/run-app.sh` |
+| Verify an assembled app | `./Scripts/verify-app-bundle.sh "$(swift build --show-bin-path)/Entrevoix.app"` |
 | Build, sign, notarize, and report the digest of a release DMG | `./Scripts/release.sh` (requires release environment variables) |
 
-**Never use `swift run Murmure` to validate application behavior.** It launches a raw executable without the app's `Info.plist`, entitlements, embedded frameworks, compiled localization catalogs, stable code signature, or LaunchServices behavior. Use `./Scripts/run-app.sh`.
+**Never use `swift run Entrevoix` to validate application behavior.** It launches a raw executable without the app's `Info.plist`, entitlements, embedded frameworks, compiled localization catalogs, stable code signature, or LaunchServices behavior. Use `./Scripts/run-app.sh`.
 
 A full Xcode installation is required for tests (`XCTest`) and app assembly (`xcstringstool`). Command Line Tools alone are insufficient. If necessary, select Xcode with `xcode-select` or `DEVELOPER_DIR`.
 
-Before rebuilding the development `.app`, `run-app.sh` stops every running Murmure instance, including instances launched from another development environment, so it can safely replace and launch the requested bundle.
+Before rebuilding the development `.app`, `run-app.sh` stops every running Entrevoix instance, including instances launched from another development environment, so it can safely replace and launch the requested bundle.
 
 ## Hexagonal architecture and package structure
 
-Murmure uses a lightweight hexagonal architecture while intentionally retaining two
+Entrevoix uses a lightweight hexagonal architecture while intentionally retaining two
 production SwiftPM targets. The targets provide the module boundary; folders make
 the four logical layers explicit:
 
 ```text
-Sources/MurmureCore/
+Sources/EntrevoixCore/
   Domain/                 # pure entities, value objects, rules, errors, migrations
   Application/            # use cases, orchestration, application state snapshots
     Ports/                # outbound technical boundaries
 
-Sources/Murmure/
+Sources/Entrevoix/
   App/                    # @main, scenes, composition root, global configuration
   Presentation/           # SwiftUI views, @Observable stores, AppKit presentation
   Adapters/               # concrete system, network, persistence, and IO adapters
@@ -55,7 +55,7 @@ Sources/Murmure/
 
 Dependencies always point inward: `Presentation -> Application -> Domain`;
 `Adapters -> Application / Domain`; and `App` is the only layer permitted to
-assemble all layers. `MurmureCore` must not import SwiftUI, Observation, AppKit,
+assemble all layers. `EntrevoixCore` must not import SwiftUI, Observation, AppKit,
 AVFoundation, Security, URLSession, or any other UI/platform/technical framework.
 Foundation and Swift Concurrency are permitted there. Do not add a third target
 unless a subsystem has an independently managed lifecycle, meaningful reuse, or a
@@ -78,39 +78,39 @@ including the listening indicator, belong under `Presentation/`.
 
 ## Package structure
 
-- `Sources/MurmureCore/` — reusable `Domain` and `Application` code plus outbound ports. It has no UI or concrete infrastructure dependency.
-- `Sources/Murmure/` — executable target containing the app composition, presentation Stores/views, and live adapters.
-  - `App/` — `MurmureApp`, `CompositionRoot`, `AppEnvironment`, scene wiring, diagnostics, and localization.
+- `Sources/EntrevoixCore/` — reusable `Domain` and `Application` code plus outbound ports. It has no UI or concrete infrastructure dependency.
+- `Sources/Entrevoix/` — executable target containing the app composition, presentation Stores/views, and live adapters.
+  - `App/` — `EntrevoixApp`, `CompositionRoot`, `AppEnvironment`, scene wiring, diagnostics, and localization.
   - `Presentation/` — menu bar, settings, onboarding, logs, listening indicator, error adaptation, and observable Stores.
   - `Adapters/` — Accessibility, audio, cleanup, delivery, hotkeys, networking, persistence, Keychain, system services, and transcription implementations.
   - `Resources/` — `Localizable.xcstrings` and `InfoPlist.xcstrings`.
-- `Tests/MurmureCoreTests/` — domain and coordinator tests.
-- `Tests/MurmureTests/` — application, localization, feature, and infrastructure tests.
+- `Tests/EntrevoixCoreTests/` — domain and coordinator tests.
+- `Tests/EntrevoixTests/` — application, localization, feature, and infrastructure tests.
 - `Configuration/Info.plist` — bundle identity, menu-bar mode, microphone usage text, Sparkle configuration, and supported localizations.
-- `Configuration/Murmure.entitlements` — signing entitlements; the app is currently distributed outside the App Sandbox.
+- `Configuration/Entrevoix.entitlements` — signing entitlements; the app is currently distributed outside the App Sandbox.
 - `Scripts/` — development app assembly, bundle verification, coverage, DMG construction, and release/notarization.
 - `docs/adr/` — milestone decisions and architectural rationale. Treat older “awaiting validation” notes as historical when newer code/tests/scripts supersede them.
 
 ## Architecture and runtime flow
 
-- Entry point: `Sources/Murmure/App/MurmureApp.swift` (`@main`).
+- Entry point: `Sources/Entrevoix/App/EntrevoixApp.swift` (`@main`).
 - `CompositionRoot.makeLaunchState()` is the only place that builds the live object graph. Keep concrete adapter construction there.
 - `AppEnvironment` owns the shared feature Stores and application services. It is the ready result injected into scenes; it is not observable itself.
 - `DictationCoordinator` and `ConnectionTestCoordinator` are `@MainActor` application services. They own session state, cancellation/stale-session protection, cleanup, and typed snapshots/events; they never import Observation or know about views, panels, sounds, or localized labels.
 - Feature Stores own UI orchestration such as hotkey semantics, live language changes, permission refreshes, feedback sounds, and indicator transitions. Do not allow a connection test and dictation to run together.
 - Core dependencies enter through application dependency values and ports. Add a port only for a real external boundary, not merely because a test needs a double.
 - UI-facing types and all adapters touching AppKit, Accessibility, pasteboard, hotkeys, windows, or permissions stay on `@MainActor`. Domain values crossing concurrency boundaries must be `Sendable`.
-- Coordinator lifecycle callbacks drive presentation effects. Keep the indicator and sounds outside `MurmureCore`; the core should not know about panels, AppKit, or localized labels.
+- Coordinator lifecycle callbacks drive presentation effects. Keep the indicator and sounds outside `EntrevoixCore`; the core should not know about panels, AppKit, or localized labels.
 
 ## Platform lessons and invariants
 
 ### App bundle, signing, and TCC
 
 - A real `.app` bundle is required for windows, global shortcuts, microphone permission, Accessibility permission, localization, Sparkle, and launch-at-login behavior.
-- Keep `CFBundleIdentifier` stable (`com.d9beuD.Murmure`) and sign the development app with a stable identity when available. Ad hoc signatures can make macOS treat rebuilds as a different Accessibility client, requiring permission to be renewed.
-- Apply `Configuration/Murmure.entitlements` when signing both development and release builds. Missing or inconsistent entitlements/signatures can make TCC permission appear granted while Accessibility calls still fail.
+- Keep `CFBundleIdentifier` stable (`com.d9beuD.Entrevoix`) and sign the development app with a stable identity when available. Ad hoc signatures can make macOS treat rebuilds as a different Accessibility client, requiring permission to be renewed.
+- Apply `Configuration/Entrevoix.entitlements` when signing both development and release builds. Missing or inconsistent entitlements/signatures can make TCC permission appear granted while Accessibility calls still fail.
 - `run-app.sh` and `build-dmg.sh` must embed `Sparkle.framework`, add `@executable_path/../Frameworks`, copy SPM resource bundles, compile string catalogs, and sign the final hierarchy. Do not “simplify” away those steps.
-- After changing packaging, signing, localization, dependencies, or `Info.plist`, assemble with `MURMURE_SKIP_OPEN=1` and run `verify-app-bundle.sh`. It checks Sparkle linkage/rpath, compiled English/French resources, runtime localization lookup, and the code signature.
+- After changing packaging, signing, localization, dependencies, or `Info.plist`, assemble with `ENTREVOIX_SKIP_OPEN=1` and run `verify-app-bundle.sh`. It checks Sparkle linkage/rpath, compiled English/French resources, runtime localization lookup, and the code signature.
 
 ### Accessibility, insertion, and the listening indicator
 
@@ -124,9 +124,9 @@ including the listening indicator, belong under `Presentation/`.
 
 ### Localization and preferences
 
-- User-visible strings belong in `Sources/Murmure/Resources/Localizable.xcstrings`; bundle metadata strings belong in `InfoPlist.xcstrings`. Add both English and French translations and extend `LocalizationTests` when adding required keys.
-- Resolve explicit app-language strings through `MurmureLocalization` and pass `model.interfaceLocale` into each SwiftUI scene. Using only the process locale or `NSLocalizedString` can prevent live language changes.
-- SwiftPM resources live in `Bundle.module`, then inside `Murmure_Murmure.bundle` in the assembled app. Do not assume localized strings are in `Bundle.main`.
+- User-visible strings belong in `Sources/Entrevoix/Resources/Localizable.xcstrings`; bundle metadata strings belong in `InfoPlist.xcstrings`. Add both English and French translations and extend `LocalizationTests` when adding required keys.
+- Resolve explicit app-language strings through `EntrevoixLocalization` and pass `model.interfaceLocale` into each SwiftUI scene. Using only the process locale or `NSLocalizedString` can prevent live language changes.
+- SwiftPM resources live in `Bundle.module`, then inside `Entrevoix_Entrevoix.bundle` in the assembled app. Do not assume localized strings are in `Bundle.main`.
 - `AppPreferences` uses versioned `Codable` JSON in `UserDefaults` (`currentSchemaVersion`). New fields need safe decoding defaults and migration behavior for existing installations.
 - The default cleanup prompt is localizable while custom and legacy prompts must be preserved. Respect `CleanupPromptMode` when changing language or migrating preferences.
 - Provider UUIDs identify their Keychain entries. Preserve or deliberately migrate IDs when editing provider configuration; regenerating an ID disconnects the saved API key.
@@ -136,7 +136,7 @@ including the listening indicator, belong under `Presentation/`.
 - API keys are stored only in macOS Keychain, never in `UserDefaults`, source, fixtures, or logs.
 - Audio files live only in the temporary directory and must be deleted after success, failure, or cancellation. Do not commit audio artifacts.
 - Networking uses an ephemeral `URLSession`: no persistent cache or cookies, and cross-origin redirects are rejected so authorization headers cannot leak to another origin.
-- Murmure has no backend of its own. Audio goes only to the configured STT endpoint; transcript text goes to the configured cleanup endpoint only when cleanup is enabled.
+- Entrevoix has no backend of its own. Audio goes only to the configured STT endpoint; transcript text goes to the configured cleanup endpoint only when cleanup is enabled.
 - Logs are memory-only. Never log API keys, authorization headers, audio, transcripts, prompts, pasteboard contents, or raw provider bodies. Use redacted safe-error helpers for diagnostics.
 
 ## Dependencies
@@ -150,7 +150,7 @@ When changing dependencies, preserve exact pinning unless the task explicitly ca
 ## Testing and change discipline
 
 - CI treats warnings as errors and runs on `macos-26`.
-- `./Scripts/check-coverage.sh` enforces 85% line coverage for `MurmureCore` and 80% for selected testable application/infrastructure logic.
+- `./Scripts/check-coverage.sh` enforces 85% line coverage for `EntrevoixCore` and 80% for selected testable application/infrastructure logic.
 - Prefer deterministic protocol-backed tests over live microphone, network, Keychain UI, Accessibility prompts, global events, or sleeps. Inject clocks/sleep and use spies/fakes already present in test support.
 - Add regression tests for state transitions, cancellation, stale sessions, secret/log redaction, preference decoding, localization keys, AX focus variants, secure-field fallback, web-editor paste, and indicator task/position behavior when those areas change.
 - Interactive validation is still required for macOS integration: global key down/up in background apps, microphone and Accessibility prompts, caret placement across native/Chromium/Electron apps, sound feedback, launch at login, and Sparkle update UI.
@@ -159,8 +159,8 @@ When changing dependencies, preserve exact pinning unless the task explicitly ca
 
 ## Release
 
-- `./Scripts/release.sh` requires `MURMURE_VERSION`, `MURMURE_BUILD_NUMBER`, `DEVELOPER_ID_CERTIFICATE_BASE64`, `DEVELOPER_ID_CERTIFICATE_PASSWORD`, `BUILD_KEYCHAIN_PASSWORD`, `APP_STORE_CONNECT_KEY_BASE64`, `APP_STORE_CONNECT_KEY_ID`, and `APP_STORE_CONNECT_ISSUER_ID`.
-- `MURMURE_VERSION` is a semantic version without the `v` prefix; the Git tag uses `v`. `MURMURE_BUILD_NUMBER` is the monotonic Sparkle bundle version.
+- `./Scripts/release.sh` requires `ENTREVOIX_VERSION`, `ENTREVOIX_BUILD_NUMBER`, `DEVELOPER_ID_CERTIFICATE_BASE64`, `DEVELOPER_ID_CERTIFICATE_PASSWORD`, `BUILD_KEYCHAIN_PASSWORD`, `APP_STORE_CONNECT_KEY_BASE64`, `APP_STORE_CONNECT_KEY_ID`, and `APP_STORE_CONNECT_ISSUER_ID`.
+- `ENTREVOIX_VERSION` is a semantic version without the `v` prefix; the Git tag uses `v`. `ENTREVOIX_BUILD_NUMBER` is the monotonic Sparkle bundle version.
 - Release builds use Hardened Runtime, the same entitlements and embedded resources as development builds, Developer ID signing, notarization, stapling, DMG creation, and SHA-256 output.
 - The manual GitHub Actions release workflow also generates and signs `appcast.xml`, uploads it with the DMG, and creates the GitHub release. GitHub reports the DMG's SHA-256 digest. Do not publish a hand-written appcast.
 - Keep `SUFeedURL` and `SUPublicEDKey` in `Configuration/Info.plist` valid; the release script rejects placeholders. Follow `docs/RELEASE_CHECKLIST.md` for the human validation steps.

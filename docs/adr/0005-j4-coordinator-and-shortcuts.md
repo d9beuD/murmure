@@ -17,4 +17,4 @@ swift build
 swift build -Xswiftc -warnings-as-errors
 ```
 
-The keyboard scenario matrix (short press, hold, toggle, repeat, cancellation, and lost `keyUp`) must be run in a graphical macOS session with the `Murmure.app` bundle.
+The keyboard scenario matrix (short press, hold, toggle, repeat, cancellation, and lost `keyUp`) must be run in a graphical macOS session with the `Entrevoix.app` bundle.

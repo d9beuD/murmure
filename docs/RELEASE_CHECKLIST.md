@@ -19,7 +19,7 @@
 - [ ] Install a stable Xcode version compatible with macOS 26.
 - [ ] Configure a `Developer ID Application` identity in Keychain.
 - [ ] Set the six signing and notarization variables below, then run
-      `MURMURE_VERSION=0.1.0 ./Scripts/release.sh`.
+      `ENTREVOIX_VERSION=0.1.0 ./Scripts/release.sh`.
 - [ ] Check the final DMG with `spctl --assess --type open --verbose`.
 - [ ] Publish the DMG, the release notes, and the MIT License on GitHub Releases.
 - [ ] Confirm that GitHub displays a SHA-256 digest for the uploaded DMG.
