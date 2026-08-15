@@ -5,11 +5,11 @@ Date: August 5, 2026
 
 ## Context
 
-J0 must validate the system capabilities that could challenge Murmure's architecture: a menu-bar-only app, global key-down/key-up events, WAV capture, clipboard access, and automatic pasting.
+J0 must validate the system capabilities that could challenge Entrevoix's architecture: a menu-bar-only app, global key-down/key-up events, WAV capture, clipboard access, and automatic pasting.
 
 ## Spike implementation
 
-The repository initially contained an executable Swift Package named `MurmureSpike`, since refactored into the `Murmure` target, with:
+The repository initially contained an executable Swift Package named `EntrevoixSpike`, since refactored into the `Entrevoix` target, with:
 
 - SwiftUI `MenuBarExtra` and `Settings` scenes;
 - two trigger modes;
@@ -31,7 +31,7 @@ The current environment provides Swift 6.3.3 and the macOS 26 SDK, but not Xcode
 
 Remaining manual checks on macOS 26:
 
-1. Global shortcut receives `keyDown` and `keyUp` events when Murmure is not focused.
+1. Global shortcut receives `keyDown` and `keyUp` events when Entrevoix is not focused.
 2. Cross-application paste works in Notes, TextEdit, Terminal, and a code editor.
 3. Missing Accessibility permission does not prevent clipboard mode from working.
 4. App Sandbox is tested with both delivery modes.
@@ -44,7 +44,7 @@ The App Sandbox decision remains open until sandboxed delivery is validated. Dir
 
 ```shell
 swift build
-swift run Murmure
+swift run Entrevoix
 ```
 
 `swift run` requires a graphical macOS context to display the menu bar and is not suitable for a CI runner without a user session.

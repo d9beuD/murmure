@@ -3,19 +3,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "Murmure",
+    name: "Entrevoix",
     defaultLocalization: "en",
     platforms: [
         .macOS(.v26)
     ],
     products: [
         .executable(
-            name: "Murmure",
-            targets: ["Murmure"]
+            name: "Entrevoix",
+            targets: ["Entrevoix"]
         ),
         .library(
-            name: "MurmureCore",
-            targets: ["MurmureCore"]
+            name: "EntrevoixCore",
+            targets: ["EntrevoixCore"]
         )
     ],
     dependencies: [
@@ -30,12 +30,12 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "MurmureCore"
+            name: "EntrevoixCore"
         ),
         .executableTarget(
-            name: "Murmure",
+            name: "Entrevoix",
             dependencies: [
-                "MurmureCore",
+                "EntrevoixCore",
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                 .product(name: "Sparkle", package: "Sparkle")
             ],
@@ -44,12 +44,12 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "MurmureCoreTests",
-            dependencies: ["MurmureCore"]
+            name: "EntrevoixCoreTests",
+            dependencies: ["EntrevoixCore"]
         ),
         .testTarget(
-            name: "MurmureTests",
-            dependencies: ["Murmure", "MurmureCore"]
+            name: "EntrevoixTests",
+            dependencies: ["Entrevoix", "EntrevoixCore"]
         )
     ]
 )

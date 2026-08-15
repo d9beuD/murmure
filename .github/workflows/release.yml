@@ -33,8 +33,8 @@ jobs:
     name: Build DMG and create GitHub release
     runs-on: macos-26
     env:
-      MURMURE_VERSION: ${{ inputs.version }}
-      MURMURE_BUILD_NUMBER: ${{ inputs.build_number }}
+      ENTREVOIX_VERSION: ${{ inputs.version }}
+      ENTREVOIX_BUILD_NUMBER: ${{ inputs.build_number }}
       GH_TOKEN: ${{ github.token }}
       SPARKLE_VERSION: 2.9.5
       SPARKLE_DISTRIBUTION_SHA256: ${{ secrets.SPARKLE_DISTRIBUTION_SHA256 }}
@@ -110,13 +110,13 @@ jobs:
           chmod 600 "$private_key_path"
           "$RUNNER_TEMP/sparkle/bin/generate_appcast" \
             --ed-key-file "$private_key_path" \
-            --download-url-prefix "https://github.com/d9beuD/murmure/releases/download/v$MURMURE_VERSION/" \
+            --download-url-prefix "https://github.com/entrevoix-app/entrevoix-macos/releases/download/v$ENTREVOIX_VERSION/" \
             "$artifacts_directory"
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Murmure-${{ inputs.version }}-macos
+          name: Entrevoix-${{ inputs.version }}-macos
           path: |
             .build/release-artifacts/*.dmg
             .build/release-artifacts/appcast.xml
@@ -129,13 +129,13 @@ jobs:
         env:
           RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
-          tag="v$MURMURE_VERSION"
+          tag="v$ENTREVOIX_VERSION"
           notes_path="$RUNNER_TEMP/release-notes.md"
           printf '%s\n' "$RELEASE_NOTES" > "$notes_path"
-          release_args=("$tag" ".build/release-artifacts/Murmure-$MURMURE_VERSION-macos.dmg" ".build/release-artifacts/appcast.xml" "--title" "Murmure $MURMURE_VERSION" "--notes-file" "$notes_path" "--draft")
+          release_args=("$tag" ".build/release-artifacts/Entrevoix-$ENTREVOIX_VERSION-macos.dmg" ".build/release-artifacts/appcast.xml" "--title" "Entrevoix $ENTREVOIX_VERSION" "--notes-file" "$notes_path" "--draft")
           [[ "${{ inputs.prerelease }}" == "true" ]] && release_args+=("--prerelease")
           gh release create "${release_args[@]}"
 
       - name: Publish GitHub release
         if: ${{ !inputs.draft }}
-        run: gh release edit "v$MURMURE_VERSION" --draft=false
+        run: gh release edit "v$ENTREVOIX_VERSION" --draft=false

@@ -16,15 +16,15 @@ Scenes inject these instances through SwiftUI’s environment. Views read with `
 The production dependency direction is one-way:
 
 ```text
-Murmure (SwiftUI, AppKit, networking, persistence adapters)
-        └──> MurmureCore (domain, orchestration, ports)
+Entrevoix (SwiftUI, AppKit, networking, persistence adapters)
+        └──> EntrevoixCore (domain, orchestration, ports)
 ```
 
-`MurmureCore` must not import or reference AppKit. Presentation effects are expressed as typed events and interpreted by the macOS target.
+`EntrevoixCore` must not import or reference AppKit. Presentation effects are expressed as typed events and interpreted by the macOS target.
 
 ## Target and module boundary
 
-The project intentionally maintains exactly two production targets: `MurmureCore` and `Murmure`. A third target is permitted only when a subsystem has an independently managed lifecycle, meaningful reuse, or a genuinely independent dependency boundary. File size alone is not sufficient justification for another target.
+The project intentionally maintains exactly two production targets: `EntrevoixCore` and `Entrevoix`. A third target is permitted only when a subsystem has an independently managed lifecycle, meaningful reuse, or a genuinely independent dependency boundary. File size alone is not sufficient justification for another target.
 
 This keeps SwiftPM packaging, signing, localization resources, and the composition root predictable while still allowing feature-level files and observable models to evolve independently.
 

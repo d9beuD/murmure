@@ -4,20 +4,20 @@ set -euo pipefail
 
 application_path=${1:-}
 if [[ -z "$application_path" ]]; then
-    print -u2 "Usage: $0 /path/to/Murmure.app"
+    print -u2 "Usage: $0 /path/to/Entrevoix.app"
     exit 64
 fi
 
 contents_path="$application_path/Contents"
-executable_path="$contents_path/MacOS/Murmure"
+executable_path="$contents_path/MacOS/Entrevoix"
 sparkle_binary="$contents_path/Frameworks/Sparkle.framework/Versions/B/Sparkle"
-localization_bundle="$contents_path/Resources/Murmure_Murmure.bundle"
-icon_path="$contents_path/Resources/Murmure.icon"
-compiled_icon_path="$contents_path/Resources/Murmure.icns"
+localization_bundle="$contents_path/Resources/Entrevoix_Entrevoix.bundle"
+icon_path="$contents_path/Resources/Entrevoix.icon"
+compiled_icon_path="$contents_path/Resources/Entrevoix.icns"
 compiled_assets_path="$contents_path/Resources/Assets.car"
 keyboard_shortcuts_bundle="$contents_path/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle"
 binary_directory="$application_path:h"
-raw_resource_bundle="$binary_directory/Murmure_Murmure.bundle"
+raw_resource_bundle="$binary_directory/Entrevoix_Entrevoix.bundle"
 disabled_resource_bundle="$raw_resource_bundle.integration-disabled"
 
 restore_raw_bundle() {
@@ -38,9 +38,9 @@ trap restore_raw_bundle EXIT
     exit 1
 }
 icon_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$contents_path/Info.plist" 2>/dev/null || true)
-[[ "$icon_name" == "Murmure" ]] || { print -u2 "Unexpected app icon name: $icon_name"; exit 1; }
+[[ "$icon_name" == "Entrevoix" ]] || { print -u2 "Unexpected app icon name: $icon_name"; exit 1; }
 icon_file=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$contents_path/Info.plist" 2>/dev/null || true)
-[[ "$icon_file" == "Murmure" ]] || { print -u2 "Unexpected app icon file: $icon_file"; exit 1; }
+[[ "$icon_file" == "Entrevoix" ]] || { print -u2 "Unexpected app icon file: $icon_file"; exit 1; }
 for localization in en fr-FR; do
     [[ -f "$localization_bundle/$localization.lproj/Localizable.strings" ]] || {
         print -u2 "Missing compiled localization: $localization_bundle/$localization.lproj/Localizable.strings"
@@ -49,18 +49,18 @@ for localization in en fr-FR; do
 done
 
 if ! /usr/bin/otool -L "$executable_path" | /usr/bin/grep -Fq '@rpath/Sparkle.framework/Versions/B/Sparkle'; then
-    print -u2 "Murmure does not link against Sparkle through @rpath."
+    print -u2 "Entrevoix does not link against Sparkle through @rpath."
     exit 1
 fi
 
 if ! /usr/bin/otool -l "$executable_path" | /usr/bin/grep -A3 'cmd LC_RPATH' | /usr/bin/grep -Fq '@executable_path/../Frameworks'; then
-    print -u2 "Murmure is missing the Frameworks rpath."
+    print -u2 "Entrevoix is missing the Frameworks rpath."
     exit 1
 fi
 
 /usr/bin/codesign --verify --deep --strict "$application_path"
 
-if [[ -d "$raw_resource_bundle" && "$raw_resource_bundle" != "$contents_path/Resources/Murmure_Murmure.bundle" ]]; then
+if [[ -d "$raw_resource_bundle" && "$raw_resource_bundle" != "$contents_path/Resources/Entrevoix_Entrevoix.bundle" ]]; then
     /bin/mv "$raw_resource_bundle" "$disabled_resource_bundle"
 fi
 
@@ -83,11 +83,11 @@ assert_output() {
     fi
 }
 
-assert_output "french" $'locale=fr-FR\nonboarding.welcome.title=Bienvenue dans Murmure\nmenu.settings=Réglages\naction.next=Suivant'
-assert_output "english" $'locale=en\nonboarding.welcome.title=Welcome to Murmure\nmenu.settings=Settings\naction.next=Next'
-assert_output "automatic" $'locale=fr-FR\nonboarding.welcome.title=Bienvenue dans Murmure\nmenu.settings=Réglages\naction.next=Suivant' \
+assert_output "french" $'locale=fr-FR\nonboarding.welcome.title=Bienvenue dans Entrevoix\nmenu.settings=Réglages\naction.next=Suivant'
+assert_output "english" $'locale=en\nonboarding.welcome.title=Welcome to Entrevoix\nmenu.settings=Settings\naction.next=Next'
+assert_output "automatic" $'locale=fr-FR\nonboarding.welcome.title=Bienvenue dans Entrevoix\nmenu.settings=Réglages\naction.next=Suivant' \
     -AppleLanguages '(fr-FR)'
-assert_output "automatic" $'locale=en\nonboarding.welcome.title=Welcome to Murmure\nmenu.settings=Settings\naction.next=Next' \
+assert_output "automatic" $'locale=en\nonboarding.welcome.title=Welcome to Entrevoix\nmenu.settings=Settings\naction.next=Next' \
     -AppleLanguages '(de-DE)'
 
 keyboard_shortcuts_output="$("$executable_path" --verify-keyboard-shortcuts)"
