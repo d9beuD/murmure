@@ -30,6 +30,10 @@ The repository is a Swift Package Manager project with no Xcode project. `Packag
 
 **Never use `swift run Entrevoix` to validate application behavior.** It launches a raw executable without the app's `Info.plist`, entitlements, embedded frameworks, compiled localization catalogs, stable code signature, or LaunchServices behavior. Use `./Scripts/run-app.sh`.
 
+## Git branches
+
+- Name new branches `d9beuD/<type>/<description>`; do not use the `codex/` prefix.
+
 A full Xcode installation is required for tests (`XCTest`) and app assembly (`xcstringstool`). Command Line Tools alone are insufficient. If necessary, select Xcode with `xcode-select` or `DEVELOPER_DIR`.
 
 Before rebuilding the development `.app`, `run-app.sh` stops every running Entrevoix instance, including instances launched from another development environment, so it can safely replace and launch the requested bundle.
