@@ -229,6 +229,18 @@ final class AppStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testDictationCancellationPlaysFeedbackOnceWhileActive() async {
+        let context = makeContext()
+
+        context.model.startRecording()
+        await appWaitUntil("recording") { context.model.state == .recording }
+        context.model.cancelRecording()
+        context.model.cancelRecording()
+
+        XCTAssertEqual(context.feedback.events, [.recordingStarted, .recordingCancelled])
+    }
+
+    @MainActor
     func testToggleStartsAndStopsRecording() async throws {
         let recorder = AppRecorderSpy()
         recorder.stopURL = try appTemporaryFile()
@@ -405,6 +417,7 @@ final class AppStoreTests: XCTestCase {
 
         XCTAssertEqual(context.model.connectionTestState, .idle)
         XCTAssertEqual(recorder.cancelCount, 1)
+        XCTAssertEqual(context.feedback.events, [.recordingCancelled])
     }
 
     @MainActor
@@ -474,6 +487,19 @@ final class AppStoreTests: XCTestCase {
 
         context.model.startSTTConnectionTest()
         await appWaitUntil("silent failure") { context.model.connectionTestState.isInactive }
+        XCTAssertTrue(context.feedback.events.isEmpty)
+    }
+
+    @MainActor
+    func testDisabledFeedbackProducesNoCancellationSound() async {
+        var preferences = AppPreferences()
+        preferences.playFeedbackSounds = false
+        let context = makeContext(preferences: preferences)
+
+        context.model.startRecording()
+        await appWaitUntil("recording") { context.model.state == .recording }
+        context.model.cancelRecording()
+
         XCTAssertTrue(context.feedback.events.isEmpty)
     }
 
@@ -596,6 +622,10 @@ final class AppStoreTests: XCTestCase {
         await transcriber.succeed(with: "late result")
         await Task.yield()
         XCTAssertTrue(context.delivery.delivered.isEmpty)
+        XCTAssertEqual(
+            context.feedback.events,
+            [.recordingStarted, .recordingCancelled, .recordingStarted, .recordingStopped, .recordingCancelled]
+        )
     }
 
     @MainActor

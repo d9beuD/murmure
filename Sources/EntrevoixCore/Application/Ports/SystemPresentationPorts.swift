@@ -29,6 +29,7 @@ public protocol LaunchAtLoginControlling: AnyObject {
 public enum FeedbackEvent: Equatable, Sendable {
     case recordingStarted
     case recordingStopped
+    case recordingCancelled
     case connectionTestSucceeded
     case error
 }
