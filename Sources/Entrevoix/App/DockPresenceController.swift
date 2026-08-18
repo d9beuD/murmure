@@ -6,16 +6,34 @@ import SwiftUI
 @MainActor
 final class DockPresenceController {
     typealias ActivationPolicySetter = @MainActor (NSApplication.ActivationPolicy) -> Bool
+    typealias ActivationRequester = @MainActor () -> Void
 
     private let setActivationPolicy: ActivationPolicySetter
+    private let requestActivation: ActivationRequester
     private var registeredWindows: Set<ObjectIdentifier> = []
+    private var usesRegularActivationPolicy = false
 
     private(set) var isDockVisible = false
 
-    init(setActivationPolicy: @escaping ActivationPolicySetter = { policy in
-        NSApp.setActivationPolicy(policy)
-    }) {
+    init(
+        setActivationPolicy: @escaping ActivationPolicySetter = { policy in
+            NSApp.setActivationPolicy(policy)
+        },
+        requestActivation: @escaping ActivationRequester = {
+            NSApp.activate()
+        }
+    ) {
         self.setActivationPolicy = setActivationPolicy
+        self.requestActivation = requestActivation
+    }
+
+    /// Makes the app switchable before the caller opens a user-facing window.
+    ///
+    /// An agent app is otherwise added to the Dock and application switcher only
+    /// after its window has been created, which does not update its MRU position.
+    func prepareForUserFacingWindow() {
+        setUsesRegularActivationPolicy(true)
+        requestActivation()
     }
 
     func register(window: NSWindow) {
@@ -41,7 +59,14 @@ final class DockPresenceController {
         guard shouldShowDockIcon != isDockVisible else { return }
 
         isDockVisible = shouldShowDockIcon
-        _ = setActivationPolicy(shouldShowDockIcon ? .regular : .accessory)
+        setUsesRegularActivationPolicy(shouldShowDockIcon)
+    }
+
+    private func setUsesRegularActivationPolicy(_ shouldUseRegularPolicy: Bool) {
+        guard shouldUseRegularPolicy != usesRegularActivationPolicy else { return }
+
+        usesRegularActivationPolicy = shouldUseRegularPolicy
+        _ = setActivationPolicy(shouldUseRegularPolicy ? .regular : .accessory)
     }
 }
 
@@ -96,7 +121,6 @@ struct DockPresenceWindowFocus: NSViewRepresentable {
             }
 
             NSApp.unhide(nil)
-            NSApp.activate(ignoringOtherApps: true)
             window.orderFrontRegardless()
             window.makeMain()
             window.makeKey()

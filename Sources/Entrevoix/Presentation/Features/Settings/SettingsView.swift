@@ -3,7 +3,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var model: AppStore
-    let dockPresenceController: DockPresenceController
     @State private var selection: SettingsSection? = .general
     @State private var promptNavigation = PromptLibraryNavigationState()
 
@@ -55,7 +54,6 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 760, idealWidth: 920, minHeight: 520, idealHeight: 700)
-        .background(DockPresenceWindowFocus(controller: dockPresenceController))
     }
 }
 

@@ -4,6 +4,53 @@ import XCTest
 
 final class DockPresenceControllerTests: XCTestCase {
     @MainActor
+    func testPreparingForUserFacingWindowMakesAppRegularBeforeActivationAndHidesAfterClose() {
+        var events: [String] = []
+        let controller = DockPresenceController(
+            setActivationPolicy: { policy in
+                events.append(policy == .regular ? "regular" : "accessory")
+                return true
+            },
+            requestActivation: {
+                events.append("activate")
+            }
+        )
+        let settingsWindow = NSObject()
+
+        controller.prepareForUserFacingWindow()
+        controller.register(windowID: ObjectIdentifier(settingsWindow))
+        controller.unregister(windowID: ObjectIdentifier(settingsWindow))
+
+        XCTAssertEqual(events, ["regular", "activate", "accessory"])
+        XCTAssertFalse(controller.isDockVisible)
+    }
+
+    @MainActor
+    func testPreparingForAnAlreadyRegisteredWindowOnlyRequestsActivation() {
+        var policies: [NSApplication.ActivationPolicy] = []
+        var activationRequests = 0
+        let controller = DockPresenceController(
+            setActivationPolicy: { policy in
+                policies.append(policy)
+                return true
+            },
+            requestActivation: {
+                activationRequests += 1
+            }
+        )
+        let settingsWindow = NSObject()
+        let windowID = ObjectIdentifier(settingsWindow)
+
+        controller.register(windowID: windowID)
+        controller.prepareForUserFacingWindow()
+        controller.register(windowID: windowID)
+
+        XCTAssertEqual(policies, [.regular])
+        XCTAssertEqual(activationRequests, 1)
+        XCTAssertTrue(controller.isDockVisible)
+    }
+
+    @MainActor
     func testShowsDockForFirstWindowAndHidesItAfterLastWindowCloses() {
         var policies: [NSApplication.ActivationPolicy] = []
         let controller = DockPresenceController { policy in

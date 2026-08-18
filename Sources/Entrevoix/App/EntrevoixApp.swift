@@ -37,7 +37,11 @@ struct EntrevoixApp: App {
         MenuBarExtra {
             if case .ready(let environment, let recoveredPreferences) = launchState {
                 let model = environment.appStore
-                MenuContent(model: model, updater: appDelegate.updaterController.updater)
+                MenuContent(
+                    model: model,
+                    updater: appDelegate.updaterController.updater,
+                    openUserFacingWindow: openUserFacingWindow
+                )
                     .environment(\.locale, model.interfaceLocale)
                     .environment(model)
                     .environment(model.preferencesModel)
@@ -47,12 +51,12 @@ struct EntrevoixApp: App {
                     .task {
                         guard model.requiresOnboarding, !recoveredPreferences, !didOpenOnboarding else { return }
                         didOpenOnboarding = true
-                        openWindow(id: "onboarding")
+                        openUserFacingWindow(id: "onboarding")
                     }
                     .task {
                         guard recoveredPreferences, !didOpenRecoveryNotice else { return }
                         didOpenRecoveryNotice = true
-                        openWindow(id: "startup-recovery")
+                        openUserFacingWindow(id: "startup-recovery")
                     }
             } else {
                 Text(EntrevoixLocalization.text("startup.incompatible.title", defaultValue: "Entrevoix Update Required", locale: Locale(identifier: "en")))
@@ -76,13 +80,14 @@ struct EntrevoixApp: App {
             id: "settings"
         ) {
             if let model = readyModel {
-                SettingsView(model: model, dockPresenceController: dockPresenceController)
+                SettingsView(model: model)
                     .environment(\.locale, model.interfaceLocale)
                     .environment(model)
                     .environment(model.preferencesModel)
                     .environment(model.dictationSession)
                     .environment(model.permissionsModel)
                     .environment(model.promptLibrary)
+                    .background(DockPresenceWindowFocus(controller: dockPresenceController))
             }
         }
         .defaultLaunchBehavior(.suppressed)
@@ -94,6 +99,7 @@ struct EntrevoixApp: App {
             if let model = readyModel {
                 LogsView(logStore: model.logStore)
                     .environment(\.locale, model.interfaceLocale)
+                    .background(DockPresenceWindowFocus(controller: dockPresenceController))
             }
         }
         .defaultLaunchBehavior(.suppressed)
@@ -103,13 +109,14 @@ struct EntrevoixApp: App {
             id: "onboarding"
         ) {
             if let model = readyModel {
-                OnboardingView(model: model, dockPresenceController: dockPresenceController)
+                OnboardingView(model: model)
                     .environment(\.locale, model.interfaceLocale)
                     .environment(model)
                     .environment(model.preferencesModel)
                     .environment(model.dictationSession)
                     .environment(model.permissionsModel)
                     .environment(model.promptLibrary)
+                    .background(DockPresenceWindowFocus(controller: dockPresenceController))
             }
         }
         .defaultLaunchBehavior(.suppressed)
@@ -119,6 +126,7 @@ struct EntrevoixApp: App {
             id: "startup-recovery"
         ) {
             StartupNoticeView(kind: .recovered, locale: interfaceLocale)
+                .background(DockPresenceWindowFocus(controller: dockPresenceController))
         }
         .defaultLaunchBehavior(.suppressed)
     }
@@ -130,6 +138,11 @@ struct EntrevoixApp: App {
 
     private var interfaceLocale: Locale {
         readyModel?.interfaceLocale ?? Locale(identifier: "en")
+    }
+
+    private func openUserFacingWindow(id: String) {
+        dockPresenceController.prepareForUserFacingWindow()
+        openWindow(id: id)
     }
 
     private func iconName(for state: DictationState?) -> String {
@@ -182,7 +195,7 @@ struct EntrevoixApp: App {
             locale: locale
         ))
         alert.addButton(withTitle: EntrevoixLocalization.text("action.quit", defaultValue: "Quit", locale: locale))
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        NSApp.activate()
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             appDelegate.updaterController.updater.checkForUpdates()
