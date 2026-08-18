@@ -169,6 +169,7 @@ struct OnboardingView: View {
         guard let entry = model.preferences.provider(for: model.preferences.selectedSTTProviderID) else { return false }
         switch entry {
         case .apple: return model.preferences.sttLanguage != .automatic
+        case .codex: return false
         case .remote(let profile): return profile.stt != nil && profile.validationIssues(apiKey: model.apiKey(for: .remote(profile.id))).isEmpty
         }
     }

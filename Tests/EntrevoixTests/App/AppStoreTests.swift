@@ -65,6 +65,54 @@ final class AppStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexProviderIsTTTOnlyAndPersistsItsModelChoice() {
+        let context = makeContext()
+
+        context.model.addCodexProvider()
+        context.model.setCodexModel(.gpt56Luna)
+        context.model.setSTTProvider(.codex)
+        context.model.setTTTProvider(.codex)
+
+        XCTAssertTrue(context.model.providersSortedForDisplay.contains { $0.id == .codex })
+        XCTAssertEqual(context.model.preferences.provider(for: .codex)?.codexProfile?.model, .gpt56Luna)
+        XCTAssertNotEqual(context.model.preferences.selectedSTTProviderID, .codex)
+        XCTAssertEqual(context.model.preferences.selectedTTTProviderID, .codex)
+    }
+
+    @MainActor
+    func testCodexConnectionLifecyclePersistsAndRemovesCredentialsBeforeProvider() async {
+        let credentials = CodexCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            expiresAt: .distantFuture
+        )
+        let credentialStore = CodexCredentialStoreSpy()
+        let authenticator = CodexAuthenticatorSpy(result: .success(credentials))
+        let context = makeContext(codexCredentials: credentialStore, codexAuthenticator: authenticator)
+
+        context.model.addCodexProvider()
+        context.model.setTTTProvider(.codex)
+        context.model.connectCodex()
+        await appWaitUntil("Codex connection") { context.model.codexConnectionState == .connected }
+        let connectedValues = await credentialStore.saved
+        XCTAssertEqual(connectedValues.last!, credentials)
+
+        context.model.disconnectCodex()
+        await appWaitUntil("Codex disconnection") { context.model.codexConnectionState == .disconnected }
+        let disconnectedValues = await credentialStore.saved
+        XCTAssertNil(disconnectedValues.last!)
+
+        context.model.connectCodex()
+        await appWaitUntil("Codex reconnection") { context.model.codexConnectionState == .connected }
+        context.model.removeCodexProvider()
+        await appWaitUntil("Codex provider removal") { context.model.preferences.provider(for: .codex) == nil }
+        XCTAssertNil(context.model.preferences.selectedTTTProviderID)
+        XCTAssertFalse(context.model.preferences.cleanupEnabled)
+        let removedValues = await credentialStore.saved
+        XCTAssertNil(removedValues.last!)
+    }
+
+    @MainActor
     func testChangingInterfaceLanguageUpdatesLocaleAndPersistsImmediately() {
         let context = makeContext(preferences: AppPreferences(interfaceLanguage: .english))
 
@@ -705,7 +753,9 @@ final class AppStoreTests: XCTestCase {
         preferences: AppPreferences = AppPreferences(interfaceLanguage: .english),
         secrets: [UUID: String]? = nil,
         permissions: PermissionSpy = PermissionSpy(),
-        modelCatalog: any RemoteModelDiscovering = ModelCatalogSpy()
+        modelCatalog: any RemoteModelDiscovering = ModelCatalogSpy(),
+        codexCredentials: any CodexCredentialsStoring & CodexAccessTokenProviding = CodexCredentialStoreSpy(),
+        codexAuthenticator: any CodexAuthenticating = CodexAuthenticatorSpy()
     ) -> AppContext {
         let preferences = configuredForExistingAppTests(preferences)
         let delivery = AppDeliverySpy()
@@ -744,6 +794,8 @@ final class AppStoreTests: XCTestCase {
             textDelivery: delivery,
             preferencesStore: preferencesStore,
             keychain: secretStore,
+            codexCredentials: codexCredentials,
+            codexAuthenticator: codexAuthenticator,
             modelCatalog: modelCatalog,
             hotkeys: hotkeys,
             launchAtLogin: launch,
@@ -782,6 +834,36 @@ final class AppStoreTests: XCTestCase {
         value.cleanupEnabled = true
         return value
     }
+}
+
+private actor CodexCredentialStoreSpy: CodexCredentialsStoring, CodexAccessTokenProviding {
+    var current: CodexCredentials?
+    private(set) var saved: [CodexCredentials?] = []
+
+    func readCodexCredentials() async throws -> CodexCredentials? { current }
+    func saveCodexCredentials(_ credentials: CodexCredentials?) async throws {
+        current = credentials
+        saved.append(credentials)
+    }
+    func validCredentials() async throws -> CodexCredentials {
+        guard let current else { throw CodexCredentialStoreError.missing }
+        return current
+    }
+
+    private enum CodexCredentialStoreError: Error { case missing }
+}
+
+@MainActor
+private final class CodexAuthenticatorSpy: CodexAuthenticating {
+    var result: Result<CodexCredentials, any Error>
+
+    init(result: Result<CodexCredentials, any Error> = .failure(CodexAuthenticatorError.unavailable)) {
+        self.result = result
+    }
+
+    func connect() async throws -> CodexCredentials { try result.get() }
+
+    private enum CodexAuthenticatorError: Error { case unavailable }
 }
 
 private actor ModelCatalogSpy: RemoteModelDiscovering {

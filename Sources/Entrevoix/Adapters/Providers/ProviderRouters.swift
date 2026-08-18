@@ -26,11 +26,13 @@ struct ProviderSpeechRouter: SpeechTranscribing {
 
 struct ProviderCleanupRouter: TextCleaning {
     let remote: any TextCleaning
+    let codex: CodexCleanupService
     let apple: AppleFoundationCleanupService
 
     func preflight(request: CleanupRequest) async throws {
         switch request.target {
         case .remote: return
+        case .codex: return
         case .apple: try await apple.preflight(request: request)
         }
     }
@@ -38,6 +40,7 @@ struct ProviderCleanupRouter: TextCleaning {
     func clean(text: String, request: CleanupRequest) async throws -> String {
         switch request.target {
         case .remote: try await remote.clean(text: text, request: request)
+        case .codex: try await codex.clean(text: text, request: request)
         case .apple: try await apple.clean(text: text, request: request)
         }
     }

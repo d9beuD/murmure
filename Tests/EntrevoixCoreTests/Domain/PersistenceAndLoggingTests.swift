@@ -11,6 +11,22 @@ final class PersistenceAndLoggingTests: XCTestCase {
         XCTAssertFalse(preferences.cleanupEnabled)
     }
 
+    func testCodexProviderRoundTripsWithItsSelectedModelAndCannotBeAnSTTProfile() throws {
+        let preferences = AppPreferences(
+            providerCatalog: [.codex(CodexProviderProfile(model: .gpt56Luna))],
+            selectedTTTProviderID: .codex,
+            cleanupEnabled: true
+        )
+
+        let decoded = try JSONDecoder().decode(AppPreferences.self, from: JSONEncoder().encode(preferences))
+
+        XCTAssertEqual(decoded.provider(for: .codex)?.codexProfile?.model, .gpt56Luna)
+        XCTAssertNil(decoded.remoteProfile(for: .codex))
+        XCTAssertNil(decoded.selectedSTTProviderID)
+        XCTAssertEqual(decoded.selectedTTTProviderID, .codex)
+        XCTAssertTrue(decoded.cleanupEnabled)
+    }
+
     func testSchemaEightPreferencesMigrateToTwoSelectedCompatibleProfiles() throws {
         let sttID = UUID()
         let tttID = UUID()

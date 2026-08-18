@@ -53,7 +53,11 @@ final class LocalizationTests: XCTestCase {
             "startup.incompatible.title",
             "startup.incompatible.message",
             "startup.recovered.title",
-            "startup.recovered.message"
+            "startup.recovered.message",
+            "provider.openai_codex",
+            "codex.connect",
+            "codex.ttt_only",
+            "error.codex_not_connected"
         ] {
             let entry = try XCTUnwrap(strings[key] as? [String: Any])
             let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])

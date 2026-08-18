@@ -3,11 +3,13 @@ import Foundation
 /// A stable reference to a provider stored in the user's catalogue.
 public enum ProviderIdentifier: Codable, Equatable, Hashable, Sendable, Identifiable {
     case apple
+    case codex
     case remote(UUID)
 
     public var id: String {
         switch self {
         case .apple: "apple"
+        case .codex: "codex"
         case .remote(let id): id.uuidString
         }
     }
@@ -119,17 +121,24 @@ public struct RemoteProviderProfile: Codable, Equatable, Sendable, Identifiable 
 
 public enum ProviderCatalogEntry: Codable, Equatable, Sendable, Identifiable {
     case apple
+    case codex(CodexProviderProfile)
     case remote(RemoteProviderProfile)
 
     public var id: ProviderIdentifier {
         switch self {
         case .apple: .apple
+        case .codex: .codex
         case .remote(let profile): .remote(profile.id)
         }
     }
 
     public var remoteProfile: RemoteProviderProfile? {
         guard case .remote(let profile) = self else { return nil }
+        return profile
+    }
+
+    public var codexProfile: CodexProviderProfile? {
+        guard case .codex(let profile) = self else { return nil }
         return profile
     }
 }

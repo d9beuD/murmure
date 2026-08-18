@@ -355,7 +355,7 @@ struct CleanupSettingsView: View {
             Section(EntrevoixLocalization.text("settings.ttt", defaultValue: "TTT Cleanup", locale: locale)) {
                 Picker("Provider", selection: Binding(get: { model.preferences.selectedTTTProviderID }, set: { model.setTTTProvider($0) })) {
                     Text("No provider selected").tag(Optional<ProviderIdentifier>.none)
-                    ForEach(model.providersSortedForDisplay.filter { entry in entry.id == .apple || entry.remoteProfile?.ttt != nil }) { entry in
+                    ForEach(model.providersSortedForDisplay.filter { entry in entry.id == .apple || entry.id == .codex || entry.remoteProfile?.ttt != nil }) { entry in
                         Text(model.providerName(entry)).tag(Optional(entry.id))
                     }
                 }

@@ -18,6 +18,8 @@ final class AppStore {
     private let soundFeedback: any FeedbackPlaying
     private let listeningIndicator: any ListeningIndicatorPresenting
     private let modelCatalog: any RemoteModelDiscovering
+    private let codexCredentialsStore: any CodexCredentialsStoring & CodexAccessTokenProviding
+    private let codexAuthenticator: any CodexAuthenticating
     private let providerAlerts: any ProviderAlertPresenting
     let logStore: AppLogStore
 
@@ -56,6 +58,7 @@ final class AppStore {
     var lastTranscript: String? { dictationSession.lastTranscript }
     private(set) var discoveredModels: [UUID: [String]] = [:]
     private(set) var modelDiscoveryError: String?
+    private(set) var codexConnectionState: CodexConnectionState = .disconnected
 
     var interfaceLocale: Locale {
         _ = interfaceLanguageRevision
@@ -113,6 +116,7 @@ final class AppStore {
     func providerName(_ entry: ProviderCatalogEntry) -> String {
         switch entry {
         case .apple: EntrevoixLocalization.text("provider.apple_local", defaultValue: "Apple (local)", locale: interfaceLocale)
+        case .codex: EntrevoixLocalization.text("provider.openai_codex", defaultValue: "OpenAI (Codex)", locale: interfaceLocale)
         case .remote(let profile): profile.name
         }
     }
@@ -124,6 +128,7 @@ final class AppStore {
     }
 
     func setSTTProvider(_ id: ProviderIdentifier?) {
+        guard id != .codex else { return }
         preferences.selectedSTTProviderID = id
         if id == .apple, preferences.sttLanguage == .automatic { preferences.sttLanguage = .english }
         savePreferences()
@@ -139,6 +144,66 @@ final class AppStore {
         guard !preferences.providerCatalog.contains(where: { $0.id == .apple }) else { return }
         preferences.providerCatalog.append(.apple)
         savePreferences()
+    }
+
+    func addCodexProvider() {
+        guard !preferences.providerCatalog.contains(where: { $0.id == .codex }) else { return }
+        preferences.providerCatalog.append(.codex(CodexProviderProfile()))
+        savePreferences()
+    }
+
+    func setCodexModel(_ model: CodexModel) {
+        guard let index = preferences.providerCatalog.firstIndex(where: { $0.id == .codex }),
+              case .codex(var profile) = preferences.providerCatalog[index] else { return }
+        profile.model = model
+        preferences.providerCatalog[index] = .codex(profile)
+        savePreferences()
+    }
+
+    func connectCodex() {
+        guard codexConnectionState != .connecting else { return }
+        codexConnectionState = .connecting
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let credentials = try await self.codexAuthenticator.connect()
+                try await self.codexCredentialsStore.saveCodexCredentials(credentials)
+                self.codexConnectionState = .connected
+            } catch {
+                self.codexConnectionState = .failed
+                self.logStore.log("Error: \(safeLogMessage(for: error))")
+            }
+        }
+    }
+
+    func disconnectCodex() {
+        guard codexConnectionState != .connecting else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.codexCredentialsStore.saveCodexCredentials(nil)
+                self.codexConnectionState = .disconnected
+            } catch {
+                self.codexConnectionState = .failed
+                self.logStore.log("Error: \(safeLogMessage(for: error))")
+            }
+        }
+    }
+
+    func removeCodexProvider() {
+        guard preferences.provider(for: .codex) != nil, codexConnectionState != .connecting else { return }
+        codexConnectionState = .connecting
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.codexCredentialsStore.saveCodexCredentials(nil)
+                self.removeProviderEntry(.codex)
+                self.codexConnectionState = .disconnected
+            } catch {
+                self.codexConnectionState = .failed
+                self.logStore.log("Error: \(safeLogMessage(for: error))")
+            }
+        }
     }
 
     func newRemoteProvider(kind: RemoteProviderKind) -> RemoteProviderProfile {
@@ -165,7 +230,13 @@ final class AppStore {
 
     @discardableResult
     func removeProvider(_ id: ProviderIdentifier) -> Bool {
+        guard id != .codex else { return false }
         if let remoteID = id.remoteID, !preferencesModel.removeProviderSecret(remoteID) { return false }
+        removeProviderEntry(id)
+        return true
+    }
+
+    private func removeProviderEntry(_ id: ProviderIdentifier) {
         preferences.providerCatalog.removeAll { $0.id == id }
         if preferences.selectedSTTProviderID == id { preferences.selectedSTTProviderID = nil }
         if preferences.selectedTTTProviderID == id {
@@ -173,7 +244,6 @@ final class AppStore {
             preferences.cleanupEnabled = false
         }
         savePreferences()
-        return true
     }
 
     func loadModels(for profile: RemoteProviderProfile) {
@@ -223,6 +293,8 @@ final class AppStore {
             keychain: dependencies.keychain,
             initialPreferences: initialPreferences
         )
+        codexCredentialsStore = dependencies.codexCredentials
+        codexAuthenticator = dependencies.codexAuthenticator
         permissionsModel = PermissionsStore(provider: dependencies.permissions)
         promptLibrary = PromptLibraryStore(preferencesModel: preferencesModel)
         launchAtLoginService = dependencies.launchAtLogin
@@ -231,6 +303,15 @@ final class AppStore {
         modelCatalog = dependencies.modelCatalog
         providerAlerts = dependencies.providerAlerts
         now = dependencies.now
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                self.codexConnectionState = try await self.codexCredentialsStore.readCodexCredentials() == nil ? .disconnected : .connected
+            } catch {
+                self.codexConnectionState = .failed
+                self.logStore.log("Error: \(safeLogMessage(for: error))")
+            }
+        }
         coordinator.onEvent = { [weak self] event in
             guard let self else { return }
             switch event {
@@ -529,6 +610,8 @@ final class AppStore {
                 language: preferences.sttLanguage.apiCode,
                 target: .apple(localeIdentifier: preferences.sttLanguage == .automatic ? nil : preferences.sttLanguage.apiCode, dictionaryTerms: preferences.dictationDictionary)
             )
+        case .codex:
+            return nil
         case .remote(let profile):
             guard let configuration = profile.configuration(for: .stt), configuration.validationIssues(apiKey: "").filter({ $0 != .missingAPIKey }).isEmpty else { return nil }
             return TranscriptionRequest(configuration: configuration, apiKey: preferencesModel.apiKey(for: .remote(profile.id)), prompt: preferences.dictationDictionaryPrompt, language: preferences.sttLanguage.apiCode)
@@ -541,6 +624,16 @@ final class AppStore {
         switch entry {
         case .apple:
             return CleanupRequest(configuration: .openAIResponses, apiKey: "", format: .responses, prompt: prompt.instructions, failurePolicy: preferences.cleanupFailurePolicy, target: .apple(localeIdentifier: preferences.sttLanguage == .automatic ? nil : preferences.sttLanguage.apiCode))
+        case .codex(let profile):
+            return CleanupRequest(
+                configuration: .codexResponses(model: profile.model),
+                apiKey: "",
+                format: .responses,
+                prompt: prompt.instructions,
+                failurePolicy: preferences.cleanupFailurePolicy,
+                target: .codex,
+                codexCredentials: codexCredentialsStore
+            )
         case .remote(let profile):
             guard let configuration = profile.configuration(for: .ttt), configuration.validationIssues(apiKey: "").filter({ $0 != .missingAPIKey }).isEmpty else { return nil }
             return CleanupRequest(configuration: configuration, apiKey: preferencesModel.apiKey(for: .remote(profile.id)), format: profile.ttt?.format ?? .responses, prompt: prompt.instructions, failurePolicy: preferences.cleanupFailurePolicy)

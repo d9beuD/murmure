@@ -1,7 +1,7 @@
 import Foundation
 
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 9
+    public static let currentSchemaVersion = 10
     public static let defaultCleanupPromptID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
 
     public var schemaVersion: Int
