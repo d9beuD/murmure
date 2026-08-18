@@ -12,15 +12,17 @@ struct MenuContent: View {
         let locale = model.interfaceLocale
 
         Menu(EntrevoixLocalization.text("menu.language", defaultValue: "Language", locale: locale)) {
-            Button {
-                model.setSTTLanguage(.automatic)
-            } label: {
-                languageMenuLabel(.automatic, locale: locale, isSelected: model.preferences.sttLanguage == .automatic)
+            if model.preferences.selectedSTTProviderID != .apple {
+                Button {
+                    model.setSTTLanguage(.automatic)
+                } label: {
+                    languageMenuLabel(.automatic, locale: locale, isSelected: model.preferences.sttLanguage == .automatic)
+                }
             }
 
             if !model.preferences.sttFavoriteLanguages.isEmpty {
                 Divider()
-                ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale).filter { model.preferences.sttFavoriteLanguages.contains($0) }) { language in
+                ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale, includingAutomatic: false).filter { model.preferences.sttFavoriteLanguages.contains($0) }) { language in
                     Button {
                         model.setSTTLanguage(language)
                     } label: {

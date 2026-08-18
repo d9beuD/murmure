@@ -183,8 +183,16 @@ extension ConnectionTestState {
 private extension ProviderValidationIssue {
     func localizedTitle(locale: Locale) -> String {
         switch self {
+        case .missingName:
+            "A provider name is required."
+        case .duplicateName:
+            "Provider names must be unique."
         case .invalidEndpoint:
             localized("validation.invalid_url", "Invalid URL: use http:// or https://", locale: locale)
+        case .missingCapability:
+            "Select at least one capability."
+        case .missingRoute:
+            "A route is required for each capability."
         case .missingModel:
             localized("validation.model_required", "A model is required.", locale: locale)
         case .missingHeaderName:

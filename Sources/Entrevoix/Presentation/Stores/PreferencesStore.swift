@@ -20,12 +20,18 @@ final class PreferencesStore {
         didSet { schedulePreferencesSave(policy: .debounced) }
     }
 
+    /// The complete secret set is held only in memory and is always written as a
+    /// complete map. This avoids deleting keys belonging to unselected profiles.
+    private(set) var providerSecrets: [UUID: String]
+
     var sttAPIKey: String {
-        didSet { scheduleSecretsSave(policy: .debounced) }
+        get { apiKey(for: preferences.selectedSTTProviderID) }
+        set { setAPIKey(newValue, for: preferences.selectedSTTProviderID) }
     }
 
     var cleanupAPIKey: String {
-        didSet { scheduleSecretsSave(policy: .debounced) }
+        get { apiKey(for: preferences.selectedTTTProviderID) }
+        set { setAPIKey(newValue, for: preferences.selectedTTTProviderID) }
     }
 
     private(set) var persistenceError: PreferencesPersistenceError?
@@ -44,12 +50,12 @@ final class PreferencesStore {
         self.keychain = keychain
         preferences = initialPreferences
 
-        let secrets = (try? keychain.read(profileIDs: [
-            initialPreferences.stt.id,
-            initialPreferences.cleanupProvider.id
-        ])) ?? [:]
-        sttAPIKey = secrets[initialPreferences.stt.id] ?? ""
-        cleanupAPIKey = secrets[initialPreferences.cleanupProvider.id] ?? ""
+        let ids = initialPreferences.providerCatalog.compactMap { $0.id.remoteID }
+        let legacyIDs = Array(initialPreferences.secretMigrationCopies.values)
+        providerSecrets = (try? keychain.read(profileIDs: ids + legacyIDs)) ?? [:]
+        for (newID, oldID) in initialPreferences.secretMigrationCopies where providerSecrets[newID] == nil {
+            providerSecrets[newID] = providerSecrets[oldID]
+        }
     }
 
     func update(
@@ -60,14 +66,35 @@ final class PreferencesStore {
         schedulePreferencesSave(policy: policy)
     }
 
-    func updateSTTAPIKey(_ value: String, to policy: PreferencesPersistencePolicy = .debounced) {
-        sttAPIKey = value
+    func updateSTTAPIKey(_ value: String, to policy: PreferencesPersistencePolicy = .debounced) { setAPIKey(value, for: preferences.selectedSTTProviderID, to: policy) }
+
+    func updateCleanupAPIKey(_ value: String, to policy: PreferencesPersistencePolicy = .debounced) { setAPIKey(value, for: preferences.selectedTTTProviderID, to: policy) }
+
+    func apiKey(for identifier: ProviderIdentifier?) -> String {
+        guard let id = identifier?.remoteID else { return "" }
+        return providerSecrets[id] ?? ""
+    }
+
+    func setAPIKey(_ value: String, for identifier: ProviderIdentifier?, to policy: PreferencesPersistencePolicy = .debounced) {
+        guard let id = identifier?.remoteID else { return }
+        providerSecrets[id] = value
         scheduleSecretsSave(policy: policy)
     }
 
-    func updateCleanupAPIKey(_ value: String, to policy: PreferencesPersistencePolicy = .debounced) {
-        cleanupAPIKey = value
-        scheduleSecretsSave(policy: policy)
+    /// Deletes the Keychain value before mutating the catalogue. The caller can
+    /// safely leave its preferences untouched if the system rejects the write.
+    func removeProviderSecret(_ id: UUID) -> Bool {
+        var next = providerSecrets
+        next.removeValue(forKey: id)
+        do {
+            try keychain.save(next)
+            providerSecrets = next
+            persistenceError = nil
+            return true
+        } catch {
+            persistenceError = .keychainSaveFailed
+            return false
+        }
     }
 
     func flushPendingWrites() {
@@ -137,10 +164,7 @@ final class PreferencesStore {
 
     private func persistSecrets() {
         do {
-            try keychain.save([
-                preferences.stt.id: sttAPIKey,
-                preferences.cleanupProvider.id: cleanupAPIKey
-            ])
+            try keychain.save(providerSecrets)
             persistenceError = nil
         } catch {
             persistenceError = .keychainSaveFailed

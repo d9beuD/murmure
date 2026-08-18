@@ -81,39 +81,32 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(EntrevoixLocalization.text("onboarding.transcription.title", defaultValue: "Transcription connection", locale: model.interfaceLocale))
                 .font(.title2.bold())
-            Text(EntrevoixLocalization.text("onboarding.transcription.description", defaultValue: "Enter the OpenAI-compatible endpoint and STT model to use.", locale: model.interfaceLocale))
+            Text("Choose a ready transcription provider. You can add and edit remote providers later in Settings.")
                 .foregroundStyle(.secondary)
-            TextField(EntrevoixLocalization.text("field.endpoint", defaultValue: "Endpoint", locale: model.interfaceLocale), text: $model.preferences.stt.baseURL)
-            TextField(EntrevoixLocalization.text("field.path", defaultValue: "Path", locale: model.interfaceLocale), text: $model.preferences.stt.path)
-            TextField(EntrevoixLocalization.text("field.model", defaultValue: "Model", locale: model.interfaceLocale), text: $model.preferences.stt.model)
+            Picker("STT provider", selection: Binding(get: { model.preferences.selectedSTTProviderID }, set: { model.setSTTProvider($0) })) {
+                Text("Choose a provider").tag(Optional<ProviderIdentifier>.none)
+                ForEach(model.providersSortedForDisplay.filter { $0.id == .apple || $0.remoteProfile?.stt != nil }) { entry in
+                    Text(model.providerName(entry)).tag(Optional(entry.id))
+                }
+            }
+            HStack {
+                Button("Add Apple (local)") { model.addAppleProvider(); model.setSTTProvider(.apple) }
+                    .disabled(model.preferences.providerCatalog.contains { $0.id == .apple })
+                Button("Add OpenAI") { let draft = model.newRemoteProvider(kind: .openAI); _ = model.saveRemoteProvider(draft, apiKey: "") }
+            }
+            if model.preferences.selectedSTTProviderID == .apple {
+                Label("Apple Speech requires a supported, downloaded speech asset. Choose a language below.", systemImage: "apple.logo")
+                    .foregroundStyle(.secondary)
+            }
             Picker(EntrevoixLocalization.text("field.stt_language", defaultValue: "Transcription language", locale: model.interfaceLocale), selection: Binding(
                 get: { model.preferences.sttLanguage },
                 set: { model.setSTTLanguage($0) }
             )) {
-                ForEach(TranscriptionLanguage.allCases) { language in
+                ForEach(TranscriptionLanguage.sortedForDisplay(locale: model.interfaceLocale, includingAutomatic: model.preferences.selectedSTTProviderID != .apple)) { language in
                     Text(language.title(locale: model.interfaceLocale)).tag(language)
                 }
             }
             .pickerStyle(.menu)
-            Picker(EntrevoixLocalization.text("field.authentication", defaultValue: "Authentication", locale: model.interfaceLocale), selection: $model.preferences.stt.authentication) {
-                ForEach(AuthenticationMode.allCases) { Text($0.title(locale: model.interfaceLocale)).tag($0) }
-            }
-            if model.preferences.stt.authentication != .none {
-                SecureField(EntrevoixLocalization.text("field.api_key", defaultValue: "API key", locale: model.interfaceLocale), text: $model.sttAPIKey)
-            }
-            if model.preferences.stt.authentication == .apiKey {
-                TextField(EntrevoixLocalization.text("field.header_name", defaultValue: "Header name", locale: model.interfaceLocale), text: $model.preferences.stt.customHeaderName)
-            }
-            if let endpoint = model.preferences.stt.endpointURL {
-                Label(endpoint.absoluteString, systemImage: "link")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            } else {
-                Label(EntrevoixLocalization.text("validation.endpoint_scheme", defaultValue: "The endpoint must start with http:// or https://.", locale: model.interfaceLocale), systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
         }
     }
 
@@ -175,8 +168,10 @@ struct OnboardingView: View {
     }
 
     private var isSTTConfigurationValid: Bool {
-        guard model.preferences.stt.endpointURL != nil else { return false }
-        guard !model.preferences.stt.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        return model.preferences.stt.authentication == .none || !model.sttAPIKey.isEmpty
+        guard let entry = model.preferences.provider(for: model.preferences.selectedSTTProviderID) else { return false }
+        switch entry {
+        case .apple: return model.preferences.sttLanguage != .automatic
+        case .remote(let profile): return profile.stt != nil && profile.validationIssues(apiKey: model.apiKey(for: .remote(profile.id))).isEmpty
+        }
     }
 }

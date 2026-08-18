@@ -37,6 +37,8 @@ struct SettingsView: View {
                 switch selection ?? .general {
                 case .general:
                     GeneralSettingsView(model: model)
+                case .providers:
+                    ProvidersSettingsView(model: model)
                 case .stt:
                     STTSettingsView(model: model)
                 case .dictationDictionary:
@@ -59,6 +61,7 @@ struct SettingsView: View {
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general
+    case providers
     case stt
     case dictationDictionary
     case cleanup
@@ -69,6 +72,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var systemImageName: String {
         switch self {
         case .general: "gearshape"
+        case .providers: "network"
         case .stt: "waveform"
         case .dictationDictionary: "character.book.closed"
         case .cleanup: "wand.and.stars"
@@ -79,6 +83,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     func title(locale: Locale) -> String {
         switch self {
         case .general: EntrevoixLocalization.text("settings.general", defaultValue: "General", locale: locale)
+        case .providers: EntrevoixLocalization.text("settings.providers", defaultValue: "Providers", locale: locale)
         case .stt: EntrevoixLocalization.text("settings.stt", defaultValue: "STT Transcription", locale: locale)
         case .dictationDictionary: EntrevoixLocalization.text("settings.dictation_dictionary", defaultValue: "Dictation Dictionary", locale: locale)
         case .cleanup: EntrevoixLocalization.text("settings.ttt", defaultValue: "TTT Cleanup", locale: locale)

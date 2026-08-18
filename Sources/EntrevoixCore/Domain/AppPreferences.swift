@@ -1,21 +1,21 @@
 import Foundation
 
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 8
+    public static let currentSchemaVersion = 9
     public static let defaultCleanupPromptID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
+
     public var schemaVersion: Int
     public var interfaceLanguage: InterfaceLanguage
-    public var stt: ProviderConfiguration
+    public var providerCatalog: [ProviderCatalogEntry]
+    public var selectedSTTProviderID: ProviderIdentifier?
+    public var selectedTTTProviderID: ProviderIdentifier?
     public var sttLanguage: TranscriptionLanguage
     public var sttFavoriteLanguages: [TranscriptionLanguage]
     public var dictationDictionary: [String]
     public var triggerMode: TriggerMode
     public var cleanupEnabled: Bool
-    public var cleanupProvider: ProviderConfiguration
-    public var cleanupFormat: CleanupAPIFormat
     public var cleanupPrompts: [CleanupPrompt]
     public var activeCleanupPromptID: UUID?
-    // Kept for decoding preferences written before the prompt library existed.
     public var cleanupPrompt: String
     public var cleanupPromptMode: CleanupPromptMode
     public var cleanupFailurePolicy: CleanupFailurePolicy
@@ -23,41 +23,43 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var launchAtLogin: Bool
     public var playFeedbackSounds: Bool
     public var hasCompletedOnboarding: Bool
+    /// One-shot, in-memory key migration instructions for a malformed schema-8
+    /// payload where STT and TTT reused an identifier. This is never encoded.
+    public var secretMigrationCopies: [UUID: UUID]
 
     public init(
         schemaVersion: Int = AppPreferences.currentSchemaVersion,
         interfaceLanguage: InterfaceLanguage = .automatic,
-        stt: ProviderConfiguration = .openAITranscription,
+        providerCatalog: [ProviderCatalogEntry] = [],
+        selectedSTTProviderID: ProviderIdentifier? = nil,
+        selectedTTTProviderID: ProviderIdentifier? = nil,
         sttLanguage: TranscriptionLanguage = .automatic,
         sttFavoriteLanguages: [TranscriptionLanguage] = [.french, .english],
-        dictationDictionary: [String] = [], triggerMode: TriggerMode = .pushToTalk,
-        cleanupEnabled: Bool = true, cleanupProvider: ProviderConfiguration = .openAIResponses,
-        cleanupFormat: CleanupAPIFormat = .responses, cleanupPrompt: String = AppPreferences.defaultCleanupPrompt,
+        dictationDictionary: [String] = [],
+        triggerMode: TriggerMode = .pushToTalk,
+        cleanupEnabled: Bool = false,
+        cleanupPrompt: String = AppPreferences.defaultCleanupPrompt,
         cleanupPromptMode: CleanupPromptMode = .localizedDefault,
-        cleanupPrompts: [CleanupPrompt] = [CleanupPrompt(
-            id: AppPreferences.defaultCleanupPromptID,
-            name: "Standard",
-            systemImageName: "wand.and.stars",
-            instructions: AppPreferences.defaultCleanupPrompt
-        )],
+        cleanupPrompts: [CleanupPrompt] = [CleanupPrompt(id: AppPreferences.defaultCleanupPromptID, name: "Standard", systemImageName: "wand.and.stars", instructions: AppPreferences.defaultCleanupPrompt)],
         activeCleanupPromptID: UUID? = nil,
-        cleanupFailurePolicy: CleanupFailurePolicy = .useRawTranscript, outputMode: OutputMode = .clipboard,
-        launchAtLogin: Bool = false, playFeedbackSounds: Bool = true, hasCompletedOnboarding: Bool = false
+        cleanupFailurePolicy: CleanupFailurePolicy = .useRawTranscript,
+        outputMode: OutputMode = .clipboard,
+        launchAtLogin: Bool = false,
+        playFeedbackSounds: Bool = true,
+        hasCompletedOnboarding: Bool = false
     ) {
         self.schemaVersion = schemaVersion
         self.interfaceLanguage = interfaceLanguage
-        self.stt = stt
+        self.providerCatalog = providerCatalog
+        self.selectedSTTProviderID = selectedSTTProviderID
+        self.selectedTTTProviderID = selectedTTTProviderID
         self.sttLanguage = sttLanguage
-        var normalizedFavorites = Self.normalizedFavoriteLanguages(sttFavoriteLanguages)
-        if sttLanguage != .automatic && !normalizedFavorites.contains(sttLanguage) {
-            normalizedFavorites.append(sttLanguage)
-        }
-        self.sttFavoriteLanguages = normalizedFavorites
+        var favorites = Self.normalizedFavoriteLanguages(sttFavoriteLanguages)
+        if sttLanguage != .automatic && !favorites.contains(sttLanguage) { favorites.append(sttLanguage) }
+        self.sttFavoriteLanguages = favorites
         self.dictationDictionary = Self.normalizedDictationDictionary(dictationDictionary)
         self.triggerMode = triggerMode
-        self.cleanupEnabled = cleanupEnabled
-        self.cleanupProvider = cleanupProvider
-        self.cleanupFormat = cleanupFormat
+        self.cleanupEnabled = cleanupEnabled && selectedTTTProviderID != nil
         self.cleanupPrompts = cleanupPrompts
         self.activeCleanupPromptID = activeCleanupPromptID ?? cleanupPrompts.first?.id
         self.cleanupPrompt = cleanupPrompt
@@ -67,6 +69,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.launchAtLogin = launchAtLogin
         self.playFeedbackSounds = playFeedbackSounds
         self.hasCompletedOnboarding = hasCompletedOnboarding
+        self.secretMigrationCopies = [:]
+        normalizeProviderReferences()
     }
 
     public static let defaultCleanupPrompt = "Clean up the transcript without changing its meaning. Correct punctuation, mistakes, and hesitations. Return only the final text."
@@ -74,6 +78,69 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var dictationDictionaryPrompt: String? {
         guard !dictationDictionary.isEmpty else { return nil }
         return dictationDictionary.joined(separator: ", ")
+    }
+
+    public func provider(for identifier: ProviderIdentifier?) -> ProviderCatalogEntry? {
+        guard let identifier else { return nil }
+        return providerCatalog.first { $0.id == identifier }
+    }
+
+    public func remoteProfile(for identifier: ProviderIdentifier?) -> RemoteProviderProfile? {
+        provider(for: identifier)?.remoteProfile
+    }
+
+    /// Transitional projection used by the existing STT client. New UI and request
+    /// assembly should resolve a catalogue entry explicitly.
+    public var stt: ProviderConfiguration {
+        get { remoteProfile(for: selectedSTTProviderID)?.configuration(for: .stt) ?? .openAITranscription }
+        set { replaceRemoteCapability(identifier: selectedSTTProviderID, configuration: newValue, capability: .stt) }
+    }
+
+    /// Transitional projection used by the existing cleanup client.
+    public var cleanupProvider: ProviderConfiguration {
+        get { remoteProfile(for: selectedTTTProviderID)?.configuration(for: .ttt) ?? .openAIResponses }
+        set { replaceRemoteCapability(identifier: selectedTTTProviderID, configuration: newValue, capability: .ttt) }
+    }
+
+    public var cleanupFormat: CleanupAPIFormat {
+        get { remoteProfile(for: selectedTTTProviderID)?.ttt?.format ?? .responses }
+        set {
+            guard case .remote(let id) = selectedTTTProviderID,
+                  let index = providerCatalog.firstIndex(where: { $0.id == .remote(id) }),
+                  case .remote(var profile) = providerCatalog[index], var capability = profile.ttt else { return }
+            capability.format = newValue
+            profile.ttt = capability
+            profile.normalizeFixedOpenAIFields()
+            providerCatalog[index] = .remote(profile)
+        }
+    }
+
+    public mutating func normalizeProviderReferences() {
+        providerCatalog = providerCatalog.reduce(into: []) { result, entry in
+            if entry.id == .apple {
+                if !result.contains(where: { $0.id == .apple }) { result.append(entry) }
+            } else if !result.contains(where: { $0.id == entry.id }) { result.append(entry) }
+        }
+        if provider(for: selectedSTTProviderID) == nil { selectedSTTProviderID = nil }
+        if provider(for: selectedTTTProviderID) == nil { selectedTTTProviderID = nil }
+        if selectedTTTProviderID == nil { cleanupEnabled = false }
+    }
+
+    private mutating func replaceRemoteCapability(identifier: ProviderIdentifier?, configuration: ProviderConfiguration, capability: ProviderCapability) {
+        guard case .remote(let id) = identifier,
+              let index = providerCatalog.firstIndex(where: { $0.id == .remote(id) }),
+              case .remote(var profile) = providerCatalog[index] else { return }
+        profile.name = configuration.name
+        profile.baseURL = configuration.baseURL
+        profile.authentication = configuration.authentication
+        profile.customHeaderName = configuration.customHeaderName
+        profile.timeout = configuration.timeout
+        switch capability {
+        case .stt: profile.stt = STTCapability(path: configuration.path, model: configuration.model)
+        case .ttt: profile.ttt = TTTCapability(path: configuration.path, model: configuration.model, format: profile.ttt?.format ?? .responses)
+        }
+        profile.normalizeFixedOpenAIFields()
+        providerCatalog[index] = .remote(profile)
     }
 
     public static func normalizedDictationDictionary(_ terms: [String]) -> [String] {
@@ -86,67 +153,83 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, interfaceLanguage, stt, sttLanguage, sttFavoriteLanguages, dictationDictionary, triggerMode, cleanupEnabled, cleanupProvider, cleanupFormat, cleanupPrompts, activeCleanupPromptID, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy, outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
+        case schemaVersion, interfaceLanguage, providerCatalog, selectedSTTProviderID, selectedTTTProviderID
+        case sttLanguage, sttFavoriteLanguages, dictationDictionary, triggerMode, cleanupEnabled
+        case cleanupPrompts, activeCleanupPromptID, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy
+        case outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
+        // Schema 8 keys, intentionally decode-only.
+        case stt, cleanupProvider, cleanupFormat
     }
 
     public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let decodedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
-        schemaVersion = decodedSchemaVersion
-        interfaceLanguage = try container.decodeIfPresent(InterfaceLanguage.self, forKey: .interfaceLanguage) ?? .automatic
-        stt = try container.decodeIfPresent(ProviderConfiguration.self, forKey: .stt) ?? .openAITranscription
-        if let rawLanguage = try? container.decode(String.self, forKey: .sttLanguage) {
-            sttLanguage = TranscriptionLanguage(legacyCode: rawLanguage)
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let sourceVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 8
+        schemaVersion = sourceVersion
+        interfaceLanguage = try c.decodeIfPresent(InterfaceLanguage.self, forKey: .interfaceLanguage) ?? .automatic
+        if let catalogue = try c.decodeIfPresent([ProviderCatalogEntry].self, forKey: .providerCatalog) {
+            providerCatalog = catalogue
+            selectedSTTProviderID = try c.decodeIfPresent(ProviderIdentifier.self, forKey: .selectedSTTProviderID)
+            selectedTTTProviderID = try c.decodeIfPresent(ProviderIdentifier.self, forKey: .selectedTTTProviderID)
+            secretMigrationCopies = [:]
         } else {
-            sttLanguage = .automatic
+            let legacySTT = try c.decodeIfPresent(ProviderConfiguration.self, forKey: .stt) ?? .openAITranscription
+            let legacyTTT = try c.decodeIfPresent(ProviderConfiguration.self, forKey: .cleanupProvider) ?? .openAIResponses
+            let legacyFormat = try c.decodeIfPresent(CleanupAPIFormat.self, forKey: .cleanupFormat) ?? .responses
+            var sttProfile = RemoteProviderProfile(id: legacySTT.id, kind: .openAICompatible, name: legacySTT.name, baseURL: legacySTT.baseURL, authentication: legacySTT.authentication, customHeaderName: legacySTT.customHeaderName, timeout: legacySTT.timeout, stt: STTCapability(path: legacySTT.path, model: legacySTT.model))
+            // A corrupted old payload can use the same UUID for both secrets. A fresh ID
+            // prevents one catalogue entry from silently replacing the other.
+            let cleanupID = legacyTTT.id == legacySTT.id ? UUID() : legacyTTT.id
+            let cleanupProfile = RemoteProviderProfile(id: cleanupID, kind: .openAICompatible, name: legacyTTT.name, baseURL: legacyTTT.baseURL, authentication: legacyTTT.authentication, customHeaderName: legacyTTT.customHeaderName, timeout: legacyTTT.timeout, ttt: TTTCapability(path: legacyTTT.path, model: legacyTTT.model, format: legacyFormat))
+            sttProfile.normalizeFixedOpenAIFields()
+            providerCatalog = [.remote(sttProfile), .remote(cleanupProfile)]
+            selectedSTTProviderID = .remote(sttProfile.id)
+            selectedTTTProviderID = .remote(cleanupProfile.id)
+            secretMigrationCopies = cleanupID == legacyTTT.id ? [:] : [cleanupID: legacyTTT.id]
         }
-        if let rawFavorites = try? container.decode([String].self, forKey: .sttFavoriteLanguages) {
-            sttFavoriteLanguages = Self.normalizedFavoriteLanguages(rawFavorites.map(TranscriptionLanguage.init(legacyCode:)))
+        if let raw = try? c.decode(String.self, forKey: .sttLanguage) { sttLanguage = TranscriptionLanguage(legacyCode: raw) } else { sttLanguage = .automatic }
+        if let raw = try? c.decode([String].self, forKey: .sttFavoriteLanguages) { sttFavoriteLanguages = Self.normalizedFavoriteLanguages(raw.map(TranscriptionLanguage.init(legacyCode:))) } else { sttFavoriteLanguages = [.french, .english] }
+        if sttLanguage != .automatic && !sttFavoriteLanguages.contains(sttLanguage) { sttFavoriteLanguages.append(sttLanguage) }
+        dictationDictionary = Self.normalizedDictationDictionary(try c.decodeIfPresent([String].self, forKey: .dictationDictionary) ?? [])
+        triggerMode = try c.decodeIfPresent(TriggerMode.self, forKey: .triggerMode) ?? .pushToTalk
+        cleanupEnabled = try c.decodeIfPresent(Bool.self, forKey: .cleanupEnabled) ?? true
+        cleanupPrompt = try c.decodeIfPresent(String.self, forKey: .cleanupPrompt) ?? Self.defaultCleanupPrompt
+        if let mode = try c.decodeIfPresent(CleanupPromptMode.self, forKey: .cleanupPromptMode) { cleanupPromptMode = mode } else { cleanupPromptMode = cleanupPrompt == Self.defaultCleanupPrompt ? .legacyDefaultPendingChoice : .custom }
+        if let prompts = try c.decodeIfPresent([CleanupPrompt].self, forKey: .cleanupPrompts) {
+            cleanupPrompts = prompts
+            activeCleanupPromptID = try c.decodeIfPresent(UUID.self, forKey: .activeCleanupPromptID)
         } else {
-            sttFavoriteLanguages = [.french, .english]
+            let prompt = CleanupPrompt(name: cleanupPromptMode == .custom ? "Existing Prompt" : "Standard", systemImageName: cleanupPromptMode == .custom ? "text.badge.checkmark" : "wand.and.stars", instructions: cleanupPrompt)
+            cleanupPrompts = [prompt]
+            activeCleanupPromptID = prompt.id
         }
-        if sttLanguage != .automatic && !sttFavoriteLanguages.contains(sttLanguage) {
-            sttFavoriteLanguages.append(sttLanguage)
-        }
-        dictationDictionary = Self.normalizedDictationDictionary(
-            try container.decodeIfPresent([String].self, forKey: .dictationDictionary) ?? []
-        )
-        triggerMode = try container.decodeIfPresent(TriggerMode.self, forKey: .triggerMode) ?? .pushToTalk
-        cleanupEnabled = try container.decodeIfPresent(Bool.self, forKey: .cleanupEnabled) ?? true
-        cleanupProvider = try container.decodeIfPresent(ProviderConfiguration.self, forKey: .cleanupProvider) ?? .openAIResponses
-        cleanupFormat = try container.decodeIfPresent(CleanupAPIFormat.self, forKey: .cleanupFormat) ?? .responses
-        cleanupPrompt = try container.decodeIfPresent(String.self, forKey: .cleanupPrompt) ?? Self.defaultCleanupPrompt
-        if let decodedMode = try container.decodeIfPresent(CleanupPromptMode.self, forKey: .cleanupPromptMode) {
-            cleanupPromptMode = decodedMode
-        } else if cleanupPrompt == Self.defaultCleanupPrompt {
-            cleanupPromptMode = .legacyDefaultPendingChoice
-        } else {
-            cleanupPromptMode = .custom
-        }
-        if let decodedPrompts = try container.decodeIfPresent([CleanupPrompt].self, forKey: .cleanupPrompts) {
-            cleanupPrompts = decodedPrompts
-            activeCleanupPromptID = try container.decodeIfPresent(UUID.self, forKey: .activeCleanupPromptID)
-        } else {
-            let legacyPrompt = CleanupPrompt(
-                name: cleanupPromptMode == .custom ? "Existing Prompt" : "Standard",
-                systemImageName: cleanupPromptMode == .custom ? "text.badge.checkmark" : "wand.and.stars",
-                instructions: cleanupPrompt
-            )
-            cleanupPrompts = [legacyPrompt]
-            activeCleanupPromptID = legacyPrompt.id
-        }
-        cleanupFailurePolicy = try container.decodeIfPresent(CleanupFailurePolicy.self, forKey: .cleanupFailurePolicy) ?? .useRawTranscript
-        outputMode = try container.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .clipboard
-        launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
-        playFeedbackSounds = try container.decodeIfPresent(Bool.self, forKey: .playFeedbackSounds) ?? true
-        hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? (decodedSchemaVersion < 4)
+        cleanupFailurePolicy = try c.decodeIfPresent(CleanupFailurePolicy.self, forKey: .cleanupFailurePolicy) ?? .useRawTranscript
+        outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .clipboard
+        launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+        playFeedbackSounds = try c.decodeIfPresent(Bool.self, forKey: .playFeedbackSounds) ?? true
+        hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? (sourceVersion < 4)
+        normalizeProviderReferences()
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schemaVersion, forKey: .schemaVersion)
+        try c.encode(interfaceLanguage, forKey: .interfaceLanguage)
+        try c.encode(providerCatalog, forKey: .providerCatalog)
+        try c.encodeIfPresent(selectedSTTProviderID, forKey: .selectedSTTProviderID)
+        try c.encodeIfPresent(selectedTTTProviderID, forKey: .selectedTTTProviderID)
+        try c.encode(sttLanguage, forKey: .sttLanguage); try c.encode(sttFavoriteLanguages, forKey: .sttFavoriteLanguages)
+        try c.encode(dictationDictionary, forKey: .dictationDictionary); try c.encode(triggerMode, forKey: .triggerMode)
+        try c.encode(cleanupEnabled, forKey: .cleanupEnabled); try c.encode(cleanupPrompts, forKey: .cleanupPrompts)
+        try c.encodeIfPresent(activeCleanupPromptID, forKey: .activeCleanupPromptID)
+        try c.encode(cleanupPrompt, forKey: .cleanupPrompt); try c.encode(cleanupPromptMode, forKey: .cleanupPromptMode)
+        try c.encode(cleanupFailurePolicy, forKey: .cleanupFailurePolicy); try c.encode(outputMode, forKey: .outputMode)
+        try c.encode(launchAtLogin, forKey: .launchAtLogin); try c.encode(playFeedbackSounds, forKey: .playFeedbackSounds)
+        try c.encode(hasCompletedOnboarding, forKey: .hasCompletedOnboarding)
     }
 
     private static func normalizedFavoriteLanguages(_ languages: [TranscriptionLanguage]) -> [TranscriptionLanguage] {
         var result: [TranscriptionLanguage] = []
-        for language in languages where language != .automatic && !result.contains(language) {
-            result.append(language)
-        }
+        for language in languages where language != .automatic && !result.contains(language) { result.append(language) }
         return result
     }
 }

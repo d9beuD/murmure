@@ -2,7 +2,7 @@
 
 <img src="docs/entrevoix-icon-light.png" alt="Entrevoix" width="160">
 
-Entrevoix is a macOS voice dictation app designed to live in the menu bar. It uses STT and TTT endpoints compatible with the OpenAI API format.
+Entrevoix is a macOS voice dictation app designed to live in the menu bar. It supports a catalogue of local Apple and OpenAI-compatible STT/TTT providers.
 
 ## Project status
 
@@ -18,7 +18,7 @@ Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-com
 - injectable coordination;
 - audio capture and clipboard delivery inherited from the J0 spike;
 - push-to-talk and toggle global shortcuts;
-- STT and TTT settings editable from the SwiftUI Settings window;
+- a shared provider catalogue: Apple (local), OpenAI, and OpenAI-compatible profiles;
 - versioned JSON persistence in `UserDefaults` for non-sensitive settings;
 - API keys stored only in the macOS Keychain;
 - local validation of endpoints and models;
@@ -48,12 +48,14 @@ Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-com
 
 ## First-time setup
 
-On first launch, Entrevoix opens a guide for configuring an STT provider, choosing
+On first launch, Entrevoix opens a guide for choosing a transcription provider, choosing
 a global shortcut, testing the connection, and selecting an output mode. All of
 these settings remain editable from **Settings** in the menu bar.
 
-The STT test requests microphone access, records a short phrase, then sends the
-audio file to the configured provider. It never runs in the background.
+The STT test requests microphone access, records a short phrase, then processes
+it with the selected provider. Apple Speech stays entirely on-device; remote
+profiles use their configured OpenAI-compatible endpoint. It never runs in the
+background.
 
 **Insert Automatically** requires Accessibility permission. Without it—and for
 secure fields—Entrevoix always copies the result to the clipboard instead.
@@ -63,8 +65,11 @@ secure fields—Entrevoix always copies the result to the clipboard instead.
 - API keys are stored in the macOS Keychain, never in `UserDefaults` or logs.
 - Audio is created in the macOS temporary directory and deleted after every
   transcription, whether it succeeds, fails, or is canceled.
-- Entrevoix has no accounts or servers of its own: audio and, when enabled, the
-  transcript are sent only to the STT and TTT endpoints you choose.
+- Entrevoix has no accounts or servers of its own: remote audio and, when
+  enabled, text are sent only to the selected endpoints. Apple Speech and Apple
+  Foundation Models remain local and never silently fall back to a remote model.
+- Remote model discovery is explicit, held only in memory, and does not infer a
+  model's STT or TTT compatibility.
 - The Logs window keeps events only in memory and displays no secrets, audio,
   transcripts, or prompts.
 
