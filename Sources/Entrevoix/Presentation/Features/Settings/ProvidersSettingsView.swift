@@ -2,7 +2,7 @@ import EntrevoixCore
 import SwiftUI
 
 struct ProvidersSettingsView: View {
-    @Bindable var model: AppStore
+    @Environment(ProviderStore.self) private var model
     @State private var selection: ProviderIdentifier?
     @State private var draft: RemoteProviderProfile?
     @State private var draftKey = ""
@@ -106,7 +106,7 @@ struct ProvidersSettingsView: View {
 }
 
 private struct CodexProviderEditor: View {
-    @Bindable var model: AppStore
+    @Bindable var model: ProviderStore
     let profile: CodexProviderProfile
     let onDelete: () -> Void
 
@@ -162,7 +162,7 @@ private struct CodexProviderEditor: View {
 }
 
 private struct RemoteProviderEditor: View {
-    @Bindable var model: AppStore
+    @Bindable var model: ProviderStore
     @Binding var draft: RemoteProviderProfile
     @Binding var apiKey: String
     let validation: [ProviderValidationIssue]
@@ -190,7 +190,9 @@ private struct RemoteProviderEditor: View {
                         Button(modelID) { if draft.stt != nil { draft.stt?.model = modelID } else { draft.ttt?.model = modelID } }
                     }}
                 }
-                if let message = model.modelDiscoveryError { Text(message).font(.caption).foregroundStyle(.orange) }
+                if let message = model.modelDiscoveryError(for: draft.id) {
+                    Text(message).font(.caption).foregroundStyle(.orange)
+                }
             }
             Section("Capabilities") {
                 Toggle("Speech to text", isOn: Binding(get: { draft.stt != nil }, set: { $0 ? (draft.stt = STTCapability()) : (draft.stt = nil) }))

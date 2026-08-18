@@ -55,6 +55,7 @@ final class LocalizationTests: XCTestCase {
             "startup.recovered.title",
             "startup.recovered.message",
             "provider.openai_codex",
+            "provider.models_load_failed",
             "codex.connect",
             "codex.ttt_only",
             "error.codex_not_connected"
