@@ -109,10 +109,6 @@ enum CompositionRoot {
             now: Date.init,
             sessionArbiter: sessionArbiter
         ), initialPreferences: initialPreferences)
-        return AppEnvironment(
-            appStore: appStore,
-            dictationCoordinator: coordinator,
-            connectionTestCoordinator: connectionTest
-        )
+        return AppEnvironment(appStore: appStore)
     }
 }

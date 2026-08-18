@@ -32,7 +32,7 @@ final class PromptLibraryStore {
             preferences.cleanupPrompt = activePrompt.instructions
             preferences.cleanupPromptMode = .custom
         }
-        preferencesModel.flushPendingWrites()
+        preferencesModel.savePreferencesImmediately()
     }
 
     @discardableResult
@@ -54,7 +54,7 @@ final class PromptLibraryStore {
             preferences.cleanupPrompt = value.instructions
             preferences.cleanupPromptMode = .custom
         }
-        preferencesModel.flushPendingWrites()
+        preferencesModel.savePreferencesImmediately()
         return nil
     }
 
@@ -68,7 +68,7 @@ final class PromptLibraryStore {
                 preferences.cleanupPromptMode = .custom
             }
         }
-        preferencesModel.flushPendingWrites()
+        preferencesModel.savePreferencesImmediately()
     }
 
     func reset() {
@@ -81,7 +81,7 @@ final class PromptLibraryStore {
         preferences.activeCleanupPromptID = prompt.id
         preferences.cleanupPrompt = prompt.instructions
         preferences.cleanupPromptMode = .localizedDefault
-        preferencesModel.flushPendingWrites()
+        preferencesModel.savePreferencesImmediately()
     }
 
     private var preferences: AppPreferences {

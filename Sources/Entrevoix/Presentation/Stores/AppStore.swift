@@ -231,7 +231,7 @@ final class AppStore {
     }
 
     func savePreferences() {
-        preferencesModel.flushPendingWrites()
+        preferencesModel.savePreferencesImmediately()
     }
 
     var requiresOnboarding: Bool { !preferences.hasCompletedOnboarding }

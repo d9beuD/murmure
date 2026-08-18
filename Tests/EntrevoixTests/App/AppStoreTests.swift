@@ -5,7 +5,7 @@ import EntrevoixCore
 
 final class AppStoreTests: XCTestCase {
     @MainActor
-    func testLoadsAndSavesPreferencesAndSecrets() {
+    func testLoadsAndSavesPreferencesAndSecretsIndependently() {
         var preferences = AppPreferences()
         preferences.sttLanguage = .french
         preferences.triggerMode = .toggle
@@ -27,6 +27,10 @@ final class AppStoreTests: XCTestCase {
         context.model.savePreferences()
 
         XCTAssertEqual(context.preferencesStore.saved.last?.sttLanguage, .english)
+        XCTAssertTrue(context.secretStore.saves.isEmpty)
+
+        context.model.preferencesModel.flushPendingWrites()
+
         XCTAssertEqual(context.secretStore.saves.last?[preferences.stt.id], "new-stt")
         XCTAssertEqual(context.secretStore.saves.last?[preferences.cleanupProvider.id], "new-cleanup")
     }
