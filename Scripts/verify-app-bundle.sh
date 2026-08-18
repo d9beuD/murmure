@@ -60,6 +60,12 @@ fi
 
 /usr/bin/codesign --verify --deep --strict "$application_path"
 
+entitlements_output=$(/usr/bin/codesign -d --entitlements :- "$application_path" 2>/dev/null || true)
+if ! print -r -- "$entitlements_output" | /usr/bin/grep -Fq '<key>com.apple.security.device.audio-input</key>'; then
+    print -u2 "Entrevoix is missing the microphone audio-input entitlement."
+    exit 1
+fi
+
 if [[ -d "$raw_resource_bundle" && "$raw_resource_bundle" != "$contents_path/Resources/Entrevoix_Entrevoix.bundle" ]]; then
     /bin/mv "$raw_resource_bundle" "$disabled_resource_bundle"
 fi
