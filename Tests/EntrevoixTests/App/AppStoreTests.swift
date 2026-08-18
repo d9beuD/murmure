@@ -823,8 +823,7 @@ final class AppStoreTests: XCTestCase {
             listeningIndicator: listeningIndicator,
             permissions: permissions,
             logStore: logs,
-            now: { clock.value },
-            sessionArbiter: nil
+            now: { clock.value }
         ), initialPreferences: preferences)
         return AppContext(
             model: model,

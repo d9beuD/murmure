@@ -11,7 +11,6 @@ final class AppStore {
     let providerStore: ProviderStore
     let permissionsModel: PermissionsStore
     let promptLibrary: PromptLibraryStore
-    var coordinator: DictationCoordinator { dictationSession.coordinator }
     private let launchAtLoginService: any LaunchAtLoginControlling
     let logStore: AppLogStore
 

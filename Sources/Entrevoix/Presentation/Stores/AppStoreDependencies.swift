@@ -19,7 +19,6 @@ struct AppStoreDependencies {
     let permissions: any PermissionProviding
     let logStore: AppLogStore
     let now: () -> Date
-    let sessionArbiter: (any SessionArbitrating)?
 
     init(
         coordinator: DictationCoordinator,
@@ -37,14 +36,13 @@ struct AppStoreDependencies {
         listeningIndicator: any ListeningIndicatorPresenting,
         permissions: any PermissionProviding,
         logStore: AppLogStore,
-        now: @escaping () -> Date,
-        sessionArbiter: (any SessionArbitrating)?
+        now: @escaping () -> Date
     ) {
         self.coordinator = coordinator; self.connectionTest = connectionTest; self.textDelivery = textDelivery
         self.preferencesStore = preferencesStore; self.keychain = keychain; self.codexCredentials = codexCredentials; self.codexAuthenticator = codexAuthenticator; self.modelCatalog = modelCatalog; self.providerAlerts = providerAlerts
         self.hotkeys = hotkeys; self.launchAtLogin = launchAtLogin; self.feedback = feedback
         self.listeningIndicator = listeningIndicator; self.permissions = permissions; self.logStore = logStore
-        self.now = now; self.sessionArbiter = sessionArbiter
+        self.now = now
     }
 }
 

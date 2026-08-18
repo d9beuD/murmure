@@ -106,8 +106,7 @@ enum CompositionRoot {
             ),
             permissions: permissions,
             logStore: logStore,
-            now: Date.init,
-            sessionArbiter: sessionArbiter
+            now: Date.init
         ), initialPreferences: initialPreferences)
         return AppEnvironment(appStore: appStore)
     }
