@@ -18,6 +18,9 @@ public enum UserFacingErrorMessage: Equatable, Sendable, ExpressibleByStringLite
     case tttInvalidResponse
     case tttEmptyResult
     case tttHTTP(statusCode: Int, providerMessage: String?)
+    case codexNotConnected
+    case codexInvalidRequest
+    case codexConnectionFailed
     case verbatim(String)
 
     public init(stringLiteral value: String) {

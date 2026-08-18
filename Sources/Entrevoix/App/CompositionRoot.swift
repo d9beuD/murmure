@@ -57,8 +57,10 @@ enum CompositionRoot {
         )
         let cleaner = ProviderCleanupRouter(
             remote: OpenAITextCleanupService(transport: transport),
+            codex: CodexCleanupService(transport: transport),
             apple: AppleFoundationCleanupService()
         )
+        let codexCredentials = CodexCredentialVault()
         let textDelivery = TextDelivery()
         let sessionArbiter = SessionArbiter()
 
@@ -88,6 +90,8 @@ enum CompositionRoot {
             textDelivery: textDelivery,
             preferencesStore: preferencesStore,
             keychain: KeychainStore(legacyService: LegacyMurmureMigration.legacyKeychainService),
+            codexCredentials: codexCredentials,
+            codexAuthenticator: CodexBrowserAuthenticator(),
             modelCatalog: RemoteModelCatalogClient(transport: transport),
             providerAlerts: QueuedProviderAlertPresenter(),
             hotkeys: HotkeyService(),

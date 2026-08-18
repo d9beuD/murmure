@@ -100,6 +100,12 @@ extension UserFacingErrorMessage {
             localized("error.ttt_empty_result", "TTT cleanup returned empty text.", locale: locale)
         case .tttHTTP(let statusCode, let providerMessage):
             localizedHTTP(prefixKey: "error.ttt_http", fallback: "TTT error (HTTP %lld).", statusCode: statusCode, providerMessage: providerMessage, locale: locale)
+        case .codexNotConnected:
+            localized("error.codex_not_connected", "Connect ChatGPT before using OpenAI (Codex).", locale: locale)
+        case .codexInvalidRequest:
+            localized("error.codex_invalid_request", "The OpenAI (Codex) request is invalid.", locale: locale)
+        case .codexConnectionFailed:
+            localized("error.codex_connection_failed", "Could not connect to ChatGPT.", locale: locale)
         case .verbatim(let message):
             message
         }

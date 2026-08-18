@@ -53,4 +53,13 @@ public struct ProviderConfiguration: Codable, Equatable, Sendable, Identifiable 
 public extension ProviderConfiguration {
     static let openAITranscription = ProviderConfiguration(name: "OpenAI STT", baseURL: "https://api.openai.com/v1", path: "audio/transcriptions", model: "gpt-transcribe")
     static let openAIResponses = ProviderConfiguration(name: "OpenAI TTT", baseURL: "https://api.openai.com/v1", path: "responses", model: "gpt-5-mini")
+    static func codexResponses(model: CodexModel) -> ProviderConfiguration {
+        ProviderConfiguration(
+            name: "OpenAI (Codex)",
+            baseURL: "https://chatgpt.com/backend-api/codex",
+            path: "responses",
+            model: model.rawValue,
+            authentication: .none
+        )
+    }
 }

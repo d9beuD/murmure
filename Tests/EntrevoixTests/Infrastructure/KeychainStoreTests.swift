@@ -1,8 +1,31 @@
 import Foundation
 import XCTest
+import EntrevoixCore
 @testable import Entrevoix
 
 final class KeychainStoreTests: XCTestCase {
+
+    func testCodexCredentialVaultUsesDedicatedKeychainItemAndDeletesIt() async throws {
+        let access = MemoryKeychainAccess()
+        let vault = CodexCredentialVault(access: access)
+        let credentials = CodexCredentials(
+            accessToken: "access-secret",
+            refreshToken: "refresh-secret",
+            expiresAt: .distantFuture,
+            accountID: "account",
+            computeResidency: "eu"
+        )
+
+        try await vault.saveCodexCredentials(credentials)
+        let restored = try await vault.readCodexCredentials()
+        XCTAssertEqual(restored, credentials)
+        XCTAssertTrue(access.upserts.contains { $0.1 == "codex-oauth" })
+
+        try await vault.saveCodexCredentials(nil)
+        let removed = try await vault.readCodexCredentials()
+        XCTAssertNil(removed)
+        XCTAssertTrue(access.deletes.contains { $0.1 == "codex-oauth" })
+    }
     private let service = "EntrevoixTests"
 
     func testSaveReadFilterUpdateAndDelete() throws {

@@ -22,6 +22,8 @@ struct ProvidersSettingsView: View {
                     Menu {
                         Button("Apple (local)") { model.addAppleProvider(); selection = .apple }
                             .disabled(model.preferences.providerCatalog.contains { $0.id == .apple })
+                        Button(model.providerName(.codex(CodexProviderProfile()))) { model.addCodexProvider(); selection = .codex }
+                            .disabled(model.preferences.providerCatalog.contains { $0.id == .codex })
                         Button("OpenAI") { begin(model.newRemoteProvider(kind: .openAI)) }
                         Button("OpenAI-compatible") { begin(model.newRemoteProvider(kind: .openAICompatible)) }
                     } label: { Label("Add provider", systemImage: "plus") }
@@ -31,11 +33,17 @@ struct ProvidersSettingsView: View {
             detail
         }
         .onChange(of: selection) { _, id in
+            if id == .codex { draft = nil; return }
             guard let profile = model.preferences.remoteProfile(for: id) else { draft = nil; return }
             begin(profile)
         }
         .alert("Remove provider?", isPresented: $showDeleteConfirmation) {
-            Button("Remove", role: .destructive) { if let selection { _ = model.removeProvider(selection); self.selection = nil; draft = nil } }
+            Button("Remove", role: .destructive) {
+                if let selection {
+                    if selection == .codex { model.removeCodexProvider() } else { _ = model.removeProvider(selection) }
+                    self.selection = nil; draft = nil
+                }
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Its API key is removed first. Selected STT and TTT capabilities will be deselected.")
@@ -52,8 +60,14 @@ struct ProvidersSettingsView: View {
                 }
                 Section {
                     Button("Remove Apple provider", role: .destructive) { showDeleteConfirmation = true }
-                }
+            }
             }.padding()
+        } else if selection == .codex, let profile = model.preferences.provider(for: .codex)?.codexProfile {
+            CodexProviderEditor(
+                model: model,
+                profile: profile,
+                onDelete: { showDeleteConfirmation = true }
+            )
         } else if let draft {
             RemoteProviderEditor(model: model, draft: binding(for: draft), apiKey: $draftKey, validation: validation, onLoadModels: { model.loadModels(for: $0) }, onSave: save, onCancel: cancel, onDelete: { showDeleteConfirmation = true })
         } else {
@@ -83,7 +97,67 @@ struct ProvidersSettingsView: View {
     }
 
     private func icon(for entry: ProviderCatalogEntry) -> String {
-        switch entry { case .apple: "apple.logo"; case .remote(let profile): profile.kind == .openAI ? "circle.grid.2x2" : "network" }
+        switch entry {
+        case .apple: "apple.logo"
+        case .codex: "cpu"
+        case .remote(let profile): profile.kind == .openAI ? "circle.grid.2x2" : "network"
+        }
+    }
+}
+
+private struct CodexProviderEditor: View {
+    @Bindable var model: AppStore
+    let profile: CodexProviderProfile
+    let onDelete: () -> Void
+
+    var body: some View {
+        Form {
+            Section(model.providerName(.codex(CodexProviderProfile()))) {
+                Label(text("codex.description", "Use your ChatGPT account to improve transcriptions."), systemImage: "person.crop.circle")
+                connectionControls
+            }
+            Section(text("codex.cleanup", "Text cleanup")) {
+                Picker(text("codex.model", "Model"), selection: Binding(
+                    get: { model.preferences.provider(for: .codex)?.codexProfile?.model ?? profile.model },
+                    set: { model.setCodexModel($0) }
+                )) {
+                    ForEach(CodexModel.allCases) { Text($0.rawValue).tag($0) }
+                }
+                Text(text("codex.ttt_only", "OpenAI (Codex) is available for text cleanup only. Choose a separate speech-to-text provider."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Button("Remove", role: .destructive, action: onDelete)
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+
+    private func text(_ key: String, _ fallback: String) -> String {
+        EntrevoixLocalization.text(key, defaultValue: fallback, locale: model.interfaceLocale)
+    }
+
+    @ViewBuilder private var connectionControls: some View {
+        switch model.codexConnectionState {
+        case .disconnected:
+            Button(text("codex.connect", "Connect ChatGPT"), action: model.connectCodex).buttonStyle(.borderedProminent)
+        case .connecting:
+            HStack { ProgressView(); Text(text("codex.connecting", "Connecting to ChatGPT…")) }
+        case .connected:
+            HStack {
+                Label(text("codex.connected", "Connected"), systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                Spacer()
+                Button(text("codex.disconnect", "Disconnect"), action: model.disconnectCodex).buttonStyle(.bordered)
+            }
+        case .failed:
+            HStack {
+                Label(text("error.codex_connection_failed", "Could not connect to ChatGPT."), systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                Spacer()
+                Button(text("codex.connect", "Connect ChatGPT"), action: model.connectCodex).buttonStyle(.bordered)
+            }
+        }
     }
 }
 
