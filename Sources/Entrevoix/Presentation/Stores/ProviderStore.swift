@@ -138,6 +138,27 @@ final class ProviderStore {
     }
 
     @discardableResult
+    func addOpenAIProviderForOnboarding() -> ProviderIdentifier {
+        if let existing = preferences.providerCatalog.first(where: {
+            $0.remoteProfile?.kind == .openAI && $0.supportsSTT
+        }) {
+            setSTTProvider(existing.id)
+            return existing.id
+        }
+
+        let profile = RemoteProviderProfile.openAI()
+        let identifier = ProviderIdentifier.remote(profile.id)
+        preferences.providerCatalog.append(.remote(profile))
+        preferences.selectedSTTProviderID = identifier
+        preferencesStore.savePreferencesImmediately()
+        return identifier
+    }
+
+    func commitConfiguration() {
+        preferencesStore.flushPendingWrites()
+    }
+
+    @discardableResult
     func saveRemoteProvider(_ draft: RemoteProviderProfile, apiKey: String) -> [ProviderValidationIssue] {
         let names = preferences.providerCatalog.compactMap { entry -> String? in
             guard case .remote(let profile) = entry, profile.id != draft.id else { return nil }

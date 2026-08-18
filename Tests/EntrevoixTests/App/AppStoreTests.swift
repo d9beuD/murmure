@@ -69,6 +69,22 @@ final class AppStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testOnboardingAddsOrReusesAnOpenAIProviderAndCommitsItsKey() {
+        let context = makeContext()
+
+        let firstID = context.model.providerStore.addOpenAIProviderForOnboarding()
+        context.model.providerStore.setAPIKey("onboarding-key", for: firstID)
+        context.model.providerStore.commitConfiguration()
+        let secondID = context.model.providerStore.addOpenAIProviderForOnboarding()
+
+        XCTAssertEqual(secondID, firstID)
+        XCTAssertEqual(context.model.preferences.selectedSTTProviderID, firstID)
+        XCTAssertEqual(context.model.preferences.providerCatalog.filter { $0.id == firstID }.count, 1)
+        guard let remoteID = firstID.remoteID else { return XCTFail("Expected a remote provider") }
+        XCTAssertEqual(context.secretStore.saves.last?[remoteID], "onboarding-key")
+    }
+
+    @MainActor
     func testCodexProviderIsTTTOnlyAndPersistsItsModelChoice() {
         let context = makeContext()
 
