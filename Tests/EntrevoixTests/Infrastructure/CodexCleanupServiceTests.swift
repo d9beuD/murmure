@@ -15,7 +15,10 @@ final class CodexCleanupServiceTests: XCTestCase {
             accountID: "account-1",
             computeResidency: "eu"
         )
-        let service = CodexCleanupService(transport: transport)
+        let service = CodexCleanupService(
+            transport: transport,
+            credentialsProvider: StaticCodexCredentials(credentials)
+        )
         let result = try await service.clean(
             text: "raw text",
             request: CleanupRequest(
@@ -24,8 +27,7 @@ final class CodexCleanupServiceTests: XCTestCase {
                 format: .responses,
                 prompt: "Clean it.",
                 failurePolicy: .stop,
-                target: .codex,
-                codexCredentials: StaticCodexCredentials(credentials)
+                target: .codex
             )
         )
 

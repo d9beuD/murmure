@@ -631,8 +631,7 @@ final class AppStore {
                 format: .responses,
                 prompt: prompt.instructions,
                 failurePolicy: preferences.cleanupFailurePolicy,
-                target: .codex,
-                codexCredentials: codexCredentialsStore
+                target: .codex
             )
         case .remote(let profile):
             guard let configuration = profile.configuration(for: .ttt), configuration.validationIssues(apiKey: "").filter({ $0 != .missingAPIKey }).isEmpty else { return nil }
