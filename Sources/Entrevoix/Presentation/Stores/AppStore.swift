@@ -347,7 +347,16 @@ final class AppStore {
     }
 
     func cancelRecording() {
+        let shouldPlayCancellation = switch state {
+        case .requestingPermission, .recording, .transcribing:
+            true
+        case .idle, .error:
+            false
+        }
         coordinator.cancelRecording()
+        if shouldPlayCancellation {
+            playFeedback(.recordingCancelled)
+        }
     }
 
     func startSTTConnectionTest() {
@@ -370,7 +379,11 @@ final class AppStore {
     }
 
     func cancelSTTConnectionTest() {
+        let shouldPlayCancellation = !connectionTestState.isInactive
         connectionTest.cancel()
+        if shouldPlayCancellation {
+            playFeedback(.recordingCancelled)
+        }
     }
 
     func copyTestText() {
