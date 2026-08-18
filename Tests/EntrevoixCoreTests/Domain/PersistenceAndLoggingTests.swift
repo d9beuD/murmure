@@ -3,11 +3,43 @@ import XCTest
 @testable import EntrevoixCore
 
 final class PersistenceAndLoggingTests: XCTestCase {
+    func testFreshPreferencesStartWithAnEmptyProviderCatalog() {
+        let preferences = AppPreferences()
+        XCTAssertTrue(preferences.providerCatalog.isEmpty)
+        XCTAssertNil(preferences.selectedSTTProviderID)
+        XCTAssertNil(preferences.selectedTTTProviderID)
+        XCTAssertFalse(preferences.cleanupEnabled)
+    }
+
+    func testSchemaEightPreferencesMigrateToTwoSelectedCompatibleProfiles() throws {
+        let sttID = UUID()
+        let tttID = UUID()
+        let json = """
+        {"schemaVersion":8,"stt":{"id":"\(sttID.uuidString)","name":"Old STT","baseURL":"https://stt.example","path":"audio/transcriptions","model":"stt-model","authentication":"bearer","customHeaderName":"Authorization","timeout":20},"cleanupProvider":{"id":"\(tttID.uuidString)","name":"Old TTT","baseURL":"https://ttt.example","path":"chat/completions","model":"ttt-model","authentication":"apiKey","customHeaderName":"X-Key","timeout":30},"cleanupFormat":"chatCompletions","cleanupEnabled":true}
+        """
+        let preferences = try JSONDecoder().decode(AppPreferences.self, from: Data(json.utf8))
+        XCTAssertEqual(preferences.selectedSTTProviderID, .remote(sttID))
+        XCTAssertEqual(preferences.selectedTTTProviderID, .remote(tttID))
+        XCTAssertEqual(preferences.remoteProfile(for: .remote(sttID))?.stt?.model, "stt-model")
+        XCTAssertEqual(preferences.remoteProfile(for: .remote(tttID))?.ttt?.format, .chatCompletions)
+        XCTAssertTrue(preferences.cleanupEnabled)
+    }
+
+    func testSchemaEightCollisionAllocatesACleanupIdentifierAndRecordsSecretCopy() throws {
+        let sharedID = UUID()
+        let json = """
+        {"schemaVersion":8,"stt":{"id":"\(sharedID.uuidString)","name":"STT","baseURL":"https://example.com","path":"audio/transcriptions","model":"stt","authentication":"bearer","customHeaderName":"Authorization","timeout":20},"cleanupProvider":{"id":"\(sharedID.uuidString)","name":"TTT","baseURL":"https://example.com","path":"responses","model":"ttt","authentication":"bearer","customHeaderName":"Authorization","timeout":20}}
+        """
+        let preferences = try JSONDecoder().decode(AppPreferences.self, from: Data(json.utf8))
+        let cleanupID = try XCTUnwrap(preferences.selectedTTTProviderID?.remoteID)
+        XCTAssertNotEqual(cleanupID, sharedID)
+        XCTAssertEqual(preferences.secretMigrationCopies[cleanupID], sharedID)
+    }
     func testPreferencesDefaultsAndRoundTrip() throws {
         var preferences = AppPreferences(dictationDictionary: ["  Symfony ", "CapRover", "Symfony", "  "])
         XCTAssertEqual(preferences.schemaVersion, AppPreferences.currentSchemaVersion)
         XCTAssertFalse(preferences.hasCompletedOnboarding)
-        XCTAssertTrue(preferences.cleanupEnabled)
+        XCTAssertFalse(preferences.cleanupEnabled)
         XCTAssertEqual(preferences.sttLanguage, .automatic)
         XCTAssertEqual(preferences.sttFavoriteLanguages, [.french, .english])
         XCTAssertEqual(preferences.dictationDictionary, ["Symfony", "CapRover"])

@@ -106,6 +106,20 @@ public final class ConnectionTestCoordinator {
         task?.cancel()
         task = Task { [weak self] in
             guard let self else { return }
+            do {
+                if let request { try await self.transcriber.preflight(request: request) }
+            } catch is CancellationError {
+                return
+            } catch {
+                guard self.sessionID == sessionID else { return }
+                self.sessionID = nil
+                self.releaseSessionLease()
+                self.state = .failed(.transcriptionFailed(message: userFacingMessage(for: error)))
+                self.logger.log("Error: connection test preflight: \(safeLogMessage(for: error))")
+                self.onEvent?(.failed)
+                return
+            }
+            guard self.sessionID == sessionID else { return }
             guard await self.microphonePermission.requestMicrophonePermission() else {
                 guard self.sessionID == sessionID else { return }
                 self.sessionID = nil
@@ -158,7 +172,7 @@ public final class ConnectionTestCoordinator {
             do {
                 let host = request.configuration.endpointURL?.host ?? "configured endpoint"
                 self.logger.log("Testing STT connection with \(host)")
-                let text = try await self.transcriber.transcribe(audioURL: audioURL, configuration: request.configuration, apiKey: request.apiKey, prompt: request.prompt, language: request.language)
+                let text = try await self.transcriber.transcribe(audioURL: audioURL, request: request)
                 guard self.sessionID == sessionID else { return }
                 self.state = .succeeded(characterCount: text.count)
                 self.logger.log("STT connection test succeeded (\(text.count) chars)")

@@ -17,6 +17,8 @@ final class AppStore {
     private let launchAtLoginService: any LaunchAtLoginControlling
     private let soundFeedback: any FeedbackPlaying
     private let listeningIndicator: any ListeningIndicatorPresenting
+    private let modelCatalog: any RemoteModelDiscovering
+    private let providerAlerts: any ProviderAlertPresenting
     let logStore: AppLogStore
 
     var preferences: AppPreferences {
@@ -52,6 +54,8 @@ final class AppStore {
     var lastAudioURL: URL? { dictationSession.lastAudioURL }
 
     var lastTranscript: String? { dictationSession.lastTranscript }
+    private(set) var discoveredModels: [UUID: [String]] = [:]
+    private(set) var modelDiscoveryError: String?
 
     var interfaceLocale: Locale {
         _ = interfaceLanguageRevision
@@ -100,6 +104,93 @@ final class AppStore {
         savePreferences()
     }
 
+    var providersSortedForDisplay: [ProviderCatalogEntry] {
+        preferences.providerCatalog.sorted {
+            providerName($0).localizedCaseInsensitiveCompare(providerName($1)) == .orderedAscending
+        }
+    }
+
+    func providerName(_ entry: ProviderCatalogEntry) -> String {
+        switch entry {
+        case .apple: EntrevoixLocalization.text("provider.apple_local", defaultValue: "Apple (local)", locale: interfaceLocale)
+        case .remote(let profile): profile.name
+        }
+    }
+
+    func apiKey(for provider: ProviderIdentifier?) -> String { preferencesModel.apiKey(for: provider) }
+
+    func setAPIKey(_ value: String, for provider: ProviderIdentifier?) {
+        preferencesModel.setAPIKey(value, for: provider)
+    }
+
+    func setSTTProvider(_ id: ProviderIdentifier?) {
+        preferences.selectedSTTProviderID = id
+        if id == .apple, preferences.sttLanguage == .automatic { preferences.sttLanguage = .english }
+        savePreferences()
+    }
+
+    func setTTTProvider(_ id: ProviderIdentifier?) {
+        preferences.selectedTTTProviderID = id
+        if id == nil { preferences.cleanupEnabled = false }
+        savePreferences()
+    }
+
+    func addAppleProvider() {
+        guard !preferences.providerCatalog.contains(where: { $0.id == .apple }) else { return }
+        preferences.providerCatalog.append(.apple)
+        savePreferences()
+    }
+
+    func newRemoteProvider(kind: RemoteProviderKind) -> RemoteProviderProfile {
+        kind == .openAI ? RemoteProviderProfile.openAI() : RemoteProviderProfile.compatible()
+    }
+
+    @discardableResult
+    func saveRemoteProvider(_ draft: RemoteProviderProfile, apiKey: String) -> [ProviderValidationIssue] {
+        let names = preferences.providerCatalog.compactMap { entry -> String? in
+            guard case .remote(let profile) = entry, profile.id != draft.id else { return nil }
+            return profile.name
+        }
+        let issues = draft.validationIssues(apiKey: apiKey, existingNames: names)
+        guard issues.isEmpty else { return issues }
+        if let index = preferences.providerCatalog.firstIndex(where: { $0.id == .remote(draft.id) }) {
+            preferences.providerCatalog[index] = .remote(draft)
+        } else {
+            preferences.providerCatalog.append(.remote(draft))
+        }
+        preferencesModel.setAPIKey(apiKey, for: .remote(draft.id), to: .immediate)
+        savePreferences()
+        return []
+    }
+
+    @discardableResult
+    func removeProvider(_ id: ProviderIdentifier) -> Bool {
+        if let remoteID = id.remoteID, !preferencesModel.removeProviderSecret(remoteID) { return false }
+        preferences.providerCatalog.removeAll { $0.id == id }
+        if preferences.selectedSTTProviderID == id { preferences.selectedSTTProviderID = nil }
+        if preferences.selectedTTTProviderID == id {
+            preferences.selectedTTTProviderID = nil
+            preferences.cleanupEnabled = false
+        }
+        savePreferences()
+        return true
+    }
+
+    func loadModels(for profile: RemoteProviderProfile) {
+        let key = preferencesModel.apiKey(for: .remote(profile.id))
+        guard var configuration = profile.configuration(for: profile.stt == nil ? .ttt : .stt) else { return }
+        configuration.path = profile.modelsPath
+        modelDiscoveryError = nil
+        Task { [weak self] in
+            do {
+                let models = try await self?.modelCatalog.discoverModels(configuration: configuration, apiKey: key) ?? []
+                self?.discoveredModels[profile.id] = models
+            } catch {
+                self?.modelDiscoveryError = "Could not load models. You can still enter one manually."
+            }
+        }
+    }
+
     @discardableResult
     func addDictationDictionaryTerm(_ rawTerm: String) -> Bool {
         guard let term = AppPreferences.normalizedDictationDictionary([rawTerm]).first,
@@ -137,6 +228,8 @@ final class AppStore {
         launchAtLoginService = dependencies.launchAtLogin
         soundFeedback = dependencies.feedback
         listeningIndicator = dependencies.listeningIndicator
+        modelCatalog = dependencies.modelCatalog
+        providerAlerts = dependencies.providerAlerts
         now = dependencies.now
         coordinator.onEvent = { [weak self] event in
             guard let self else { return }
@@ -163,6 +256,9 @@ final class AppStore {
                     defaultValue: "Improving text…",
                     locale: self.interfaceLocale
                 ))
+            case .providerUnavailable(let capability, let reason):
+                self.logStore.log("Apple \(capability.rawValue) unavailable (\(reason.rawValue)).")
+                self.providerAlerts.presentUnavailable(capability: capability, reason: reason)
             case .sessionEnded:
                 self.listeningIndicator.hide()
             }
@@ -324,7 +420,11 @@ final class AppStore {
         if isErrorState {
             coordinator.dismissError()
         }
-        coordinator.startRecording()
+        guard let request = makeDictationRequest() else {
+            logStore.log("Error: no usable STT provider is selected.")
+            return
+        }
+        coordinator.startRecording(request: request)
     }
 
     private var isErrorState: Bool {
@@ -334,24 +434,8 @@ final class AppStore {
 
     func stopRecording() {
         guard state == .recording else { return }
-        coordinator.stopRecording(request: DictationRequest(
-            transcription: TranscriptionRequest(
-                configuration: preferences.stt,
-                apiKey: sttAPIKey,
-                prompt: preferences.dictationDictionaryPrompt,
-                language: preferences.sttLanguage.apiCode
-            ),
-            cleanup: preferences.cleanupEnabled ? activeCleanupPrompt.map {
-                CleanupRequest(
-                    configuration: preferences.cleanupProvider,
-                    apiKey: cleanupAPIKey,
-                    format: preferences.cleanupFormat,
-                    prompt: $0.instructions,
-                    failurePolicy: preferences.cleanupFailurePolicy
-                )
-            } : nil,
-            outputMode: preferences.outputMode
-        ))
+        guard let request = makeDictationRequest() else { return }
+        coordinator.stopRecording(request: request)
     }
 
     func cancelRecording() {
@@ -369,21 +453,13 @@ final class AppStore {
 
     func startSTTConnectionTest() {
         guard coordinator.state == .idle, connectionTestState.isInactive else { return }
-        connectionTest.start(request: TranscriptionRequest(
-            configuration: preferences.stt,
-            apiKey: sttAPIKey,
-            prompt: preferences.dictationDictionaryPrompt,
-            language: preferences.sttLanguage.apiCode
-        ))
+        guard let transcription = makeTranscriptionRequest() else { return }
+        connectionTest.start(request: transcription)
     }
 
     func finishSTTConnectionTest() {
-        connectionTest.finish(request: TranscriptionRequest(
-            configuration: preferences.stt,
-            apiKey: sttAPIKey,
-            prompt: preferences.dictationDictionaryPrompt,
-            language: preferences.sttLanguage.apiCode
-        ))
+        guard let transcription = makeTranscriptionRequest() else { return }
+        connectionTest.finish(request: transcription)
     }
 
     func cancelSTTConnectionTest() {
@@ -435,4 +511,39 @@ final class AppStore {
 
     private static let defaultCleanupPromptName = "Standard"
     private static let defaultCleanupPromptIcon = "wand.and.stars"
+
+    private func makeDictationRequest() -> DictationRequest? {
+        guard let transcription = makeTranscriptionRequest() else { return nil }
+        let cleanup = preferences.cleanupEnabled ? makeCleanupRequest() : nil
+        return DictationRequest(transcription: transcription, cleanup: cleanup, outputMode: preferences.outputMode)
+    }
+
+    private func makeTranscriptionRequest() -> TranscriptionRequest? {
+        guard let entry = preferences.provider(for: preferences.selectedSTTProviderID) else { return nil }
+        switch entry {
+        case .apple:
+            return TranscriptionRequest(
+                configuration: .openAITranscription,
+                apiKey: "",
+                prompt: preferences.dictationDictionaryPrompt,
+                language: preferences.sttLanguage.apiCode,
+                target: .apple(localeIdentifier: preferences.sttLanguage == .automatic ? nil : preferences.sttLanguage.apiCode, dictionaryTerms: preferences.dictationDictionary)
+            )
+        case .remote(let profile):
+            guard let configuration = profile.configuration(for: .stt), configuration.validationIssues(apiKey: "").filter({ $0 != .missingAPIKey }).isEmpty else { return nil }
+            return TranscriptionRequest(configuration: configuration, apiKey: preferencesModel.apiKey(for: .remote(profile.id)), prompt: preferences.dictationDictionaryPrompt, language: preferences.sttLanguage.apiCode)
+        }
+    }
+
+    private func makeCleanupRequest() -> CleanupRequest? {
+        guard let prompt = activeCleanupPrompt,
+              let entry = preferences.provider(for: preferences.selectedTTTProviderID) else { return nil }
+        switch entry {
+        case .apple:
+            return CleanupRequest(configuration: .openAIResponses, apiKey: "", format: .responses, prompt: prompt.instructions, failurePolicy: preferences.cleanupFailurePolicy, target: .apple(localeIdentifier: preferences.sttLanguage == .automatic ? nil : preferences.sttLanguage.apiCode))
+        case .remote(let profile):
+            guard let configuration = profile.configuration(for: .ttt), configuration.validationIssues(apiKey: "").filter({ $0 != .missingAPIKey }).isEmpty else { return nil }
+            return CleanupRequest(configuration: configuration, apiKey: preferencesModel.apiKey(for: .remote(profile.id)), format: profile.ttt?.format ?? .responses, prompt: prompt.instructions, failurePolicy: preferences.cleanupFailurePolicy)
+        }
+    }
 }

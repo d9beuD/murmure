@@ -32,6 +32,39 @@ final class AppStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testProviderCatalogueSavesAllSecretsSelectsCapabilitiesAndDeletesAtomically() async {
+        let catalog = ModelCatalogSpy(models: ["z-model", "a-model", "a-model"])
+        let context = makeContext(modelCatalog: catalog)
+
+        context.model.addAppleProvider()
+        XCTAssertTrue(context.model.providersSortedForDisplay.contains { $0.id == .apple })
+        context.model.setSTTProvider(.apple)
+        XCTAssertEqual(context.model.preferences.selectedSTTProviderID, .apple)
+        XCTAssertNotEqual(context.model.preferences.sttLanguage, .automatic)
+
+        var profile = context.model.newRemoteProvider(kind: .openAICompatible)
+        profile.name = "Personal endpoint"
+        profile.baseURL = "https://models.example.com/v1"
+        profile.authentication = .apiKey
+        profile.customHeaderName = "X-API-Key"
+        profile.stt = STTCapability(path: "audio/transcriptions", model: "stt-model")
+        profile.ttt = TTTCapability(path: "responses", model: "ttt-model")
+        XCTAssertTrue(context.model.saveRemoteProvider(profile, apiKey: "profile-secret").isEmpty)
+        XCTAssertEqual(context.model.apiKey(for: .remote(profile.id)), "profile-secret")
+
+        context.model.setSTTProvider(.remote(profile.id))
+        context.model.setTTTProvider(.remote(profile.id))
+        context.model.loadModels(for: profile)
+        await appWaitUntil("model discovery") { context.model.discoveredModels[profile.id] == ["a-model", "z-model"] }
+
+        XCTAssertTrue(context.model.removeProvider(.remote(profile.id)))
+        XCTAssertNil(context.model.preferences.selectedSTTProviderID)
+        XCTAssertNil(context.model.preferences.selectedTTTProviderID)
+        XCTAssertFalse(context.model.preferences.cleanupEnabled)
+        XCTAssertNil(context.secretStore.saves.last?[profile.id])
+    }
+
+    @MainActor
     func testChangingInterfaceLanguageUpdatesLocaleAndPersistsImmediately() {
         let context = makeContext(preferences: AppPreferences(interfaceLanguage: .english))
 
@@ -671,8 +704,10 @@ final class AppStoreTests: XCTestCase {
         cleaner: any TextCleaning = AppCleanerStub(),
         preferences: AppPreferences = AppPreferences(interfaceLanguage: .english),
         secrets: [UUID: String]? = nil,
-        permissions: PermissionSpy = PermissionSpy()
+        permissions: PermissionSpy = PermissionSpy(),
+        modelCatalog: any RemoteModelDiscovering = ModelCatalogSpy()
     ) -> AppContext {
+        let preferences = configuredForExistingAppTests(preferences)
         let delivery = AppDeliverySpy()
         let logs = AppLogStore()
         let dependencies = DictationDependencies(
@@ -709,6 +744,7 @@ final class AppStoreTests: XCTestCase {
             textDelivery: delivery,
             preferencesStore: preferencesStore,
             keychain: secretStore,
+            modelCatalog: modelCatalog,
             hotkeys: hotkeys,
             launchAtLogin: launch,
             feedback: feedback,
@@ -730,6 +766,29 @@ final class AppStoreTests: XCTestCase {
             permissions: permissions,
             clock: clock
         )
+    }
+
+    private func configuredForExistingAppTests(_ input: AppPreferences) -> AppPreferences {
+        guard input.providerCatalog.isEmpty else { return input }
+        var value = input
+        let stt = ProviderConfiguration.openAITranscription
+        let cleanup = ProviderConfiguration.openAIResponses
+        value.providerCatalog = [
+            .remote(RemoteProviderProfile(id: stt.id, kind: .openAICompatible, name: stt.name, baseURL: stt.baseURL, authentication: stt.authentication, customHeaderName: stt.customHeaderName, timeout: stt.timeout, stt: STTCapability(path: stt.path, model: stt.model))),
+            .remote(RemoteProviderProfile(id: cleanup.id, kind: .openAICompatible, name: cleanup.name, baseURL: cleanup.baseURL, authentication: cleanup.authentication, customHeaderName: cleanup.customHeaderName, timeout: cleanup.timeout, ttt: TTTCapability(path: cleanup.path, model: cleanup.model, format: .responses)))
+        ]
+        value.selectedSTTProviderID = .remote(stt.id)
+        value.selectedTTTProviderID = .remote(cleanup.id)
+        value.cleanupEnabled = true
+        return value
+    }
+}
+
+private actor ModelCatalogSpy: RemoteModelDiscovering {
+    let models: [String]
+    init(models: [String] = []) { self.models = models }
+    func discoverModels(configuration: ProviderConfiguration, apiKey: String) async throws -> [String] {
+        Array(Set(models)).sorted()
     }
 }
 

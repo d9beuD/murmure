@@ -50,8 +50,15 @@ enum CompositionRoot {
         let permissions = SystemPermissionProvider()
         let logStore = AppLogStore()
         let transport = SafeNetworkSession()
-        let transcriber = OpenAITranscriptionService(transport: transport)
-        let cleaner = OpenAITextCleanupService(transport: transport)
+        let speechResources = AppleSpeechResourceManager()
+        let transcriber = ProviderSpeechRouter(
+            remote: OpenAITranscriptionService(transport: transport),
+            apple: AppleSpeechTranscriptionService(resources: speechResources)
+        )
+        let cleaner = ProviderCleanupRouter(
+            remote: OpenAITextCleanupService(transport: transport),
+            apple: AppleFoundationCleanupService()
+        )
         let textDelivery = TextDelivery()
         let sessionArbiter = SessionArbiter()
 
@@ -81,6 +88,8 @@ enum CompositionRoot {
             textDelivery: textDelivery,
             preferencesStore: preferencesStore,
             keychain: KeychainStore(legacyService: LegacyMurmureMigration.legacyKeychainService),
+            modelCatalog: RemoteModelCatalogClient(transport: transport),
+            providerAlerts: QueuedProviderAlertPresenter(),
             hotkeys: HotkeyService(),
             launchAtLogin: LaunchAtLoginService(),
             feedback: SoundFeedback(),

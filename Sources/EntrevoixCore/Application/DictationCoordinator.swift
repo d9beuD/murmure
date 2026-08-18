@@ -20,6 +20,7 @@ public final class DictationCoordinator {
     private var transcriptionTask: Task<Void, Never>?
     private var recordingWatchdog: Task<Void, Never>?
     private var recordingStartedAt: Date?
+    private var frozenRequest: DictationRequest?
     private let now: () -> Date
     private let sleep: (Duration) async throws -> Void
 
@@ -55,7 +56,7 @@ public final class DictationCoordinator {
         self.sleep = sleep
     }
 
-    public func startRecording() {
+    public func startRecording(request: DictationRequest? = nil) {
         guard state == .idle else { return }
         if let sessionArbiter = dependencies.sessionArbiter {
             guard let lease = sessionArbiter.acquire(.dictation) else { return }
@@ -64,9 +65,23 @@ public final class DictationCoordinator {
         didEmitSessionEnded = false
         let sessionID = UUID()
         activeSessionID = sessionID
+        frozenRequest = request
         state = .requestingPermission
         permissionTask = Task { [weak self] in
             guard let self else { return }
+            do {
+                if let request { try await self.dependencies.transcriber.preflight(request: request.transcription) }
+            } catch is CancellationError {
+                return
+            } catch {
+                guard self.activeSessionID == sessionID else { return }
+                self.activeSessionID = nil
+                self.endSession()
+                self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
+                self.state = .error(.transcriptionFailed(message: userFacingMessage(for: error)))
+                return
+            }
+            guard self.activeSessionID == sessionID, self.state == .requestingPermission else { return }
             guard await self.dependencies.microphonePermission.requestMicrophonePermission() else {
                 guard self.activeSessionID == sessionID else { return }
                 self.activeSessionID = nil
@@ -144,6 +159,7 @@ public final class DictationCoordinator {
             endSession()
             return
         }
+        let frozenRequest = self.frozenRequest ?? request
         state = .transcribing
         transcriptionTask?.cancel()
         transcriptionTask = Task { [weak self] in
@@ -159,37 +175,39 @@ public final class DictationCoordinator {
             do {
                 let sizeInBytes = self.dependencies.audioRecorder.captureSize(at: audioURL)
                 let sizeInKilobytes = Double(sizeInBytes) / 1024
-                let host = request.transcription.configuration.endpointURL?.host ?? "configured endpoint"
-                self.dependencies.logger.log(String(format: "Sending %.1f kB to %@", sizeInKilobytes, host))
-                let text = try await self.dependencies.transcriber.transcribe(
-                    audioURL: audioURL,
-                    configuration: request.transcription.configuration,
-                    apiKey: request.transcription.apiKey,
-                    prompt: request.transcription.prompt,
-                    language: request.transcription.language
-                )
+                switch frozenRequest.transcription.target {
+                case .remote:
+                    let host = frozenRequest.transcription.configuration.endpointURL?.host ?? "configured endpoint"
+                    self.dependencies.logger.log(String(format: "Sending %.1f kB to %@", sizeInKilobytes, host))
+                case .apple:
+                    self.dependencies.logger.log("Processing audio locally with Apple Speech")
+                }
+                let text = try await self.dependencies.transcriber.transcribe(audioURL: audioURL, request: frozenRequest.transcription)
                 guard self.activeSessionID == sessionID else { return }
                 self.dependencies.logger.log("Received \(text.count) chars transcription")
                 var finalText = text
-                if let cleanup = request.cleanup {
-                    let cleanupHost = cleanup.configuration.endpointURL?.host ?? "configured endpoint"
-                    self.dependencies.logger.log("Sending transcription to \(cleanupHost)")
+                var cleanupUnavailable: ProviderUnavailableError?
+                if let cleanup = frozenRequest.cleanup {
+                    switch cleanup.target {
+                    case .remote:
+                        let cleanupHost = cleanup.configuration.endpointURL?.host ?? "configured endpoint"
+                        self.dependencies.logger.log("Sending transcription to \(cleanupHost)")
+                    case .apple:
+                        self.dependencies.logger.log("Improving text locally with Apple Intelligence")
+                    }
                     self.onTextCleanupStarted?()
                     self.onEvent?(.cleanupStarted)
                     do {
-                        let enhancedText = try await self.dependencies.cleaner.clean(
-                            text: text,
-                            configuration: cleanup.configuration,
-                            apiKey: cleanup.apiKey,
-                            format: cleanup.format,
-                            prompt: cleanup.prompt
-                        )
+                        let enhancedText = try await self.dependencies.cleaner.clean(text: text, request: cleanup)
                         self.dependencies.logger.log("Received \(enhancedText.count) chars enhanced transcription")
                         finalText = enhancedText
                     } catch is CancellationError {
                         throw CancellationError()
                     } catch {
                         self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
+                        if let unavailable = error as? ProviderUnavailableError, case .apple = cleanup.target {
+                            cleanupUnavailable = unavailable
+                        } else {
                         switch cleanup.failurePolicy {
                         case .useRawTranscript:
                             self.dependencies.logger.log("Using raw transcription after cleanup error")
@@ -202,11 +220,12 @@ public final class DictationCoordinator {
                             self.onProcessingFinished?()
                             return
                         }
+                        }
                     }
                 }
                 guard self.activeSessionID == sessionID else { return }
                 self.lastTranscript = finalText
-                let deliveryResult = self.dependencies.textDelivery.deliver(finalText, mode: request.outputMode)
+                let deliveryResult = self.dependencies.textDelivery.deliver(finalText, mode: frozenRequest.outputMode)
                 switch deliveryResult {
                 case .copied:
                     self.dependencies.logger.log("Delivered transcription to clipboard")
@@ -216,6 +235,9 @@ public final class DictationCoordinator {
                     self.dependencies.logger.log("Automatic insertion unavailable; copied to clipboard (\(reason))")
                 case .secureFieldCopied:
                     self.dependencies.logger.log("Secure field detected; copied to clipboard")
+                }
+                if let cleanupUnavailable {
+                    self.onEvent?(.providerUnavailable(capability: cleanupUnavailable.capability, reason: cleanupUnavailable.reason))
                 }
                 self.activeSessionID = nil
                 self.lastAudioURL = nil
@@ -251,6 +273,7 @@ public final class DictationCoordinator {
         transcriptionTask = nil
         recordingStartedAt = nil
         dependencies.audioRecorder.cancel()
+        frozenRequest = nil
         lastAudioURL = nil
         state = .idle
         endSession()

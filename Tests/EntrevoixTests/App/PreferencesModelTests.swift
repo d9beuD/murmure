@@ -11,7 +11,7 @@ final class PreferencesStoreTests: XCTestCase {
         let model = PreferencesStore(
             preferencesStore: store,
             keychain: keychain,
-            initialPreferences: AppPreferences()
+            initialPreferences: configuredPreferences()
         )
 
         var updated = model.preferences
@@ -36,7 +36,7 @@ final class PreferencesStoreTests: XCTestCase {
         let model = PreferencesStore(
             preferencesStore: store,
             keychain: keychain,
-            initialPreferences: AppPreferences()
+            initialPreferences: configuredPreferences()
         )
 
         var first = model.preferences
@@ -62,7 +62,7 @@ final class PreferencesStoreTests: XCTestCase {
         let model = PreferencesStore(
             preferencesStore: store,
             keychain: keychain,
-            initialPreferences: AppPreferences()
+            initialPreferences: configuredPreferences()
         )
 
         model.updateSTTAPIKey("super-secret", to: .immediate)
@@ -70,4 +70,10 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(model.persistenceError, .keychainSaveFailed)
         XCTAssertFalse(String(describing: model.persistenceError).contains("super-secret"))
     }
+}
+
+private func configuredPreferences() -> AppPreferences {
+    let configuration = ProviderConfiguration.openAITranscription
+    let profile = RemoteProviderProfile(id: configuration.id, kind: .openAICompatible, name: configuration.name, baseURL: configuration.baseURL, authentication: configuration.authentication, customHeaderName: configuration.customHeaderName, timeout: configuration.timeout, stt: STTCapability(path: configuration.path, model: configuration.model))
+    return AppPreferences(providerCatalog: [.remote(profile)], selectedSTTProviderID: .remote(profile.id))
 }

@@ -146,29 +146,30 @@ struct STTSettingsView: View {
         let locale = model.interfaceLocale
         Form {
             Section(EntrevoixLocalization.text("settings.stt", defaultValue: "STT Transcription", locale: locale)) {
-                TextField(EntrevoixLocalization.text("field.name", defaultValue: "Name", locale: locale), text: $model.preferences.stt.name)
-                TextField(EntrevoixLocalization.text("field.endpoint", defaultValue: "Endpoint", locale: locale), text: $model.preferences.stt.baseURL)
-                TextField(EntrevoixLocalization.text("field.path", defaultValue: "Path", locale: locale), text: $model.preferences.stt.path)
-                TextField(EntrevoixLocalization.text("field.model", defaultValue: "Model", locale: locale), text: $model.preferences.stt.model)
+                Picker("Provider", selection: Binding(get: { model.preferences.selectedSTTProviderID }, set: { model.setSTTProvider($0) })) {
+                    Text("No provider selected").tag(Optional<ProviderIdentifier>.none)
+                    ForEach(model.providersSortedForDisplay.filter { entry in entry.id == .apple || entry.remoteProfile?.stt != nil }) { entry in
+                        Text(model.providerName(entry)).tag(Optional(entry.id))
+                    }
+                }
+                if model.preferences.selectedSTTProviderID == nil {
+                    Label("Add and configure a provider in the Providers section before dictating.", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                } else if model.preferences.selectedSTTProviderID == .apple {
+                    Label("Apple Speech runs locally. A supported speech asset must be downloaded and ready before recording.", systemImage: "apple.logo")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Edit endpoint, credentials, routes, and model in Providers.").foregroundStyle(.secondary)
+                }
                 Picker(EntrevoixLocalization.text("field.stt_language", defaultValue: "Transcription language", locale: locale), selection: Binding(
                     get: { model.preferences.sttLanguage },
                     set: { model.setSTTLanguage($0) }
                 )) {
-                    ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale)) { language in
+                    ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale, includingAutomatic: model.preferences.selectedSTTProviderID != .apple)) { language in
                         Text(language.title(locale: locale)).tag(language)
                     }
                 }
                 .pickerStyle(.menu)
-                Picker(EntrevoixLocalization.text("field.authentication", defaultValue: "Authentication", locale: locale), selection: $model.preferences.stt.authentication) {
-                    ForEach(AuthenticationMode.allCases) { Text($0.title(locale: locale)).tag($0) }
-                }
-                if model.preferences.stt.authentication != .none {
-                    SecureField(EntrevoixLocalization.text("field.api_key", defaultValue: "API key", locale: locale), text: $model.sttAPIKey)
-                    if model.preferences.stt.authentication == .apiKey {
-                        TextField(EntrevoixLocalization.text("field.header_name", defaultValue: "Header name", locale: locale), text: $model.preferences.stt.customHeaderName)
-                    }
-                }
-                providerValidation(for: model.preferences.stt, apiKey: model.sttAPIKey, locale: locale)
                 ConnectionTestControls(model: model)
             }
             Section(EntrevoixLocalization.text("field.stt_favorite_languages", defaultValue: "Languages in the menu", locale: locale)) {
@@ -352,7 +353,14 @@ struct CleanupSettingsView: View {
         let locale = model.interfaceLocale
         Form {
             Section(EntrevoixLocalization.text("settings.ttt", defaultValue: "TTT Cleanup", locale: locale)) {
+                Picker("Provider", selection: Binding(get: { model.preferences.selectedTTTProviderID }, set: { model.setTTTProvider($0) })) {
+                    Text("No provider selected").tag(Optional<ProviderIdentifier>.none)
+                    ForEach(model.providersSortedForDisplay.filter { entry in entry.id == .apple || entry.remoteProfile?.ttt != nil }) { entry in
+                        Text(model.providerName(entry)).tag(Optional(entry.id))
+                    }
+                }
                 Toggle(EntrevoixLocalization.text("settings.enable_cleanup", defaultValue: "Enable cleanup", locale: locale), isOn: $model.preferences.cleanupEnabled)
+                    .disabled(model.preferences.selectedTTTProviderID == nil || !model.hasActiveCleanupPrompt)
                 if model.preferences.cleanupEnabled {
                     if model.preferences.cleanupPrompts.isEmpty {
                         Label(EntrevoixLocalization.text("prompts.none_warning", defaultValue: "No prompt is available. Add or reset a prompt before enabling cleanup.", locale: locale), systemImage: "exclamationmark.triangle")
@@ -367,25 +375,10 @@ struct CleanupSettingsView: View {
                             Label(prompt.name, systemImage: prompt.systemImageName).tag(Optional(prompt.id))
                         }
                     }
-                    TextField(EntrevoixLocalization.text("field.endpoint", defaultValue: "Endpoint", locale: locale), text: $model.preferences.cleanupProvider.baseURL)
-                    TextField(EntrevoixLocalization.text("field.path", defaultValue: "Path", locale: locale), text: $model.preferences.cleanupProvider.path)
-                    TextField(EntrevoixLocalization.text("field.model", defaultValue: "Model", locale: locale), text: $model.preferences.cleanupProvider.model)
-                    Picker(EntrevoixLocalization.text("field.authentication", defaultValue: "Authentication", locale: locale), selection: $model.preferences.cleanupProvider.authentication) {
-                        ForEach(AuthenticationMode.allCases) { Text($0.title(locale: locale)).tag($0) }
-                    }
-                    Picker(EntrevoixLocalization.text("field.format", defaultValue: "Format", locale: locale), selection: $model.preferences.cleanupFormat) {
-                        ForEach(CleanupAPIFormat.allCases) { Text($0.title(locale: locale)).tag($0) }
-                    }
-                    if model.preferences.cleanupProvider.authentication != .none {
-                        SecureField(EntrevoixLocalization.text("field.api_key", defaultValue: "API key", locale: locale), text: $model.cleanupAPIKey)
-                    }
-                    if model.preferences.cleanupProvider.authentication == .apiKey {
-                        TextField(EntrevoixLocalization.text("field.header_name", defaultValue: "Header name", locale: locale), text: $model.preferences.cleanupProvider.customHeaderName)
-                    }
                     Picker(EntrevoixLocalization.text("cleanup.on_failure", defaultValue: "On failure", locale: locale), selection: $model.preferences.cleanupFailurePolicy) {
                         ForEach(CleanupFailurePolicy.allCases) { Text($0.title(locale: locale)).tag($0) }
                     }
-                    providerValidation(for: model.preferences.cleanupProvider, apiKey: model.cleanupAPIKey, locale: locale)
+                    Text("Model discovery only lists identifiers; it does not guarantee TTT compatibility.").font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section {
@@ -798,7 +791,11 @@ private func providerValidation(for provider: ProviderConfiguration, apiKey: Str
 private extension ProviderValidationIssue {
     func localizedTitle(locale: Locale) -> String {
         switch self {
+        case .missingName: "A provider name is required."
+        case .duplicateName: "Provider names must be unique."
         case .invalidEndpoint: EntrevoixLocalization.text("validation.invalid_url", defaultValue: "Invalid URL: use http:// or https://", locale: locale)
+        case .missingCapability: "Select at least one capability."
+        case .missingRoute: "A route is required for each capability."
         case .missingModel: EntrevoixLocalization.text("validation.model_required", defaultValue: "A model is required.", locale: locale)
         case .missingHeaderName: EntrevoixLocalization.text("validation.header_required", defaultValue: "An authentication header name is required.", locale: locale)
         case .missingAPIKey: EntrevoixLocalization.text("validation.api_key_required", defaultValue: "An API key is required for this authentication mode.", locale: locale)
