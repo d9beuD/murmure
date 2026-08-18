@@ -114,7 +114,7 @@ struct OnboardingView: View {
                 .font(.title2.bold())
             Text(EntrevoixLocalization.text("onboarding.connection.description", defaultValue: "This test is optional: speak a short phrase, then Entrevoix will send it to your STT provider. The test transcription is not retained.", locale: model.interfaceLocale))
                 .foregroundStyle(.secondary)
-            ConnectionTestControls(model: model)
+            ConnectionTestControls()
             if model.microphonePermission != .granted {
                 Button(EntrevoixLocalization.text("permission.allow_microphone", defaultValue: "Allow Microphone Access", locale: model.interfaceLocale)) {
                     model.requestMicrophonePermission()

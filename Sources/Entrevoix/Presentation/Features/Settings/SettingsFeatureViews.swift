@@ -170,7 +170,7 @@ struct STTSettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                ConnectionTestControls(model: model)
+                ConnectionTestControls()
             }
             Section(EntrevoixLocalization.text("field.stt_favorite_languages", defaultValue: "Languages in the menu", locale: locale)) {
                 ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale, includingAutomatic: false)) { language in

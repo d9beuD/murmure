@@ -12,13 +12,7 @@ final class AppStore {
     let permissionsModel: PermissionsStore
     let promptLibrary: PromptLibraryStore
     var coordinator: DictationCoordinator { dictationSession.coordinator }
-    private var connectionTest: ConnectionTestCoordinator { connectionTestStore.coordinator }
-    private let hotkeys: any HotkeyHandling
-    private let textDelivery: any TextDelivering
     private let launchAtLoginService: any LaunchAtLoginControlling
-    private let soundFeedback: any FeedbackPlaying
-    private let listeningIndicator: any ListeningIndicatorPresenting
-    private let providerAlerts: any ProviderAlertPresenting
     let logStore: AppLogStore
 
     var preferences: AppPreferences {
@@ -35,7 +29,7 @@ final class AppStore {
         set { preferencesModel.updateCleanupAPIKey(newValue) }
     }
     var connectionTestState: ConnectionTestState { connectionTestStore.state }
-    var mode: TriggerMode { preferences.triggerMode }
+    var mode: TriggerMode { dictationSession.mode }
     private var launchAtLoginErrorDetail: String?
     var launchAtLoginError: String? {
         guard let launchAtLoginErrorDetail else { return nil }
@@ -186,15 +180,7 @@ final class AppStore {
 
     var cleanupPromptForDisplay: String { activeCleanupPrompt?.instructions ?? "" }
 
-    private var globalShortcutIsDown = false
-    private var lastShortcutEventAt: Date?
-    private let now: () -> Date
-
     init(dependencies: AppStoreDependencies, initialPreferences: AppPreferences) {
-        dictationSession = DictationStore(coordinator: dependencies.coordinator)
-        connectionTestStore = ConnectionTestStore(coordinator: dependencies.connectionTest)
-        hotkeys = dependencies.hotkeys
-        textDelivery = dependencies.textDelivery
         logStore = dependencies.logStore
         let preferencesModel = PreferencesStore(
             preferencesStore: dependencies.preferencesStore,
@@ -202,79 +188,46 @@ final class AppStore {
             initialPreferences: initialPreferences
         )
         self.preferencesModel = preferencesModel
-        providerStore = ProviderStore(
+        let providerStore = ProviderStore(
             preferencesStore: preferencesModel,
             modelCatalog: dependencies.modelCatalog,
             codexCredentialsStore: dependencies.codexCredentials,
             codexAuthenticator: dependencies.codexAuthenticator,
             logStore: dependencies.logStore
         )
-        permissionsModel = PermissionsStore(provider: dependencies.permissions)
-        promptLibrary = PromptLibraryStore(preferencesModel: preferencesModel)
+        self.providerStore = providerStore
+        let permissionsModel = PermissionsStore(provider: dependencies.permissions)
+        self.permissionsModel = permissionsModel
+        let promptLibrary = PromptLibraryStore(preferencesModel: preferencesModel)
+        self.promptLibrary = promptLibrary
+        let connectionTestStore = ConnectionTestStore(
+            coordinator: dependencies.connectionTest,
+            providerStore: providerStore,
+            permissionsStore: permissionsModel,
+            feedback: dependencies.feedback,
+            textDelivery: dependencies.textDelivery
+        )
+        self.connectionTestStore = connectionTestStore
+        let dictationSession = DictationStore(
+            coordinator: dependencies.coordinator,
+            providerStore: providerStore,
+            promptLibrary: promptLibrary,
+            hotkeys: dependencies.hotkeys,
+            textDelivery: dependencies.textDelivery,
+            soundFeedback: dependencies.feedback,
+            listeningIndicator: dependencies.listeningIndicator,
+            providerAlerts: dependencies.providerAlerts,
+            logStore: dependencies.logStore,
+            now: dependencies.now
+        )
+        self.dictationSession = dictationSession
+        dictationSession.canStart = { [weak connectionTestStore] in
+            connectionTestStore?.state.isInactive ?? false
+        }
+        connectionTestStore.canStart = { [weak dictationSession] in
+            dictationSession?.state == .idle
+        }
         launchAtLoginService = dependencies.launchAtLogin
-        soundFeedback = dependencies.feedback
-        listeningIndicator = dependencies.listeningIndicator
-        providerAlerts = dependencies.providerAlerts
-        now = dependencies.now
-        coordinator.onEvent = { [weak self] event in
-            guard let self else { return }
-            switch event {
-            case .recordingTimedOut:
-                self.stopRecording()
-            case .recordingStarted:
-                self.listeningIndicator.show(label: EntrevoixLocalization.text(
-                    "dictation.listening",
-                    defaultValue: "Listening…",
-                    locale: self.interfaceLocale
-                ))
-                self.playFeedback(.recordingStarted)
-            case .recordingStopped:
-                self.playFeedback(.recordingStopped)
-                self.listeningIndicator.update(label: EntrevoixLocalization.text(
-                    "dictation.transcribing",
-                    defaultValue: "Transcribing…",
-                    locale: self.interfaceLocale
-                ))
-            case .cleanupStarted:
-                self.listeningIndicator.update(label: EntrevoixLocalization.text(
-                    "dictation.improving",
-                    defaultValue: "Improving text…",
-                    locale: self.interfaceLocale
-                ))
-            case .providerUnavailable(let capability, let reason):
-                self.logStore.log("Apple \(capability.rawValue) unavailable (\(reason.rawValue)).")
-                self.providerAlerts.presentUnavailable(capability: capability, reason: reason)
-            case .sessionEnded:
-                self.listeningIndicator.hide()
-            }
-        }
-
-        connectionTest.onEvent = { [weak self] event in
-            switch event {
-            case .recordingStarted:
-                self?.refreshPermissions()
-                self?.playFeedback(.recordingStarted)
-            case .recordingStopped:
-                self?.playFeedback(.recordingStopped)
-            case .succeeded:
-                self?.playFeedback(.connectionTestSucceeded)
-            case .failed:
-                self?.refreshPermissions()
-                self?.playFeedback(.error)
-            }
-        }
-
-        hotkeys.onKeyDown = { [weak self] in
-            self?.handleKeyDown()
-        }
-
-        hotkeys.onKeyUp = { [weak self] in
-            self?.handleKeyUp()
-        }
-
-        hotkeys.onEscape = { [weak self] in
-            self?.handleEscape()
-        }
     }
 
     func savePreferences() {
@@ -350,158 +303,62 @@ final class AppStore {
     var state: DictationState { dictationSession.state }
 
     func setMode(_ newMode: TriggerMode) {
-        guard state == .idle else { return }
-        preferences.triggerMode = newMode
-        savePreferences()
+        dictationSession.setMode(newMode)
     }
 
     func handleKeyDown() {
-        guard !globalShortcutIsDown else { return }
-        let now = now()
-        if let lastShortcutEventAt, now.timeIntervalSince(lastShortcutEventAt) < DictationTiming.shortcutDebounce {
-            return
-        }
-        lastShortcutEventAt = now
-        globalShortcutIsDown = true
-
-        switch mode {
-        case .pushToTalk:
-            startRecording()
-        case .toggle:
-            if state == .recording {
-                stopRecording()
-            } else if state == .idle || isErrorState {
-                startRecording()
-            }
-        }
+        dictationSession.handleKeyDown()
     }
 
     func handleKeyUp() {
-        globalShortcutIsDown = false
-
-        if mode == .pushToTalk {
-            switch state {
-            case .recording:
-                stopRecording()
-            case .requestingPermission:
-                cancelRecording()
-            default:
-                break
-            }
-        }
+        dictationSession.handleKeyUp()
     }
 
     func handleEscape() {
-        switch state {
-        case .requestingPermission, .recording, .transcribing:
-            cancelRecording()
-        default:
-            break
-        }
+        dictationSession.handleEscape()
     }
 
     func startRecording() {
-        guard connectionTestState.isInactive else { return }
-        if isErrorState {
-            coordinator.dismissError()
-        }
-        guard let request = makeDictationRequest() else {
-            logStore.log("Error: no usable STT provider is selected.")
-            return
-        }
-        coordinator.startRecording(request: request)
-    }
-
-    private var isErrorState: Bool {
-        if case .error = state { return true }
-        return false
+        dictationSession.startRecording()
     }
 
     func stopRecording() {
-        guard state == .recording else { return }
-        guard let request = makeDictationRequest() else { return }
-        coordinator.stopRecording(request: request)
+        dictationSession.stopRecording()
     }
 
     func cancelRecording() {
-        let shouldPlayCancellation = switch state {
-        case .requestingPermission, .recording, .transcribing:
-            true
-        case .idle, .error:
-            false
-        }
-        coordinator.cancelRecording()
-        if shouldPlayCancellation {
-            playFeedback(.recordingCancelled)
-        }
+        dictationSession.cancelRecording()
     }
 
     func startSTTConnectionTest() {
-        guard coordinator.state == .idle, connectionTestState.isInactive else { return }
-        guard let transcription = makeTranscriptionRequest() else { return }
-        connectionTest.start(request: transcription)
+        connectionTestStore.start()
     }
 
     func finishSTTConnectionTest() {
-        guard let transcription = makeTranscriptionRequest() else { return }
-        connectionTest.finish(request: transcription)
+        connectionTestStore.finish()
     }
 
     func cancelSTTConnectionTest() {
-        let shouldPlayCancellation = !connectionTestState.isInactive
-        connectionTest.cancel()
-        if shouldPlayCancellation {
-            playFeedback(.recordingCancelled)
-        }
+        connectionTestStore.cancel()
     }
 
     func copyTestText() {
-        textDelivery.copy(EntrevoixLocalization.text("test.clipboard", defaultValue: "Entrevoix — clipboard test", locale: interfaceLocale))
+        connectionTestStore.copyTestText()
     }
 
     func pasteTestText() {
-        textDelivery.copyAndPaste(EntrevoixLocalization.text("test.insertion", defaultValue: "Entrevoix — insertion test", locale: interfaceLocale))
+        connectionTestStore.pasteTestText()
     }
 
     func deleteLastCapture() {
-        coordinator.deleteLastCapture()
+        dictationSession.deleteLastCapture()
     }
 
     func copyTranscript() {
-        guard let lastTranscript else { return }
-        textDelivery.copy(lastTranscript)
+        dictationSession.copyTranscript()
     }
 
     func deliverTranscript() {
-        guard let lastTranscript else { return }
-        if preferences.outputMode == .paste {
-            textDelivery.copyAndPaste(lastTranscript)
-        } else {
-            textDelivery.copy(lastTranscript)
-        }
-    }
-
-    private func playFeedback(_ event: FeedbackEvent) {
-        guard preferences.playFeedbackSounds else { return }
-        soundFeedback.play(event)
-    }
-
-    private func defaultCleanupPromptDefinition() -> CleanupPrompt {
-        CleanupPrompt(
-            name: Self.defaultCleanupPromptName,
-            systemImageName: Self.defaultCleanupPromptIcon,
-            instructions: EntrevoixLocalization.defaultCleanupPrompt(locale: interfaceLocale)
-        )
-    }
-
-    private static let defaultCleanupPromptName = "Standard"
-    private static let defaultCleanupPromptIcon = "wand.and.stars"
-
-    private func makeDictationRequest() -> DictationRequest? {
-        providerStore.makeDictationRequest(activeCleanupPrompt: activeCleanupPrompt)
-    }
-
-    private func makeTranscriptionRequest() -> TranscriptionRequest? {
-        providerStore.makeTranscriptionRequest()
+        dictationSession.deliverTranscript()
     }
 }
