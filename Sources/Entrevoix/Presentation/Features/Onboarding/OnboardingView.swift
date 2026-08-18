@@ -4,7 +4,6 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Bindable var model: AppStore
-    let dockPresenceController: DockPresenceController
     @Environment(\.dismiss) private var dismiss
     @State private var step = 0
 
@@ -51,7 +50,6 @@ struct OnboardingView: View {
         }
         .padding(28)
         .frame(width: 620, height: 500)
-        .background(DockPresenceWindowFocus(controller: dockPresenceController))
     }
 
     private var welcome: some View {

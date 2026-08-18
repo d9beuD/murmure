@@ -6,7 +6,7 @@ import SwiftUI
 struct MenuContent: View {
     @Bindable var model: AppStore
     let updater: SPUUpdater
-    @Environment(\.openWindow) private var openWindow
+    let openUserFacingWindow: (String) -> Void
 
     var body: some View {
         let locale = model.interfaceLocale
@@ -76,23 +76,20 @@ struct MenuContent: View {
         Divider()
 
         Button {
-            NSApp.activate(ignoringOtherApps: true)
-            openWindow(id: "settings")
+            openUserFacingWindow("settings")
         } label: {
             Label(EntrevoixLocalization.text("menu.settings", defaultValue: "Settings", locale: locale), systemImage: "gear")
         }
         .keyboardShortcut(",", modifiers: .command)
 
         Button {
-            NSApp.activate(ignoringOtherApps: true)
-            openWindow(id: "logs")
+            openUserFacingWindow("logs")
         } label: {
             Label(EntrevoixLocalization.text("menu.logs", defaultValue: "Logs", locale: locale), systemImage: "terminal")
         }
 
         Button {
-            NSApp.activate(ignoringOtherApps: true)
-            openWindow(id: "onboarding")
+            openUserFacingWindow("onboarding")
         } label: {
             Label(EntrevoixLocalization.text("menu.getting_started", defaultValue: "Getting Started", locale: locale), systemImage: "questionmark.circle")
         }
