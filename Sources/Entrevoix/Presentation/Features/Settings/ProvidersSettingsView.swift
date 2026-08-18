@@ -20,13 +20,13 @@ struct ProvidersSettingsView: View {
             .toolbar {
                 ToolbarItem {
                     Menu {
-                        Button("Apple (local)") { model.addAppleProvider(); selection = .apple }
+                        Button(model.providerName(.apple)) { model.addAppleProvider(); selection = .apple }
                             .disabled(model.preferences.providerCatalog.contains { $0.id == .apple })
                         Button(model.providerName(.codex(CodexProviderProfile()))) { model.addCodexProvider(); selection = .codex }
                             .disabled(model.preferences.providerCatalog.contains { $0.id == .codex })
-                        Button("OpenAI") { begin(model.newRemoteProvider(kind: .openAI)) }
-                        Button("OpenAI-compatible") { begin(model.newRemoteProvider(kind: .openAICompatible)) }
-                    } label: { Label("Add provider", systemImage: "plus") }
+                        Button(text("provider.openai", "OpenAI")) { begin(model.newRemoteProvider(kind: .openAI)) }
+                        Button(text("provider.openai_compatible", "OpenAI-compatible")) { begin(model.newRemoteProvider(kind: .openAICompatible)) }
+                    } label: { Label(text("provider.add", "Add provider"), systemImage: "plus") }
                 }
             }
         } detail: {
@@ -37,29 +37,29 @@ struct ProvidersSettingsView: View {
             guard let profile = model.preferences.remoteProfile(for: id) else { draft = nil; return }
             begin(profile)
         }
-        .alert("Remove provider?", isPresented: $showDeleteConfirmation) {
-            Button("Remove", role: .destructive) {
+        .alert(text("provider.remove_title", "Remove provider?"), isPresented: $showDeleteConfirmation) {
+            Button(text("action.remove", "Remove"), role: .destructive) {
                 if let selection {
                     if selection == .codex { model.removeCodexProvider() } else { _ = model.removeProvider(selection) }
                     self.selection = nil; draft = nil
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(text("action.cancel", "Cancel"), role: .cancel) {}
         } message: {
-            Text("Its API key is removed first. Selected STT and TTT capabilities will be deselected.")
+            Text(text("provider.remove_message", "Its API key is removed first. Selected STT and TTT capabilities will be deselected."))
         }
     }
 
     @ViewBuilder private var detail: some View {
         if selection == .apple {
             Form {
-                Section("Apple (local)") {
-                    Label("Speech transcription and text cleanup run on this Mac. No audio or text is sent to a network provider.", systemImage: "lock.fill")
-                    Label("Speech availability is checked before recording. Download required speech assets from the STT settings.", systemImage: "waveform")
-                    Label("Apple Intelligence availability is checked before cleanup.", systemImage: "apple.intelligence")
+                Section(model.providerName(.apple)) {
+                    Label(text("provider.apple_privacy", "Speech transcription and text cleanup run on this Mac. No audio or text is sent to a network provider."), systemImage: "lock.fill")
+                    Label(text("provider.apple_assets", "Speech availability is checked before recording. Download required speech assets from the STT settings."), systemImage: "waveform")
+                    Label(text("provider.apple_intelligence", "Apple Intelligence availability is checked before cleanup."), systemImage: "apple.intelligence")
                 }
                 Section {
-                    Button("Remove Apple provider", role: .destructive) { showDeleteConfirmation = true }
+                    Button(text("provider.remove_apple", "Remove Apple provider"), role: .destructive) { showDeleteConfirmation = true }
             }
             }.padding()
         } else if selection == .codex, let profile = model.preferences.provider(for: .codex)?.codexProfile {
@@ -71,7 +71,7 @@ struct ProvidersSettingsView: View {
         } else if let draft {
             RemoteProviderEditor(model: model, draft: binding(for: draft), apiKey: $draftKey, validation: validation, onLoadModels: { model.loadModels(for: $0) }, onSave: save, onCancel: cancel, onDelete: { showDeleteConfirmation = true })
         } else {
-            ContentUnavailableView("No provider selected", systemImage: "network", description: Text("Add a local Apple or remote provider to begin."))
+            ContentUnavailableView(text("provider.none_selected", "No provider selected"), systemImage: "network", description: Text(text("provider.empty_description", "Add a local Apple or remote provider to begin.")))
         }
     }
 
@@ -103,6 +103,10 @@ struct ProvidersSettingsView: View {
         case .remote(let profile): profile.kind == .openAI ? "circle.grid.2x2" : "network"
         }
     }
+
+    private func text(_ key: String, _ fallback: String) -> String {
+        EntrevoixLocalization.text(key, defaultValue: fallback, locale: model.interfaceLocale)
+    }
 }
 
 private struct CodexProviderEditor: View {
@@ -128,7 +132,7 @@ private struct CodexProviderEditor: View {
                     .foregroundStyle(.secondary)
             }
             Section {
-                Button("Remove", role: .destructive, action: onDelete)
+                Button(text("action.remove", "Remove"), role: .destructive, action: onDelete)
             }
         }
         .formStyle(.grouped)
@@ -173,20 +177,20 @@ private struct RemoteProviderEditor: View {
 
     var body: some View {
         Form {
-            Section(draft.kind == .openAI ? "OpenAI" : "OpenAI-compatible") {
-                TextField("Name", text: $draft.name)
-                TextField("Base URL", text: $draft.baseURL).disabled(draft.kind == .openAI)
-                Picker("Authentication", selection: $draft.authentication) {
+            Section(draft.kind == .openAI ? text("provider.openai", "OpenAI") : text("provider.openai_compatible", "OpenAI-compatible")) {
+                TextField(text("field.name", "Name"), text: $draft.name)
+                TextField(text("field.base_url", "Base URL"), text: $draft.baseURL).disabled(draft.kind == .openAI)
+                Picker(text("field.authentication", "Authentication"), selection: $draft.authentication) {
                     ForEach(AuthenticationMode.allCases) { Text($0.title(locale: model.interfaceLocale)).tag($0) }
                 }.disabled(draft.kind == .openAI)
                 if draft.authentication != .none {
-                    SecureField("API key", text: $apiKey)
-                    if draft.authentication == .apiKey { TextField("Header name", text: $draft.customHeaderName) }
+                    SecureField(text("field.api_key", "API key"), text: $apiKey)
+                    if draft.authentication == .apiKey { TextField(text("field.header_name", "Header name"), text: $draft.customHeaderName) }
                 }
-                if draft.kind == .openAICompatible { TextField("Models path", text: $draft.modelsPath) }
-                Button("Load / Refresh models") { onLoadModels(draft) }
+                if draft.kind == .openAICompatible { TextField(text("field.models_path", "Models path"), text: $draft.modelsPath) }
+                Button(text("provider.load_models", "Load / Refresh models")) { onLoadModels(draft) }
                 if let models = model.discoveredModels[draft.id], !models.isEmpty {
-                    Menu("Use a loaded model") { ForEach(models, id: \.self) { modelID in
+                    Menu(text("provider.use_loaded_model", "Use a loaded model")) { ForEach(models, id: \.self) { modelID in
                         Button(modelID) { if draft.stt != nil { draft.stt?.model = modelID } else { draft.ttt?.model = modelID } }
                     }}
                 }
@@ -194,37 +198,41 @@ private struct RemoteProviderEditor: View {
                     Text(message).font(.caption).foregroundStyle(.orange)
                 }
             }
-            Section("Capabilities") {
-                Toggle("Speech to text", isOn: Binding(get: { draft.stt != nil }, set: { $0 ? (draft.stt = STTCapability()) : (draft.stt = nil) }))
+            Section(text("provider.capabilities", "Capabilities")) {
+                Toggle(text("provider.speech_to_text", "Speech to text"), isOn: Binding(get: { draft.stt != nil }, set: { $0 ? (draft.stt = STTCapability()) : (draft.stt = nil) }))
                 if draft.stt != nil {
-                    TextField("STT route", text: Binding(get: { draft.stt?.path ?? "" }, set: { draft.stt?.path = $0 })).disabled(draft.kind == .openAI)
-                    TextField("STT model", text: Binding(get: { draft.stt?.model ?? "" }, set: { draft.stt?.model = $0 }))
+                    TextField(text("field.stt_route", "STT route"), text: Binding(get: { draft.stt?.path ?? "" }, set: { draft.stt?.path = $0 })).disabled(draft.kind == .openAI)
+                    TextField(text("field.stt_model", "STT model"), text: Binding(get: { draft.stt?.model ?? "" }, set: { draft.stt?.model = $0 }))
                 }
-                Toggle("Text cleanup", isOn: Binding(get: { draft.ttt != nil }, set: { $0 ? (draft.ttt = TTTCapability()) : (draft.ttt = nil) }))
+                Toggle(text("provider.text_cleanup", "Text cleanup"), isOn: Binding(get: { draft.ttt != nil }, set: { $0 ? (draft.ttt = TTTCapability()) : (draft.ttt = nil) }))
                 if draft.ttt != nil {
-                    TextField("TTT route", text: Binding(get: { draft.ttt?.path ?? "" }, set: { draft.ttt?.path = $0 })).disabled(draft.kind == .openAI)
-                    TextField("TTT model", text: Binding(get: { draft.ttt?.model ?? "" }, set: { draft.ttt?.model = $0 }))
-                    Picker("TTT API format", selection: Binding(get: { draft.ttt?.format ?? .responses }, set: { draft.ttt?.format = $0 })) { ForEach(CleanupAPIFormat.allCases) { Text($0.title(locale: model.interfaceLocale)).tag($0) } }
+                    TextField(text("field.ttt_route", "TTT route"), text: Binding(get: { draft.ttt?.path ?? "" }, set: { draft.ttt?.path = $0 })).disabled(draft.kind == .openAI)
+                    TextField(text("field.ttt_model", "TTT model"), text: Binding(get: { draft.ttt?.model ?? "" }, set: { draft.ttt?.model = $0 }))
+                    Picker(text("field.ttt_api_format", "TTT API format"), selection: Binding(get: { draft.ttt?.format ?? .responses }, set: { draft.ttt?.format = $0 })) { ForEach(CleanupAPIFormat.allCases) { Text($0.title(locale: model.interfaceLocale)).tag($0) } }
                 }
             }
-            if let first = validation.first { Label(first.localizedProviderValidationTitle, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
-            HStack { Button("Save", action: onSave).buttonStyle(.borderedProminent); Button("Cancel", action: onCancel); Spacer(); Button("Remove", role: .destructive, action: onDelete) }
+            if let first = validation.first { Label(first.localizedProviderValidationTitle(locale: model.interfaceLocale), systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+            HStack { Button(text("action.save", "Save"), action: onSave).buttonStyle(.borderedProminent); Button(text("action.cancel", "Cancel"), action: onCancel); Spacer(); Button(text("action.remove", "Remove"), role: .destructive, action: onDelete) }
         }
         .formStyle(.grouped).padding()
+    }
+
+    private func text(_ key: String, _ fallback: String) -> String {
+        EntrevoixLocalization.text(key, defaultValue: fallback, locale: model.interfaceLocale)
     }
 }
 
 private extension ProviderValidationIssue {
-    var localizedProviderValidationTitle: String {
+    func localizedProviderValidationTitle(locale: Locale) -> String {
         switch self {
-        case .missingName: "A provider name is required."
-        case .duplicateName: "Provider names must be unique."
-        case .invalidEndpoint: "Enter a valid http:// or https:// URL."
-        case .missingCapability: "Select at least one capability."
-        case .missingRoute: "A route is required for each capability."
-        case .missingModel: "A model is required."
-        case .missingHeaderName: "An authentication header name is required."
-        case .missingAPIKey: "An API key is required for this authentication mode."
+        case .missingName: EntrevoixLocalization.text("provider.validation_name", defaultValue: "A provider name is required.", locale: locale)
+        case .duplicateName: EntrevoixLocalization.text("provider.validation_duplicate", defaultValue: "Provider names must be unique.", locale: locale)
+        case .invalidEndpoint: EntrevoixLocalization.text("provider.validation_endpoint", defaultValue: "Enter a valid http:// or https:// URL.", locale: locale)
+        case .missingCapability: EntrevoixLocalization.text("provider.validation_capability", defaultValue: "Select at least one capability.", locale: locale)
+        case .missingRoute: EntrevoixLocalization.text("provider.validation_route", defaultValue: "A route is required for each capability.", locale: locale)
+        case .missingModel: EntrevoixLocalization.text("provider.validation_model", defaultValue: "A model is required.", locale: locale)
+        case .missingHeaderName: EntrevoixLocalization.text("provider.validation_header", defaultValue: "An authentication header name is required.", locale: locale)
+        case .missingAPIKey: EntrevoixLocalization.text("provider.validation_api_key", defaultValue: "An API key is required for this authentication mode.", locale: locale)
         }
     }
 }

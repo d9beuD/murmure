@@ -79,6 +79,47 @@ final class LocalizationTests: XCTestCase {
 
     }
 
+    func testEveryLocalizationKeyUsedBySourceHasEnglishAndFrenchValues() throws {
+        let data = try XCTUnwrap(EntrevoixLocalization.sourceCatalogData())
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try XCTUnwrap(object["strings"] as? [String: Any])
+        let repositoryURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sourceURL = repositoryURL.appendingPathComponent("Sources/Entrevoix", isDirectory: true)
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(
+            at: sourceURL,
+            includingPropertiesForKeys: nil
+        ))
+        let expression = try NSRegularExpression(
+            pattern: #"(?:EntrevoixLocalization\.)?(?:text|localized)\(\s*"([^"]+)""#,
+            options: [.dotMatchesLineSeparators]
+        )
+        var usedKeys = Set<String>()
+
+        for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+            let source = try String(contentsOf: fileURL, encoding: .utf8)
+            let range = NSRange(source.startIndex..., in: source)
+            for match in expression.matches(in: source, range: range) {
+                guard let keyRange = Range(match.range(at: 1), in: source) else { continue }
+                usedKeys.insert(String(source[keyRange]))
+            }
+        }
+
+        XCTAssertFalse(usedKeys.isEmpty)
+        for key in usedKeys.sorted() {
+            let entry = try XCTUnwrap(strings[key] as? [String: Any], "Missing localization key: \(key)")
+            let localizations = try XCTUnwrap(
+                entry["localizations"] as? [String: Any],
+                "Missing localizations for: \(key)"
+            )
+            XCTAssertNotNil(localizations["en"], "Missing English localization: \(key)")
+            XCTAssertNotNil(localizations["fr-FR"], "Missing French localization: \(key)")
+        }
+    }
+
     func testApplicationBundleResourcePathUsesContentsResources() {
         let appURL = URL(fileURLWithPath: "/tmp/Entrevoix.app")
         let resourcesURL = appURL.appendingPathComponent("Contents/Resources", isDirectory: true)
