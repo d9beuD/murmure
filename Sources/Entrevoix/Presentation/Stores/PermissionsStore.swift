@@ -2,11 +2,18 @@ import Foundation
 import EntrevoixCore
 import Observation
 
+enum MicrophonePermissionRepairFeedback: Equatable {
+    case succeeded
+    case failed
+}
+
 @MainActor
 @Observable
 final class PermissionsStore {
     private let provider: any PermissionProviding
     private(set) var revision = 0
+    private(set) var isResettingMicrophonePermission = false
+    private(set) var microphonePermissionRepairFeedback: MicrophonePermissionRepairFeedback?
     private var accessibilityPollingTask: Task<Void, Never>?
 
     init(provider: any PermissionProviding) {
@@ -24,10 +31,32 @@ final class PermissionsStore {
     }
 
     func requestMicrophonePermission() {
+        microphonePermissionRepairFeedback = nil
         Task { [weak self] in
             guard let self else { return }
             _ = await self.provider.requestMicrophonePermission()
             self.refresh()
+        }
+    }
+
+    func resetMicrophonePermission() {
+        guard !isResettingMicrophonePermission else { return }
+
+        isResettingMicrophonePermission = true
+        microphonePermissionRepairFeedback = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer {
+                self.isResettingMicrophonePermission = false
+                self.refresh()
+            }
+
+            do {
+                try await self.provider.resetMicrophonePermission()
+                self.microphonePermissionRepairFeedback = .succeeded
+            } catch {
+                self.microphonePermissionRepairFeedback = .failed
+            }
         }
     }
 

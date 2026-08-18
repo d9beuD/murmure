@@ -45,6 +45,10 @@ final class AppStore {
         return String(format: format, locale: interfaceLocale, arguments: [launchAtLoginErrorDetail])
     }
     var permissionsRevision: Int { permissionsModel.revision }
+    var isResettingMicrophonePermission: Bool { permissionsModel.isResettingMicrophonePermission }
+    var microphonePermissionRepairFeedback: MicrophonePermissionRepairFeedback? {
+        permissionsModel.microphonePermissionRepairFeedback
+    }
     var lastAudioURL: URL? { dictationSession.lastAudioURL }
 
     var lastTranscript: String? { dictationSession.lastTranscript }
@@ -217,6 +221,10 @@ final class AppStore {
 
     func requestMicrophonePermission() {
         permissionsModel.requestMicrophonePermission()
+    }
+
+    func resetMicrophonePermission() {
+        permissionsModel.resetMicrophonePermission()
     }
 
     func requestAccessibilityPermission() {

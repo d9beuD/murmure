@@ -456,6 +456,42 @@ final class AppStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testMicrophonePermissionRepairIsSingleFlightAndRefreshesOnSuccess() async {
+        let context = makeContext()
+        context.permissions.microphonePermission = .denied
+        let revision = context.model.permissionsRevision
+
+        context.model.resetMicrophonePermission()
+        XCTAssertTrue(context.model.isResettingMicrophonePermission)
+        context.model.resetMicrophonePermission()
+
+        await appWaitUntil("microphone permission repair") {
+            !context.model.isResettingMicrophonePermission
+        }
+
+        XCTAssertEqual(context.permissions.microphoneResetCount, 1)
+        XCTAssertEqual(context.model.microphonePermission, .notDetermined)
+        XCTAssertEqual(context.model.microphonePermissionRepairFeedback, .succeeded)
+        XCTAssertGreaterThan(context.model.permissionsRevision, revision)
+    }
+
+    @MainActor
+    func testMicrophonePermissionRepairExposesFailure() async {
+        let context = makeContext()
+        context.permissions.microphonePermission = .denied
+        context.permissions.microphoneResetError = .commandFailed
+
+        context.model.resetMicrophonePermission()
+        await appWaitUntil("failed microphone permission repair") {
+            !context.model.isResettingMicrophonePermission
+        }
+
+        XCTAssertEqual(context.permissions.microphoneResetCount, 1)
+        XCTAssertEqual(context.model.microphonePermission, .denied)
+        XCTAssertEqual(context.model.microphonePermissionRepairFeedback, .failed)
+    }
+
+    @MainActor
     func testCompletedDictationCanBeCopiedAndDeliveredAgain() async throws {
         let recorder = AppRecorderSpy()
         recorder.stopURL = try appTemporaryFile()
