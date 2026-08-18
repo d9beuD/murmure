@@ -238,6 +238,8 @@ final class PermissionSpy: PermissionProviding {
     var accessibilityPermission: PermissionStatus = .notDetermined
     var microphoneResult = true
     var holdMicrophoneRequest = false
+    var microphoneResetError: MicrophonePermissionResetError?
+    private(set) var microphoneResetCount = 0
     private var microphoneContinuations: [CheckedContinuation<Bool, Never>] = []
     private(set) var accessibilityRequestCount = 0
 
@@ -255,6 +257,14 @@ final class PermissionSpy: PermissionProviding {
     }
 
     func requestAccessibilityPermission() { accessibilityRequestCount += 1 }
+
+    func resetMicrophonePermission() async throws(MicrophonePermissionResetError) {
+        microphoneResetCount += 1
+        if let microphoneResetError {
+            throw microphoneResetError
+        }
+        microphonePermission = .notDetermined
+    }
 }
 
 @MainActor

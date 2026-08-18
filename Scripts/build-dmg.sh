@@ -100,7 +100,9 @@ if [[ -d "$resource_bundle" ]]; then
 fi
 
 if [[ "$signing_identity" == "-" ]]; then
-    /usr/bin/codesign --force --deep --sign - "$application_path"
+    /usr/bin/codesign --force --deep --sign - \
+        --entitlements "$repository_directory/Configuration/Entrevoix.entitlements" \
+        "$application_path"
 else
     /usr/bin/codesign --force --deep --options runtime --timestamp --sign "$signing_identity" \
         --entitlements "$repository_directory/Configuration/Entrevoix.entitlements" \

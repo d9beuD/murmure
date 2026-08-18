@@ -68,7 +68,27 @@ private struct PermissionsSettings: View {
         Section(EntrevoixLocalization.text("settings.permissions", defaultValue: "Permissions", locale: locale)) {
             permissionRow(EntrevoixLocalization.text("permission.microphone", defaultValue: "Microphone", locale: locale), status: model.microphonePermission, locale: locale)
             if model.microphonePermission != .granted {
-                Button(EntrevoixLocalization.text("permission.allow_microphone", defaultValue: "Allow Microphone Access", locale: locale)) { model.requestMicrophonePermission() }
+                Button(EntrevoixLocalization.text("permission.allow_microphone", defaultValue: "Allow Microphone Access", locale: locale)) {
+                    model.requestMicrophonePermission()
+                }
+                .disabled(model.isResettingMicrophonePermission)
+            }
+            if model.microphonePermission == .denied {
+                Button(EntrevoixLocalization.text("permission.reset_microphone", defaultValue: "Repair Microphone Access", locale: locale)) {
+                    model.resetMicrophonePermission()
+                }
+                .disabled(model.isResettingMicrophonePermission)
+            }
+            if model.isResettingMicrophonePermission {
+                Label(
+                    EntrevoixLocalization.text("permission.resetting_microphone", defaultValue: "Resetting microphone access…", locale: locale),
+                    systemImage: "arrow.triangle.2.circlepath"
+                )
+                .foregroundStyle(.secondary)
+                .accessibilityElement(children: .combine)
+            }
+            if let feedback = model.microphonePermissionRepairFeedback {
+                repairFeedbackView(feedback, locale: locale)
             }
             permissionRow(EntrevoixLocalization.text("permission.accessibility", defaultValue: "Accessibility", locale: locale), status: model.accessibilityPermission, locale: locale)
             if model.accessibilityPermission != .granted {
@@ -89,6 +109,33 @@ private struct PermissionsSettings: View {
                 .foregroundStyle(status == .granted ? .green : .orange)
         }
         .accessibilityLabel(EntrevoixLocalization.permissionStatus(name: name, status: status.title(locale: locale), locale: locale))
+    }
+
+    private func repairFeedbackView(
+        _ feedback: MicrophonePermissionRepairFeedback,
+        locale: Locale
+    ) -> some View {
+        let message: String
+        let symbol: String
+        switch feedback {
+        case .succeeded:
+            message = EntrevoixLocalization.text(
+                "permission.reset_succeeded",
+                defaultValue: "Permission reset. Allow microphone access now.",
+                locale: locale
+            )
+            symbol = "checkmark.circle.fill"
+        case .failed:
+            message = EntrevoixLocalization.text(
+                "permission.reset_failed",
+                defaultValue: "macOS could not reset microphone access.",
+                locale: locale
+            )
+            symbol = "exclamationmark.triangle.fill"
+        }
+        return Label(message, systemImage: symbol)
+            .foregroundStyle(feedback == .succeeded ? .green : .orange)
+            .accessibilityElement(children: .combine)
     }
 }
 

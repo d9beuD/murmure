@@ -6,8 +6,18 @@ public enum PermissionStatus: Equatable, Sendable {
     case notDetermined
 }
 
+public enum MicrophonePermissionResetError: Error, Equatable, Sendable {
+    case couldNotLaunch
+    case commandFailed
+}
+
 @MainActor
-public protocol PermissionProviding: MicrophonePermissionRequesting {
+public protocol MicrophonePermissionResetting: AnyObject {
+    func resetMicrophonePermission() async throws(MicrophonePermissionResetError)
+}
+
+@MainActor
+public protocol PermissionProviding: MicrophonePermissionRequesting, MicrophonePermissionResetting {
     var microphonePermission: PermissionStatus { get }
     var accessibilityPermission: PermissionStatus { get }
     func requestAccessibilityPermission()
