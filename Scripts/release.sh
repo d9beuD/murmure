@@ -31,8 +31,8 @@ original_keychains=("${(@f)$(security list-keychains -d user | sed 's/^[[:space:
 
 sparkle_feed_url=$(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$info_plist_path" 2>/dev/null || true)
 sparkle_public_ed_key=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$info_plist_path" 2>/dev/null || true)
-if [[ -z "$sparkle_feed_url" || "$sparkle_feed_url" == "https://example.com/entrevoix/appcast.xml" || "$sparkle_feed_url" != "https://github.com/entrevoix-app/entrevoix-macos/releases/latest/download/appcast.xml" ]]; then
-    print -u2 "Set SUFeedURL in Configuration/Info.plist to https://github.com/entrevoix-app/entrevoix-macos/releases/latest/download/appcast.xml before release. Sparkle appcast feed URL required."
+if [[ -z "$sparkle_feed_url" || "$sparkle_feed_url" == "https://example.com/entrevoix/appcast.xml" || "$sparkle_feed_url" != "https://entrevoix-app.github.io/entrevoix-macos/appcast.xml" ]]; then
+	print -u2 "Set SUFeedURL in Configuration/Info.plist to https://entrevoix-app.github.io/entrevoix-macos/appcast.xml before release. Sparkle appcast feed URL required."
     exit 1
 fi
 if [[ -z "$sparkle_public_ed_key" || "$sparkle_public_ed_key" == "REPLACE_WITH_SPARKLE_ED25519_PUBLIC_KEY" || "$sparkle_public_ed_key" == "TODO_REPLACE_WITH_PRODUCTION_SPARKLE_ED25519_PUBLIC_KEY_DO_NOT_RELEASE" || "$sparkle_public_ed_key" == TODO_* ]]; then

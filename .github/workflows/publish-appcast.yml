@@ -1,0 +1,52 @@
+name: Publish Sparkle appcast
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: entrevoix-sparkle-appcast
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Update GitHub Pages appcast
+    runs-on: macos-26
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      ENTREVOIX_TAG: ${{ github.event.release.tag_name }}
+      SPARKLE_VERSION: 2.9.5
+      SPARKLE_DISTRIBUTION_SHA256: ${{ secrets.SPARKLE_DISTRIBUTION_SHA256 }}
+      SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Determine channel
+        run: |
+          echo "ENTREVOIX_VERSION=${ENTREVOIX_TAG#v}" >> "$GITHUB_ENV"
+          ENTREVOIX_VERSION="${ENTREVOIX_TAG#v}"
+          case "$ENTREVOIX_VERSION" in
+            *-rc.[0-9]*) echo "ENTREVOIX_CHANNEL=rc" >> "$GITHUB_ENV" ;;
+            *-dev.[0-9]*) echo "ENTREVOIX_CHANNEL=dev" >> "$GITHUB_ENV" ;;
+            *) echo "ENTREVOIX_CHANNEL=stable" >> "$GITHUB_ENV" ;;
+          esac
+
+      - name: Download Sparkle release tooling
+        run: |
+          sparkle_archive="$RUNNER_TEMP/Sparkle-$SPARKLE_VERSION.tar.xz"
+          curl -L "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz" -o "$sparkle_archive"
+          actual_checksum="$(shasum -a 256 "$sparkle_archive" | cut -d ' ' -f 1)"
+          [[ "$actual_checksum" == "$SPARKLE_DISTRIBUTION_SHA256" ]] || { echo "Sparkle distribution checksum mismatch"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xJf "$sparkle_archive" -C "$RUNNER_TEMP/sparkle"
+
+      - name: Publish cumulative appcast
+        env:
+          SPARKLE_BIN_DIRECTORY: ${{ runner.temp }}/sparkle/bin
+        run: ./Scripts/publish-appcast.sh

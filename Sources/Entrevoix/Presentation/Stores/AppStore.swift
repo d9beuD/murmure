@@ -11,6 +11,7 @@ final class AppStore {
     let providerStore: ProviderStore
     let permissionsModel: PermissionsStore
     let promptLibrary: PromptLibraryStore
+    let updates: UpdateStore
     private let launchAtLoginService: any LaunchAtLoginControlling
     let logStore: AppLogStore
 
@@ -187,6 +188,7 @@ final class AppStore {
             initialPreferences: initialPreferences
         )
         self.preferencesModel = preferencesModel
+        self.updates = UpdateStore(preferencesModel: preferencesModel, updater: dependencies.updater)
         let providerStore = ProviderStore(
             preferencesStore: preferencesModel,
             modelCatalog: dependencies.modelCatalog,

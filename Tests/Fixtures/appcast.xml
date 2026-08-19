@@ -1,0 +1,13 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Entrevoix</title>
+        <item>
+            <sparkle:version>7</sparkle:version>
+            <enclosure url="https://example.com/Entrevoix-0.3.2-macos.dmg" />
+        </item>
+        <item>
+            <enclosure sparkle:version="6" url="https://example.com/Entrevoix-0.3.1-macos.dmg" />
+        </item>
+    </channel>
+</rss>

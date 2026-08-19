@@ -1,7 +1,7 @@
 import Foundation
 
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 10
+    public static let currentSchemaVersion = 11
     public static let defaultCleanupPromptID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
 
     public var schemaVersion: Int
@@ -22,6 +22,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var outputMode: OutputMode
     public var launchAtLogin: Bool
     public var playFeedbackSounds: Bool
+    public var updateChannel: UpdateChannel
     public var hasCompletedOnboarding: Bool
     /// One-shot, in-memory key migration instructions for a malformed schema-8
     /// payload where STT and TTT reused an identifier. This is never encoded.
@@ -46,6 +47,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         outputMode: OutputMode = .clipboard,
         launchAtLogin: Bool = false,
         playFeedbackSounds: Bool = true,
+        updateChannel: UpdateChannel = .stable,
         hasCompletedOnboarding: Bool = false
     ) {
         self.schemaVersion = schemaVersion
@@ -68,6 +70,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.outputMode = outputMode
         self.launchAtLogin = launchAtLogin
         self.playFeedbackSounds = playFeedbackSounds
+        self.updateChannel = updateChannel
         self.hasCompletedOnboarding = hasCompletedOnboarding
         self.secretMigrationCopies = [:]
         normalizeProviderReferences()
@@ -156,7 +159,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         case schemaVersion, interfaceLanguage, providerCatalog, selectedSTTProviderID, selectedTTTProviderID
         case sttLanguage, sttFavoriteLanguages, dictationDictionary, triggerMode, cleanupEnabled
         case cleanupPrompts, activeCleanupPromptID, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy
-        case outputMode, launchAtLogin, playFeedbackSounds, hasCompletedOnboarding
+        case outputMode, launchAtLogin, playFeedbackSounds, updateChannel, hasCompletedOnboarding
         // Schema 8 keys, intentionally decode-only.
         case stt, cleanupProvider, cleanupFormat
     }
@@ -206,6 +209,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .clipboard
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         playFeedbackSounds = try c.decodeIfPresent(Bool.self, forKey: .playFeedbackSounds) ?? true
+        updateChannel = (try? c.decode(UpdateChannel.self, forKey: .updateChannel)) ?? .stable
         hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? (sourceVersion < 4)
         normalizeProviderReferences()
     }
@@ -224,6 +228,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         try c.encode(cleanupPrompt, forKey: .cleanupPrompt); try c.encode(cleanupPromptMode, forKey: .cleanupPromptMode)
         try c.encode(cleanupFailurePolicy, forKey: .cleanupFailurePolicy); try c.encode(outputMode, forKey: .outputMode)
         try c.encode(launchAtLogin, forKey: .launchAtLogin); try c.encode(playFeedbackSounds, forKey: .playFeedbackSounds)
+        try c.encode(updateChannel, forKey: .updateChannel)
         try c.encode(hasCompletedOnboarding, forKey: .hasCompletedOnboarding)
     }
 

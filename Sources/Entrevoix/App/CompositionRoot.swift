@@ -5,10 +5,11 @@ import EntrevoixCore
 enum CompositionRoot {
     enum LaunchState {
         case ready(AppEnvironment, recoveredPreferences: Bool)
-        case incompatible(schemaVersion: Int)
+        case incompatible(schemaVersion: Int, updater: any ApplicationUpdating)
     }
 
     static func makeLaunchState() -> LaunchState {
+        let updater = SparkleUpdateService()
         LegacyMurmureMigration.run()
         let preferencesStore = UserDefaultsPreferencesStore()
         var loadedPreferences: AppPreferences
@@ -22,7 +23,7 @@ enum CompositionRoot {
             loadedPreferences = preferences
             recovered = true
         case .incompatible(let schemaVersion):
-            return .incompatible(schemaVersion: schemaVersion)
+            return .incompatible(schemaVersion: schemaVersion, updater: updater)
         }
 
         let migratedPreferences = PreferencesMigrator.migrate(
@@ -37,14 +38,19 @@ enum CompositionRoot {
         }
 
         return .ready(
-            makeEnvironment(preferencesStore: preferencesStore, initialPreferences: loadedPreferences),
+            makeEnvironment(
+                preferencesStore: preferencesStore,
+                initialPreferences: loadedPreferences,
+                updater: updater
+            ),
             recoveredPreferences: recovered
         )
     }
 
     private static func makeEnvironment(
         preferencesStore: UserDefaultsPreferencesStore,
-        initialPreferences: AppPreferences
+        initialPreferences: AppPreferences,
+        updater: any ApplicationUpdating = SparkleUpdateService()
     ) -> AppEnvironment {
         let audioRecorder = AudioRecorder()
         let permissions = SystemPermissionProvider()
@@ -105,6 +111,7 @@ enum CompositionRoot {
                 logger: logStore
             ),
             permissions: permissions,
+            updater: updater,
             logStore: logStore,
             now: Date.init
         ), initialPreferences: initialPreferences)

@@ -11,15 +11,19 @@ on:
         description: Monotonic Sparkle build number
         required: true
         type: string
+      channel:
+        description: Sparkle update channel
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - rc
+          - dev
       release_notes:
         description: Release notes markdown
         required: true
         type: string
-      prerelease:
-        description: Publish as a prerelease
-        required: true
-        default: false
-        type: boolean
       draft:
         description: Leave the release as a draft after uploads
         required: true
@@ -38,6 +42,13 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SPARKLE_VERSION: 2.9.5
       SPARKLE_DISTRIBUTION_SHA256: ${{ secrets.SPARKLE_DISTRIBUTION_SHA256 }}
+      ENTREVOIX_CHANNEL: ${{ inputs.channel }}
+
+    concurrency:
+      # Shares the appcast lock with release:published so a direct release
+      # and the event-driven publisher can never push gh-pages concurrently.
+      group: entrevoix-sparkle-appcast
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -54,6 +65,18 @@ jobs:
           fingerprint="$(printf '%s\n%s\n' "$xcode_version" "$swift_version" | shasum -a 256 | cut -d ' ' -f 1)"
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
 
+      - name: Validate monotonic Sparkle build number
+        run: |
+          feed_path="$RUNNER_TEMP/current-appcast.xml"
+          if ! curl --fail --location --silent --show-error \
+            "https://entrevoix-app.github.io/entrevoix-macos/appcast.xml" \
+            -o "$feed_path"; then
+            curl --fail --location --silent --show-error \
+              "https://github.com/entrevoix-app/entrevoix-macos/releases/latest/download/appcast.xml" \
+              -o "$feed_path"
+          fi
+          ./Scripts/validate-release-channel.sh "$ENTREVOIX_CHANNEL" "$ENTREVOIX_VERSION" "$ENTREVOIX_BUILD_NUMBER" "$feed_path"
+
       - name: Cache SwiftPM dependencies
         uses: actions/cache@v6
         with:
@@ -65,6 +88,7 @@ jobs:
 
       - name: Build and test
         run: |
+          ./Scripts/test-release-channel.sh
           swift build -Xswiftc -warnings-as-errors
           ./Scripts/check-architecture.sh
           ./Scripts/check-coverage.sh
@@ -108,8 +132,11 @@ jobs:
           fi
           printf '%s' "$SPARKLE_EDDSA_PRIVATE_KEY" > "$private_key_path"
           chmod 600 "$private_key_path"
+          channel_args=()
+          [[ "$ENTREVOIX_CHANNEL" == stable ]] || channel_args=(--channel "$ENTREVOIX_CHANNEL")
           "$RUNNER_TEMP/sparkle/bin/generate_appcast" \
             --ed-key-file "$private_key_path" \
+            "${channel_args[@]}" \
             --download-url-prefix "https://github.com/entrevoix-app/entrevoix-macos/releases/download/v$ENTREVOIX_VERSION/" \
             "$artifacts_directory"
 
@@ -133,9 +160,17 @@ jobs:
           notes_path="$RUNNER_TEMP/release-notes.md"
           printf '%s\n' "$RELEASE_NOTES" > "$notes_path"
           release_args=("$tag" ".build/release-artifacts/Entrevoix-$ENTREVOIX_VERSION-macos.dmg" ".build/release-artifacts/appcast.xml" "--title" "Entrevoix $ENTREVOIX_VERSION" "--notes-file" "$notes_path" "--draft")
-          [[ "${{ inputs.prerelease }}" == "true" ]] && release_args+=("--prerelease")
+          [[ "$ENTREVOIX_CHANNEL" != "stable" ]] && release_args+=("--prerelease")
           gh release create "${release_args[@]}"
 
       - name: Publish GitHub release
         if: ${{ !inputs.draft }}
         run: gh release edit "v$ENTREVOIX_VERSION" --draft=false
+
+      - name: Publish cumulative Sparkle appcast
+        if: ${{ !inputs.draft }}
+        env:
+          ENTREVOIX_TAG: v${{ inputs.version }}
+          SPARKLE_BIN_DIRECTORY: ${{ runner.temp }}/sparkle/bin
+          SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+        run: ./Scripts/publish-appcast.sh

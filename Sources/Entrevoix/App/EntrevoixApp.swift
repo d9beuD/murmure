@@ -1,20 +1,9 @@
 import AppKit
 import SwiftUI
 import EntrevoixCore
-import Sparkle
-
-@MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    let updaterController = SPUStandardUpdaterController(
-        startingUpdater: true,
-        updaterDelegate: nil,
-        userDriverDelegate: nil
-    )
-}
 
 @main
 struct EntrevoixApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var launchState: CompositionRoot.LaunchState
     @State private var dockPresenceController: DockPresenceController
     @State private var didOpenOnboarding = false
@@ -39,7 +28,6 @@ struct EntrevoixApp: App {
                 let model = environment.appStore
                 MenuContent(
                     model: model,
-                    updater: appDelegate.updaterController.updater,
                     openUserFacingWindow: openUserFacingWindow
                 )
                     .environment(\.locale, model.interfaceLocale)
@@ -62,9 +50,9 @@ struct EntrevoixApp: App {
             } else {
                 Text(EntrevoixLocalization.text("startup.incompatible.title", defaultValue: "Entrevoix Update Required", locale: Locale(identifier: "en")))
                 .task {
-                    guard case .incompatible(let schemaVersion) = launchState, !didShowIncompatibleAlert else { return }
+                    guard case .incompatible(let schemaVersion, let updater) = launchState, !didShowIncompatibleAlert else { return }
                     didShowIncompatibleAlert = true
-                    presentIncompatibleAlert(schemaVersion: schemaVersion)
+                    presentIncompatibleAlert(schemaVersion: schemaVersion, updater: updater)
                 }
                 Button(EntrevoixLocalization.text("action.quit", defaultValue: "Quit", locale: Locale(identifier: "en"))) {
                     NSApplication.shared.terminate(nil)
@@ -177,7 +165,7 @@ struct EntrevoixApp: App {
         return image
     }
 
-    private func presentIncompatibleAlert(schemaVersion: Int) {
+    private func presentIncompatibleAlert(schemaVersion: Int, updater: any ApplicationUpdating) {
         let locale = Locale(identifier: "en")
         let alert = NSAlert()
         alert.alertStyle = .critical
@@ -201,7 +189,7 @@ struct EntrevoixApp: App {
         NSApp.activate()
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
-            appDelegate.updaterController.updater.checkForUpdates()
+            updater.checkForUpdates()
         } else {
             NSApplication.shared.terminate(nil)
         }
