@@ -205,6 +205,41 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertGreaterThan(file.length, 0)
     }
 
+    func testCaptureWriterPreservesSignalOutsideFirstChannelWhenDownmixing() throws {
+        let layoutTag = AudioChannelLayoutTag(kAudioChannelLayoutTag_DiscreteInOrder) | 6
+        let channelLayout = try XCTUnwrap(AVAudioChannelLayout(layoutTag: layoutTag))
+        let inputFormat = AVAudioFormat(
+            standardFormatWithSampleRate: 48_000,
+            channelLayout: channelLayout
+        )
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: 480))
+        buffer.frameLength = 480
+        let channels = try XCTUnwrap(buffer.floatChannelData)
+        for frame in 0..<480 {
+            channels[5][frame] = 0.5
+        }
+
+        let url = try appTemporaryFile()
+        try FileManager.default.removeItem(at: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = try AudioCaptureWriter(inputFormat: inputFormat, outputURL: url)
+
+        writer.append(buffer)
+
+        XCTAssertEqual(writer.finish(), .success)
+        let file = try AVAudioFile(forReading: url)
+        let output = try XCTUnwrap(AVAudioPCMBuffer(
+            pcmFormat: file.processingFormat,
+            frameCapacity: AVAudioFrameCount(file.length)
+        ))
+        try file.read(into: output)
+        let samples = try XCTUnwrap(output.floatChannelData?.pointee)
+        let maximum = (0..<Int(output.frameLength)).reduce(Float.zero) { maximum, frame in
+            max(maximum, abs(samples[frame]))
+        }
+        XCTAssertGreaterThan(maximum, 0.01)
+    }
+
     func testMaximumDuckingIsContinuous() {
         XCTAssertFalse(AudioDuckingConfiguration.maximum.enableAdvancedDucking.boolValue)
         XCTAssertEqual(AudioDuckingConfiguration.maximum.duckingLevel, .max)
