@@ -2,63 +2,82 @@
 
 <img src="docs/entrevoix-icon-light.png" alt="Entrevoix" width="160">
 
-Entrevoix is a macOS voice dictation app designed to live in the menu bar. It supports a catalogue of local Apple and OpenAI-compatible STT/TTT providers.
+Entrevoix is a privacy-conscious voice dictation app designed to live quietly in
+the macOS menu bar.
 
-## Project status
+## Contents
 
-Milestone J8 provides the current Swift 6 app targeting macOS 26. J1 is code-complete from source, build, test, and bundle-script evidence, but final menu-bar-only runtime validation requires an interactive Xcode-signed `.app` launch. Some J0 checks still require manual, interactive macOS validation, especially global events, cross-app paste, and sandbox behavior. Current feature set includes:
+- [Dictation that respects your flow — and your privacy](#dictation-that-respects-your-flow--and-your-privacy)
+- [Features](#features)
+- [How It Works](#how-it-works)
+- [Privacy](#privacy)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [Requirements](#requirements)
+- [Development](#development)
+- [Project Status](#project-status)
+- [Preparing a Release](#preparing-a-release)
+- [License](#license)
 
-- an `Entrevoix` executable target;
-- a `EntrevoixCore` domain library;
-- a lightweight hexagonal architecture: `Domain` and `Application` in the core,
-  plus `App`, `Presentation`, and `Adapters` in the macOS target;
-- a composition root that injects shared audio, permission, networking, persistence,
-  delivery, and feedback adapters;
-- `MenuBarExtra` and `Settings` interfaces;
-- injectable coordination;
-- audio capture and clipboard delivery inherited from the J0 spike;
-- push-to-talk and toggle global shortcuts;
-- a shared provider catalogue: Apple (local), OpenAI, and OpenAI-compatible profiles;
-- versioned JSON persistence in `UserDefaults` for non-sensitive settings;
-- API keys stored only in the macOS Keychain;
-- local validation of endpoints and models;
-- microphone permission handling;
-- WAV recording followed by multipart upload to `/audio/transcriptions`;
-- JSON and plain-text response parsing with explicit HTTP errors;
-- temporary-file deletion after every transcription;
-- a state machine protected against stale sessions;
-- typed dictation and connection-test failures with safe diagnostic logging;
-- push-to-talk and toggle modes with debounce;
-- a minimum duration of 250 ms and a 10-minute watchdog;
-- safe cancellation while requesting microphone access or transcribing;
-- an in-memory live log window;
-- optional cleanup through the Responses API or Chat Completions;
-- fallback to the raw transcript when TTT fails;
-- automatic delivery to the clipboard or active field;
-- safe Accessibility insertion with a controlled fallback;
-- a complete first-launch assistant in English;
-- an explicit STT connection test using a short recording;
-- Microphone and Accessibility permission status and requests;
-- optional launch at login and sound feedback;
-- help available from the menu bar;
-- ephemeral networking that rejects cross-origin redirects;
-- error logs with provider responses redacted;
-- domain, application, and infrastructure tests with coverage thresholds in CI;
-- a script that prepares a signed, notarizable archive and reports its SHA-256 digest.
+## Dictation that respects your flow — and your privacy
 
-## First-time setup
+Your ideas should move as quickly as you can speak them. Dictation should feel
+natural, stay out of the way, and never force you to give up control of your
+voice, your text, or the services that process them.
 
-On first launch, Entrevoix opens a guide for choosing a transcription provider, choosing
-a global shortcut, testing the connection, and selecting an output mode. All of
-these settings remain editable from **Settings** in the menu bar.
+Entrevoix lives quietly in the macOS menu bar. Press a global shortcut, speak,
+and let your chosen local or OpenAI-compatible provider transcribe your words.
+The result can optionally be improved, then copied or inserted directly into
+the app you are using.
 
-The STT test requests microphone access, records a short phrase, then processes
-it with the selected provider. Apple Speech stays entirely on-device; remote
-profiles use their configured OpenAI-compatible endpoint. It never runs in the
-background.
+You choose the providers, endpoints, models, and output behavior. Entrevoix
+stores secrets in the macOS Keychain, removes temporary recordings after every
+dictation, and has no account or server of its own.
 
-**Insert Automatically** requires Accessibility permission. Without it—and for
-secure fields—Entrevoix always copies the result to the clipboard instead.
+Entrevoix combines push-to-talk and toggle shortcuts, local and remote
+transcription providers, optional text cleanup, and automatic insertion in a
+lightweight macOS app.
+
+## Features
+
+### Dictate naturally
+
+- Start dictation from anywhere with a push-to-talk or toggle shortcut.
+- Follow the recording and transcription state through a discreet floating
+  indicator positioned near the caret.
+- Send the result to the clipboard or insert it automatically into the active
+  field.
+- Cancel an active permission request, recording, or transcription with Escape.
+
+### Choose how your words are processed
+
+- Use Apple Speech locally or configure OpenAI and other OpenAI-compatible
+  speech-to-text providers.
+- Optionally improve a transcript through the Responses API or Chat Completions.
+- Keep the raw transcript automatically if text cleanup fails.
+- Test an STT connection with a short recording before using it for dictation.
+
+### Stay in control
+
+- Store API keys in the macOS Keychain.
+- Configure endpoints and models with local validation.
+- Follow the system language or switch the interface between English and French
+  without relaunching the app.
+- Enable launch at login and sound feedback when desired.
+- Inspect safe, in-memory diagnostic logs from a dedicated window.
+
+## How It Works
+
+1. Press your global shortcut and start speaking.
+2. Entrevoix records a temporary 16 kHz mono WAV file.
+3. Your selected provider transcribes the recording.
+4. If enabled, your selected text provider improves the transcript.
+5. Entrevoix copies the result or inserts it into the active field, then deletes
+   the temporary recording.
+
+Dictations shorter than 250 ms are rejected, and a watchdog stops recordings
+after 10 minutes. Secure fields and missing Accessibility permission always fall
+back to copying the result to the clipboard.
 
 ## Privacy
 
@@ -72,28 +91,80 @@ secure fields—Entrevoix always copies the result to the clipboard instead.
   model's STT or TTT compatibility.
 - The Logs window keeps events only in memory and displays no secrets, audio,
   transcripts, or prompts.
+- Ephemeral networking rejects cross-origin redirects so authorization headers
+  cannot leak to another origin.
 
-## Local development
+## Getting Started
 
-With Xcode 26 (including `xcstringstool`), Swift 6.3, and a macOS 26 SDK:
+On first launch, Entrevoix opens a five-step guide that helps you:
+
+1. choose the interface language and review the privacy model;
+2. select and configure a transcription provider;
+3. optionally test the connection;
+4. configure a global shortcut and trigger mode;
+5. choose the delivery mode and other preferences.
+
+The STT test requests microphone access, records a short phrase, then processes
+it with the selected provider. Apple Speech stays entirely on-device; remote
+profiles use their configured OpenAI-compatible endpoint. The test never runs in
+the background.
+
+All choices remain editable later from **Settings** in the menu bar.
+
+## Configuration
+
+### Providers
+
+Entrevoix includes a shared provider catalogue for Apple Speech, OpenAI, and
+OpenAI-compatible profiles. Remote providers can use custom endpoints and
+models. API keys remain in the macOS Keychain.
+
+### Output
+
+Choose between **Clipboard Only** and **Insert Automatically**. Automatic
+insertion requires Accessibility permission. Without it—and whenever a secure
+field is focused—Entrevoix keeps the transcript on the clipboard instead.
+
+### Launch at login
+
+The option is available under **Settings > General**. macOS may request
+permission or require the application to be installed as a signed bundle; the
+development script is not the final distribution method.
+
+## Requirements
+
+- macOS 26 or later;
+- microphone permission for recording;
+- Accessibility permission for automatic insertion;
+- an API key when using a provider that requires one.
+
+Building Entrevoix additionally requires Xcode 26 with `xcstringstool`, Swift
+6.3, and the macOS 26 SDK. The Command Line Tools alone are not sufficient for
+launching, testing, or releasing the complete localized app bundle.
+
+## Development
+
+Build and launch a real development app bundle with:
 
 ```shell
 swift build
 ./Scripts/run-app.sh
 ```
 
-The localization catalogs are compiled while assembling the `.app`, so the
-Command Line Tools alone are not sufficient for launching or releasing the
-localized bundle. Select the full Xcode toolchain with `xcode-select` (or
-`DEVELOPER_DIR`) before running the app scripts.
+The script assembles `Entrevoix.app`, applies its `Info.plist`, embeds the
+required frameworks and resources, signs it locally, and launches it through
+LaunchServices. Use it to test windows, global shortcuts, permissions, and other
+macOS integration behavior.
 
-The script builds a real `Entrevoix.app` bundle, applies `Info.plist`, signs it
-locally, and launches it through LaunchServices. Use this script to test the UI,
-windows, shortcuts, and permissions. `swift run Entrevoix` produces only a raw
-executable without macOS application metadata and is suitable only for basic
-diagnostics.
+> [!IMPORTANT]
+> Do not use `swift run Entrevoix` to validate application behavior. It launches
+> a raw executable without the app metadata, entitlements, embedded frameworks,
+> localization catalogs, stable signature, or LaunchServices behavior.
 
-To assemble and verify the development bundle without opening it, run:
+Select the full Xcode toolchain with `xcode-select` or `DEVELOPER_DIR` before
+running the app scripts.
+
+To assemble and verify the development bundle without opening it:
 
 ```shell
 ENTREVOIX_SKIP_OPEN=1 ./Scripts/run-app.sh
@@ -101,33 +172,47 @@ ENTREVOIX_SKIP_OPEN=1 ./Scripts/run-app.sh
 ```
 
 The verification checks that the app contains `Sparkle.framework`, has the
-correct framework search path, and passes code-signature validation.
+correct framework search path, includes its localized resources, and passes
+code-signature validation.
 
-The global-shortcut handler is installed after the macOS event loop starts so
-saved shortcuts remain active after relaunching the app.
-
-Tests require a full Xcode installation (the Command Line Tools do not include
-XCTest):
+Run the test suite with warnings treated as errors:
 
 ```shell
 swift test -Xswiftc -warnings-as-errors
 ```
 
-## Launch at login
+The global-shortcut handler is installed after the macOS event loop starts so
+saved shortcuts remain active after relaunching the app.
 
-The option is available under **Settings > General**. macOS may request
-permission or require the application to be installed as a signed bundle; the
-development script is not the final distribution method.
+## Project Status
 
-## Preparing a release
+Milestone J8 provides the current Swift 6 app targeting macOS 26. The app uses a
+lightweight hexagonal architecture with an `EntrevoixCore` domain library and an
+`Entrevoix` executable target. Its domain and application layers are separated
+from the macOS presentation and infrastructure adapters.
+
+The current implementation includes the complete dictation flow, provider
+configuration, optional text cleanup, clipboard and Accessibility delivery,
+first-launch onboarding, live localization, permission controls, in-memory
+logs, Sparkle integration, and automated domain, application, infrastructure,
+localization, and coverage tests.
+
+Some macOS integration checks still require manual validation with a signed app,
+particularly global keyboard events, microphone and Accessibility prompts,
+cross-application insertion, caret positioning, and secure-field fallback.
+
+## Preparing a Release
 
 On a machine with Xcode and a Developer ID identity, `Scripts/release.sh`
-produces a DMG and reports its SHA-256 digest. The GitHub **Release** workflow can be
-run manually to produce a DMG, attach it to a new release, sign it, and notarize
-it with an App Store Connect Team API key. See the detailed
-[release checklist](docs/RELEASE_CHECKLIST.md).
+produces a signed and notarized DMG and reports its SHA-256 digest. The GitHub
+**Release** workflow can also be run manually to produce the DMG, generate and
+sign the Sparkle appcast, and publish a GitHub release using an App Store Connect
+Team API key.
+
+See the detailed [release checklist](docs/RELEASE_CHECKLIST.md).
 
 ## License
 
 Entrevoix is distributed under the MIT License. See [LICENSE](LICENSE).
-Dependency notices are available in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Dependency notices are available in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
