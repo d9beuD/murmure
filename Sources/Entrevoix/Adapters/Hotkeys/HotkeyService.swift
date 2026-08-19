@@ -5,7 +5,27 @@ import KeyboardShortcuts
 @MainActor
 extension KeyboardShortcuts.Name {
     static let dictation = Self("dictation")
+    static let dictationSecondary = Self("dictationSecondary")
     static let cancel = Self("cancel", default: .init(.escape))
+}
+
+enum DictationShortcutSource: Hashable {
+    case primary
+    case secondary
+}
+
+struct DictationShortcutPressState {
+    private var pressedSources = Set<DictationShortcutSource>()
+
+    mutating func handleKeyDown(for source: DictationShortcutSource) -> Bool {
+        guard pressedSources.insert(source).inserted else { return false }
+        return pressedSources.count == 1
+    }
+
+    mutating func handleKeyUp(for source: DictationShortcutSource) -> Bool {
+        guard pressedSources.remove(source) != nil else { return false }
+        return pressedSources.isEmpty
+    }
 }
 
 @MainActor
@@ -14,6 +34,7 @@ final class HotkeyService: HotkeyHandling {
     var onKeyUp: (() -> Void)?
     var onEscape: (() -> Void)?
     private var isInstalled = false
+    private var dictationShortcutPressState = DictationShortcutPressState()
 
     init() {
         // RegisterEventHotKey can fail silently when called while SwiftUI is still
@@ -31,13 +52,25 @@ final class HotkeyService: HotkeyHandling {
 
         KeyboardShortcuts.onKeyDown(for: .dictation) { [weak self] in
             Task { @MainActor in
-                self?.onKeyDown?()
+                self?.handleDictationKeyDown(.primary)
             }
         }
 
         KeyboardShortcuts.onKeyUp(for: .dictation) { [weak self] in
             Task { @MainActor in
-                self?.onKeyUp?()
+                self?.handleDictationKeyUp(.primary)
+            }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .dictationSecondary) { [weak self] in
+            Task { @MainActor in
+                self?.handleDictationKeyDown(.secondary)
+            }
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .dictationSecondary) { [weak self] in
+            Task { @MainActor in
+                self?.handleDictationKeyUp(.secondary)
             }
         }
         KeyboardShortcuts.onKeyDown(for: .cancel) { [weak self] in
@@ -47,4 +80,13 @@ final class HotkeyService: HotkeyHandling {
         }
     }
 
+    private func handleDictationKeyDown(_ source: DictationShortcutSource) {
+        guard dictationShortcutPressState.handleKeyDown(for: source) else { return }
+        onKeyDown?()
+    }
+
+    private func handleDictationKeyUp(_ source: DictationShortcutSource) {
+        guard dictationShortcutPressState.handleKeyUp(for: source) else { return }
+        onKeyUp?()
+    }
 }
