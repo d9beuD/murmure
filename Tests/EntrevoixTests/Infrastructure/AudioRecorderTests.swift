@@ -3,6 +3,43 @@ import XCTest
 @testable import Entrevoix
 
 final class AudioRecorderTests: XCTestCase {
+    func testCaptureTapRunsOutsideTheMainActor() throws {
+        let inputFormat = try XCTUnwrap(AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 48_000,
+            channels: 1,
+            interleaved: false
+        ))
+        let url = try appTemporaryFile()
+        try FileManager.default.removeItem(at: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = try AudioCaptureWriter(inputFormat: inputFormat, outputURL: url)
+        let tap = AudioRecorder.makeCaptureTap(writer: writer)
+
+        let audioQueue = DispatchQueue(label: "AudioRecorderTests.captureTap")
+        let completed = expectation(description: "Capture tap completed")
+        audioQueue.async {
+            dispatchPrecondition(condition: .onQueue(audioQueue))
+            dispatchPrecondition(condition: .notOnQueue(.main))
+            guard let callbackFormat = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: 48_000,
+                channels: 1,
+                interleaved: false
+            ), let buffer = AVAudioPCMBuffer(pcmFormat: callbackFormat, frameCapacity: 480) else {
+                XCTFail("Expected a valid callback buffer")
+                completed.fulfill()
+                return
+            }
+            buffer.frameLength = 480
+            tap(buffer, AVAudioTime())
+            completed.fulfill()
+        }
+        wait(for: [completed], timeout: 1)
+
+        XCTAssertEqual(writer.finish(), .success)
+    }
+
     func testCaptureWriterConvertsStereoFloatInputToRequiredWAVFormatAndMetersIt() throws {
         let inputFormat = try XCTUnwrap(AVAudioFormat(
             commonFormat: .pcmFormatFloat32,

@@ -88,10 +88,12 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
 
         do {
             let writer = try AudioCaptureWriter(inputFormat: inputFormat, outputURL: url)
-            inputNode.installTap(onBus: 0, bufferSize: 8_192, format: inputFormat) {
-                buffer, _ in
-                writer.append(buffer)
-            }
+            inputNode.installTap(
+                onBus: 0,
+                bufferSize: 8_192,
+                format: inputFormat,
+                block: Self.makeCaptureTap(writer: writer)
+            )
             hasInstalledTap = true
             newEngine.prepare()
             try newEngine.start()
@@ -106,6 +108,16 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
             newEngine.stop()
             try? FileManager.default.removeItem(at: url)
             throw error
+        }
+    }
+
+    /// AVAudioEngine invokes taps on a realtime queue, so the block must not
+    /// inherit this recorder's main-actor isolation.
+    nonisolated static func makeCaptureTap(
+        writer: AudioCaptureWriter
+    ) -> @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void {
+        { buffer, _ in
+            writer.append(buffer)
         }
     }
 
