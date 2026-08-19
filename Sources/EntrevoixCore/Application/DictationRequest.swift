@@ -40,7 +40,6 @@ public struct CleanupRequest: Sendable {
     public let prompt: String
     public let failurePolicy: CleanupFailurePolicy
     public let target: CleanupTarget
-    public let codexCredentials: (any CodexAccessTokenProviding)?
 
     public init(
         configuration: ProviderConfiguration,
@@ -48,8 +47,7 @@ public struct CleanupRequest: Sendable {
         format: CleanupAPIFormat,
         prompt: String,
         failurePolicy: CleanupFailurePolicy,
-        target: CleanupTarget = .remote,
-        codexCredentials: (any CodexAccessTokenProviding)? = nil
+        target: CleanupTarget = .remote
     ) {
         self.configuration = configuration
         self.apiKey = apiKey
@@ -57,7 +55,6 @@ public struct CleanupRequest: Sendable {
         self.prompt = prompt
         self.failurePolicy = failurePolicy
         self.target = target
-        self.codexCredentials = codexCredentials
     }
 }
 

@@ -5,7 +5,7 @@ import EntrevoixCore
 
 final class AppStoreTests: XCTestCase {
     @MainActor
-    func testLoadsAndSavesPreferencesAndSecrets() {
+    func testLoadsAndSavesPreferencesAndSecretsIndependently() {
         var preferences = AppPreferences()
         preferences.sttLanguage = .french
         preferences.triggerMode = .toggle
@@ -27,6 +27,10 @@ final class AppStoreTests: XCTestCase {
         context.model.savePreferences()
 
         XCTAssertEqual(context.preferencesStore.saved.last?.sttLanguage, .english)
+        XCTAssertTrue(context.secretStore.saves.isEmpty)
+
+        context.model.preferencesModel.flushPendingWrites()
+
         XCTAssertEqual(context.secretStore.saves.last?[preferences.stt.id], "new-stt")
         XCTAssertEqual(context.secretStore.saves.last?[preferences.cleanupProvider.id], "new-cleanup")
     }
@@ -62,6 +66,22 @@ final class AppStoreTests: XCTestCase {
         XCTAssertNil(context.model.preferences.selectedTTTProviderID)
         XCTAssertFalse(context.model.preferences.cleanupEnabled)
         XCTAssertNil(context.secretStore.saves.last?[profile.id])
+    }
+
+    @MainActor
+    func testOnboardingAddsOrReusesAnOpenAIProviderAndCommitsItsKey() {
+        let context = makeContext()
+
+        let firstID = context.model.providerStore.addOpenAIProviderForOnboarding()
+        context.model.providerStore.setAPIKey("onboarding-key", for: firstID)
+        context.model.providerStore.commitConfiguration()
+        let secondID = context.model.providerStore.addOpenAIProviderForOnboarding()
+
+        XCTAssertEqual(secondID, firstID)
+        XCTAssertEqual(context.model.preferences.selectedSTTProviderID, firstID)
+        XCTAssertEqual(context.model.preferences.providerCatalog.filter { $0.id == firstID }.count, 1)
+        guard let remoteID = firstID.remoteID else { return XCTFail("Expected a remote provider") }
+        XCTAssertEqual(context.secretStore.saves.last?[remoteID], "onboarding-key")
     }
 
     @MainActor
@@ -803,8 +823,7 @@ final class AppStoreTests: XCTestCase {
             listeningIndicator: listeningIndicator,
             permissions: permissions,
             logStore: logs,
-            now: { clock.value },
-            sessionArbiter: nil
+            now: { clock.value }
         ), initialPreferences: preferences)
         return AppContext(
             model: model,

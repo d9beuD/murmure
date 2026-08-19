@@ -7,6 +7,7 @@ cd "$repository_root"
 
 swift test --enable-code-coverage -Xswiftc -warnings-as-errors
 coverage_json="$(swift test --show-codecov-path)"
+application_coverage_pattern='/Sources/Entrevoix/(Presentation/Stores/[^/]+|Adapters/(Accessibility/FocusedTextElementResolver|Cleanup/OpenAITextCleanupService|Codex/CodexCleanupService|Delivery/TextDelivery|Keychain/KeychainStore|Networking/(RemoteModelCatalogClient|SafeNetworkSession)|Persistence/UserDefaultsPreferencesStore|Providers/ProviderRouters|Transcription/OpenAITranscriptionService))\.swift$'
 
 if [[ ! -f "$coverage_json" ]]; then
     echo "Coverage report not found: $coverage_json" >&2
@@ -18,13 +19,14 @@ print_files() {
     jq -r \
         --arg root "$repository_root/" \
         --arg group "$group_filter" \
+        --arg applicationPattern "$application_coverage_pattern" \
         '.data[0].files[]
         | select(.filename | startswith($root))
         | select(
             if $group == "core" then
                 .filename | contains("/Sources/EntrevoixCore/")
             else
-                .filename | test("/Sources/Entrevoix/(Presentation/Stores/(AppStore|ConnectionTestStore|PreferencesStore)|Presentation/Features/Settings/ConnectionTestCoordinator|Adapters/(Accessibility/FocusedTextElementResolver|Delivery/TextDelivery|Keychain/KeychainStore|Persistence/UserDefaultsPreferencesStore|Cleanup/OpenAITextCleanupService|Transcription/OpenAITranscriptionService|Networking/SafeNetworkSession))\\.swift$")
+                .filename | test($applicationPattern)
             end
         )
         | "  \(.filename | sub($root; "")): \(.summary.lines.covered)/\(.summary.lines.count) lines (\(.summary.lines.percent * 100 | round / 100)%)"' \
@@ -39,13 +41,14 @@ check_group() {
     metrics="$(jq -r \
         --arg root "$repository_root/" \
         --arg group "$group_filter" \
+        --arg applicationPattern "$application_coverage_pattern" \
         '[.data[0].files[]
           | select(.filename | startswith($root))
           | select(
               if $group == "core" then
                   .filename | contains("/Sources/EntrevoixCore/")
               else
-                  .filename | test("/Sources/Entrevoix/(Presentation/Stores/(AppStore|ConnectionTestStore|PreferencesStore)|Presentation/Features/Settings/ConnectionTestCoordinator|Adapters/(Accessibility/FocusedTextElementResolver|Delivery/TextDelivery|Keychain/KeychainStore|Persistence/UserDefaultsPreferencesStore|Cleanup/OpenAITextCleanupService|Transcription/OpenAITranscriptionService|Networking/SafeNetworkSession))\\.swift$")
+                  .filename | test($applicationPattern)
               end
           )
           | .summary.lines]

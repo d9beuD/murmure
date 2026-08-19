@@ -16,9 +16,7 @@ enum PreferencesPersistenceError: Error, Equatable {
 final class PreferencesStore {
     static let debounceDuration: Duration = .milliseconds(400)
 
-    var preferences: AppPreferences {
-        didSet { schedulePreferencesSave(policy: .debounced) }
-    }
+    private(set) var preferences: AppPreferences
 
     /// The complete secret set is held only in memory and is always written as a
     /// complete map. This avoids deleting keys belonging to unselected profiles.
