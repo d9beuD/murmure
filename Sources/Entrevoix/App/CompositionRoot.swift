@@ -50,6 +50,7 @@ enum CompositionRoot {
         let permissions = SystemPermissionProvider()
         let logStore = AppLogStore()
         let transport = SafeNetworkSession()
+        let codexCredentials = CodexCredentialVault()
         let speechResources = AppleSpeechResourceManager()
         let transcriber = ProviderSpeechRouter(
             remote: OpenAITranscriptionService(transport: transport),
@@ -57,10 +58,12 @@ enum CompositionRoot {
         )
         let cleaner = ProviderCleanupRouter(
             remote: OpenAITextCleanupService(transport: transport),
-            codex: CodexCleanupService(transport: transport),
+            codex: CodexCleanupService(
+                transport: transport,
+                credentialsProvider: codexCredentials
+            ),
             apple: AppleFoundationCleanupService()
         )
-        let codexCredentials = CodexCredentialVault()
         let textDelivery = TextDelivery()
         let sessionArbiter = SessionArbiter()
 
@@ -103,13 +106,8 @@ enum CompositionRoot {
             ),
             permissions: permissions,
             logStore: logStore,
-            now: Date.init,
-            sessionArbiter: sessionArbiter
+            now: Date.init
         ), initialPreferences: initialPreferences)
-        return AppEnvironment(
-            appStore: appStore,
-            dictationCoordinator: coordinator,
-            connectionTestCoordinator: connectionTest
-        )
+        return AppEnvironment(appStore: appStore)
     }
 }

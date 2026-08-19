@@ -146,20 +146,20 @@ struct STTSettingsView: View {
         let locale = model.interfaceLocale
         Form {
             Section(EntrevoixLocalization.text("settings.stt", defaultValue: "STT Transcription", locale: locale)) {
-                Picker("Provider", selection: Binding(get: { model.preferences.selectedSTTProviderID }, set: { model.setSTTProvider($0) })) {
-                    Text("No provider selected").tag(Optional<ProviderIdentifier>.none)
+                Picker(EntrevoixLocalization.text("field.provider", defaultValue: "Provider", locale: locale), selection: Binding(get: { model.preferences.selectedSTTProviderID }, set: { model.setSTTProvider($0) })) {
+                    Text(EntrevoixLocalization.text("provider.none_selected", defaultValue: "No provider selected", locale: locale)).tag(Optional<ProviderIdentifier>.none)
                     ForEach(model.providersSortedForDisplay.filter { entry in entry.id == .apple || entry.remoteProfile?.stt != nil }) { entry in
                         Text(model.providerName(entry)).tag(Optional(entry.id))
                     }
                 }
                 if model.preferences.selectedSTTProviderID == nil {
-                    Label("Add and configure a provider in the Providers section before dictating.", systemImage: "exclamationmark.triangle")
+                    Label(EntrevoixLocalization.text("provider.stt_missing", defaultValue: "Add and configure a provider in the Providers section before dictating.", locale: locale), systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 } else if model.preferences.selectedSTTProviderID == .apple {
-                    Label("Apple Speech runs locally. A supported speech asset must be downloaded and ready before recording.", systemImage: "apple.logo")
+                    Label(EntrevoixLocalization.text("provider.apple_speech_hint", defaultValue: "Apple Speech runs locally. A supported speech asset must be downloaded and ready before recording.", locale: locale), systemImage: "apple.logo")
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Edit endpoint, credentials, routes, and model in Providers.").foregroundStyle(.secondary)
+                    Text(EntrevoixLocalization.text("provider.edit_hint", defaultValue: "Edit endpoint, credentials, routes, and model in Providers.", locale: locale)).foregroundStyle(.secondary)
                 }
                 Picker(EntrevoixLocalization.text("field.stt_language", defaultValue: "Transcription language", locale: locale), selection: Binding(
                     get: { model.preferences.sttLanguage },
@@ -170,7 +170,7 @@ struct STTSettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                ConnectionTestControls(model: model)
+                ConnectionTestControls()
             }
             Section(EntrevoixLocalization.text("field.stt_favorite_languages", defaultValue: "Languages in the menu", locale: locale)) {
                 ForEach(TranscriptionLanguage.sortedForDisplay(locale: locale, includingAutomatic: false)) { language in
@@ -353,8 +353,8 @@ struct CleanupSettingsView: View {
         let locale = model.interfaceLocale
         Form {
             Section(EntrevoixLocalization.text("settings.ttt", defaultValue: "TTT Cleanup", locale: locale)) {
-                Picker("Provider", selection: Binding(get: { model.preferences.selectedTTTProviderID }, set: { model.setTTTProvider($0) })) {
-                    Text("No provider selected").tag(Optional<ProviderIdentifier>.none)
+                Picker(EntrevoixLocalization.text("field.provider", defaultValue: "Provider", locale: locale), selection: Binding(get: { model.preferences.selectedTTTProviderID }, set: { model.setTTTProvider($0) })) {
+                    Text(EntrevoixLocalization.text("provider.none_selected", defaultValue: "No provider selected", locale: locale)).tag(Optional<ProviderIdentifier>.none)
                     ForEach(model.providersSortedForDisplay.filter { entry in entry.id == .apple || entry.id == .codex || entry.remoteProfile?.ttt != nil }) { entry in
                         Text(model.providerName(entry)).tag(Optional(entry.id))
                     }
@@ -378,7 +378,7 @@ struct CleanupSettingsView: View {
                     Picker(EntrevoixLocalization.text("cleanup.on_failure", defaultValue: "On failure", locale: locale), selection: $model.preferences.cleanupFailurePolicy) {
                         ForEach(CleanupFailurePolicy.allCases) { Text($0.title(locale: locale)).tag($0) }
                     }
-                    Text("Model discovery only lists identifiers; it does not guarantee TTT compatibility.").font(.caption).foregroundStyle(.secondary)
+                    Text(EntrevoixLocalization.text("provider.models_compatibility_hint", defaultValue: "Model discovery only lists identifiers; it does not guarantee TTT compatibility.", locale: locale)).font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section {

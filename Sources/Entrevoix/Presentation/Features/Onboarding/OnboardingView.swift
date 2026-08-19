@@ -4,6 +4,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Bindable var model: AppStore
+    @Environment(ProviderStore.self) private var providers
     @Environment(\.dismiss) private var dismiss
     @State private var step = 0
 
@@ -34,7 +35,11 @@ struct OnboardingView: View {
                 Spacer()
                 if step < stepCount - 1 {
                     Button(EntrevoixLocalization.text("action.next", defaultValue: "Next", locale: locale)) {
-                        model.savePreferences()
+                        if step == 1 {
+                            providers.commitConfiguration()
+                        } else {
+                            model.savePreferences()
+                        }
                         step += 1
                     }
                     .buttonStyle(.borderedProminent)
@@ -79,22 +84,38 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(EntrevoixLocalization.text("onboarding.transcription.title", defaultValue: "Transcription connection", locale: model.interfaceLocale))
                 .font(.title2.bold())
-            Text("Choose a ready transcription provider. You can add and edit remote providers later in Settings.")
+            Text(EntrevoixLocalization.text(
+                "onboarding.transcription.description",
+                defaultValue: "Choose a ready transcription provider. You can add and edit remote providers later in Settings.",
+                locale: model.interfaceLocale
+            ))
                 .foregroundStyle(.secondary)
-            Picker("STT provider", selection: Binding(get: { model.preferences.selectedSTTProviderID }, set: { model.setSTTProvider($0) })) {
-                Text("Choose a provider").tag(Optional<ProviderIdentifier>.none)
+            Picker(EntrevoixLocalization.text("field.stt_provider", defaultValue: "STT provider", locale: model.interfaceLocale), selection: Binding(get: { model.preferences.selectedSTTProviderID }, set: { model.setSTTProvider($0) })) {
+                Text(EntrevoixLocalization.text("provider.choose", defaultValue: "Choose a provider", locale: model.interfaceLocale)).tag(Optional<ProviderIdentifier>.none)
                 ForEach(model.providersSortedForDisplay.filter { $0.id == .apple || $0.remoteProfile?.stt != nil }) { entry in
                     Text(model.providerName(entry)).tag(Optional(entry.id))
                 }
             }
             HStack {
-                Button("Add Apple (local)") { model.addAppleProvider(); model.setSTTProvider(.apple) }
+                Button(EntrevoixLocalization.text("provider.add_apple", defaultValue: "Add Apple (local)", locale: model.interfaceLocale)) { model.addAppleProvider(); model.setSTTProvider(.apple) }
                     .disabled(model.preferences.providerCatalog.contains { $0.id == .apple })
-                Button("Add OpenAI") { let draft = model.newRemoteProvider(kind: .openAI); _ = model.saveRemoteProvider(draft, apiKey: "") }
+                Button(EntrevoixLocalization.text("provider.add_openai", defaultValue: "Add OpenAI", locale: model.interfaceLocale)) {
+                    _ = providers.addOpenAIProviderForOnboarding()
+                }
             }
             if model.preferences.selectedSTTProviderID == .apple {
-                Label("Apple Speech requires a supported, downloaded speech asset. Choose a language below.", systemImage: "apple.logo")
+                Label(EntrevoixLocalization.text(
+                    "provider.apple_speech_onboarding_hint",
+                    defaultValue: "Apple Speech requires a supported, downloaded speech asset. Choose a language below.",
+                    locale: model.interfaceLocale
+                ), systemImage: "apple.logo")
                     .foregroundStyle(.secondary)
+            } else if let selectedProvider = model.preferences.selectedSTTProviderID,
+                      model.preferences.remoteProfile(for: selectedProvider)?.authentication != AuthenticationMode.none {
+                SecureField(EntrevoixLocalization.text("field.api_key", defaultValue: "API key", locale: model.interfaceLocale), text: Binding(
+                    get: { providers.apiKey(for: selectedProvider) },
+                    set: { providers.setAPIKey($0, for: selectedProvider) }
+                ))
             }
             Picker(EntrevoixLocalization.text("field.stt_language", defaultValue: "Transcription language", locale: model.interfaceLocale), selection: Binding(
                 get: { model.preferences.sttLanguage },
@@ -114,7 +135,7 @@ struct OnboardingView: View {
                 .font(.title2.bold())
             Text(EntrevoixLocalization.text("onboarding.connection.description", defaultValue: "This test is optional: speak a short phrase, then Entrevoix will send it to your STT provider. The test transcription is not retained.", locale: model.interfaceLocale))
                 .foregroundStyle(.secondary)
-            ConnectionTestControls(model: model)
+            ConnectionTestControls()
             if model.microphonePermission != .granted {
                 Button(EntrevoixLocalization.text("permission.allow_microphone", defaultValue: "Allow Microphone Access", locale: model.interfaceLocale)) {
                     model.requestMicrophonePermission()

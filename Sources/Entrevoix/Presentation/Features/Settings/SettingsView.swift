@@ -37,7 +37,7 @@ struct SettingsView: View {
                 case .general:
                     GeneralSettingsView(model: model)
                 case .providers:
-                    ProvidersSettingsView(model: model)
+                    ProvidersSettingsView()
                 case .stt:
                     STTSettingsView(model: model)
                 case .dictationDictionary:

@@ -3,14 +3,19 @@ import EntrevoixCore
 
 struct CodexCleanupService: TextCleaning {
     private let transport: any HTTPTransporting
+    private let credentialsProvider: (any CodexAccessTokenProviding)?
 
-    init(transport: any HTTPTransporting) {
+    init(
+        transport: any HTTPTransporting,
+        credentialsProvider: (any CodexAccessTokenProviding)? = nil
+    ) {
         self.transport = transport
+        self.credentialsProvider = credentialsProvider
     }
 
     func clean(text: String, request: CleanupRequest) async throws -> String {
         guard case .codex = request.target else { throw CodexCleanupError.invalidRequest }
-        guard let credentialsProvider = request.codexCredentials else { throw CodexCleanupError.notConnected }
+        guard let credentialsProvider else { throw CodexCleanupError.notConnected }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw CodexCleanupError.emptyInput }
         let policy = request.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !policy.isEmpty else { throw CodexCleanupError.emptyPrompt }

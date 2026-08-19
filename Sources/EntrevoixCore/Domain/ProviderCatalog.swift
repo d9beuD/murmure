@@ -141,6 +141,21 @@ public enum ProviderCatalogEntry: Codable, Equatable, Sendable, Identifiable {
         guard case .codex(let profile) = self else { return nil }
         return profile
     }
+
+    public var supportsSTT: Bool {
+        switch self {
+        case .apple: true
+        case .codex: false
+        case .remote(let profile): profile.stt != nil
+        }
+    }
+
+    public var supportsTTT: Bool {
+        switch self {
+        case .apple, .codex: true
+        case .remote(let profile): profile.ttt != nil
+        }
+    }
 }
 
 public enum ProviderCapability: String, Codable, CaseIterable, Sendable {
