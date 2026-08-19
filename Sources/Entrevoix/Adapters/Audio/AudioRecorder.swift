@@ -10,21 +10,43 @@ protocol AudioLevelProviding: AnyObject {
     var averagePower: Float { get }
 }
 
-/// Records a microphone session into the application's fixed PCM WAV format.
-/// The engine is created per capture because voice processing can only be
-/// enabled while it is stopped; ending the engine's I/O session restores the
-/// other applications' audio before transcription begins.
+/// Records microphone sessions into the application's fixed PCM WAV format.
+/// Ducking engines are configured once, then paused between captures so their
+/// Voice Processing graph stays warm while the audio hardware is released.
 @MainActor
 final class AudioRecorder: AudioRecording, AudioLevelProviding {
-    private var engine: AVAudioEngine?
+    private struct CaptureEngineKey: Hashable {
+        let input: AudioInputSelection
+        let duckOtherAudio: Bool
+    }
+
+    private var cachedEngines: [CaptureEngineKey: any AudioCaptureEngine] = [:]
+    private var activeEngine: (any AudioCaptureEngine)?
     private var captureWriter: AudioCaptureWriter?
-    private var hasInstalledTap = false
     private(set) var currentURL: URL?
 
     private let logger: any LogWriting
+    private let captureEngineFactory: any AudioCaptureEngineFactory
 
-    init(logger: any LogWriting) {
+    init(
+        logger: any LogWriting,
+        captureEngineFactory: any AudioCaptureEngineFactory = LiveAudioCaptureEngineFactory()
+    ) {
         self.logger = logger
+        self.captureEngineFactory = captureEngineFactory
+    }
+
+    /// Configures the current ducking path while the app is launching so the
+    /// first shortcut does not pay Voice Processing's setup cost.
+    func prewarmDucking(input: AudioInputSelection = .systemDefault) {
+        let key = CaptureEngineKey(input: input, duckOtherAudio: true)
+        guard cachedEngines[key] == nil else { return }
+        do {
+            let engine = try captureEngine(for: key)
+            engine.prepareForCapture()
+        } catch {
+            logger.log("Audio ducking prewarm unavailable; it will be retried when recording starts.")
+        }
     }
 
     @discardableResult
@@ -32,7 +54,7 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         input: AudioInputSelection,
         options: AudioRecordingOptions
     ) throws -> AudioInputStartResult {
-        guard engine == nil else { return .requestedInput }
+        guard activeEngine == nil else { return .requestedInput }
 
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("Entrevoix", isDirectory: true)
@@ -46,15 +68,24 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
             .appendingPathExtension("wav")
         switch input {
         case .systemDefault:
-            try startCapture(at: url, deviceUID: nil, options: options)
+            try startCapture(
+                at: url,
+                key: CaptureEngineKey(input: .systemDefault, duckOtherAudio: options.duckOtherAudio)
+            )
             return .requestedInput
         case .device(let device):
             do {
-                try startCapture(at: url, deviceUID: device.uid, options: options)
+                try startCapture(
+                    at: url,
+                    key: CaptureEngineKey(input: .device(device), duckOtherAudio: options.duckOtherAudio)
+                )
                 return .requestedInput
             } catch {
                 try? FileManager.default.removeItem(at: url)
-                try startCapture(at: url, deviceUID: nil, options: options)
+                try startCapture(
+                    at: url,
+                    key: CaptureEngineKey(input: .systemDefault, duckOtherAudio: options.duckOtherAudio)
+                )
                 return .fellBackToSystemDefault
             }
         }
@@ -62,106 +93,51 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
 
     private func startCapture(
         at url: URL,
-        deviceUID: String?,
-        options: AudioRecordingOptions
+        key: CaptureEngineKey
     ) throws {
-        let newEngine = AVAudioEngine()
-        let inputNode = newEngine.inputNode
-
-        if options.duckOtherAudio {
-            do {
-                try inputNode.setVoiceProcessingEnabled(true)
-                inputNode.voiceProcessingOtherAudioDuckingConfiguration = AudioDuckingConfiguration.maximum
-            } catch {
-                logger.log("Audio ducking unavailable; recording without audio ducking.")
-            }
-        }
-
-        if let deviceUID {
-            try setInputDevice(uid: deviceUID, on: inputNode)
-        }
-
-        let inputFormat = inputNode.outputFormat(forBus: 0)
+        let engine = try captureEngine(for: key)
+        let inputFormat = engine.inputFormat
         guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+            engine.discard()
+            cachedEngines[key] = nil
             throw RecorderError.couldNotStart
         }
 
         do {
             let writer = try AudioCaptureWriter(inputFormat: inputFormat, outputURL: url)
-            inputNode.installTap(
-                onBus: 0,
-                bufferSize: 8_192,
-                format: inputFormat,
-                block: Self.makeCaptureTap(writer: writer)
-            )
-            hasInstalledTap = true
-            newEngine.prepare()
-            try newEngine.start()
-            engine = newEngine
+            try engine.startCapture(writer: writer)
+            activeEngine = engine
             captureWriter = writer
             currentURL = url
         } catch {
-            if hasInstalledTap {
-                inputNode.removeTap(onBus: 0)
-                hasInstalledTap = false
-            }
-            newEngine.stop()
+            engine.discard()
+            cachedEngines[key] = nil
             try? FileManager.default.removeItem(at: url)
             throw error
         }
     }
 
-    /// AVAudioEngine invokes taps on a realtime queue, so the block must not
-    /// inherit this recorder's main-actor isolation.
-    nonisolated static func makeCaptureTap(
-        writer: AudioCaptureWriter
-    ) -> @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void {
-        { buffer, _ in
-            writer.append(buffer)
-        }
-    }
-
-    private func setInputDevice(uid: String, on inputNode: AVAudioInputNode) throws {
-        guard let deviceID = Self.deviceID(forUID: uid) else {
-            throw RecorderError.inputDeviceUnavailable
-        }
-        guard let audioUnit = inputNode.audioUnit else {
-            throw RecorderError.couldNotStart
+    private func captureEngine(for key: CaptureEngineKey) throws -> any AudioCaptureEngine {
+        if let existing = cachedEngines[key] {
+            return existing
         }
 
-        var mutableDeviceID = deviceID
-        let status = AudioUnitSetProperty(
-            audioUnit,
-            kAudioOutputUnitProperty_CurrentDevice,
-            kAudioUnitScope_Global,
-            0,
-            &mutableDeviceID,
-            UInt32(MemoryLayout<AudioDeviceID>.size)
-        )
-        guard status == noErr else { throw RecorderError.audioDevice(status) }
-    }
-
-    private nonisolated static func deviceID(forUID uid: String) -> AudioDeviceID? {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDeviceForUID,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        let value = uid as CFString
-        var deviceID = kAudioObjectUnknown
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        let status = withUnsafePointer(to: value) { pointer in
-            AudioObjectGetPropertyData(
-                AudioObjectID(kAudioObjectSystemObject),
-                &address,
-                UInt32(MemoryLayout<CFString>.size),
-                pointer,
-                &size,
-                &deviceID
-            )
+        let engine = captureEngineFactory.makeCaptureEngine()
+        if key.duckOtherAudio {
+            do {
+                try engine.enableDucking()
+            } catch {
+                logger.log("Audio ducking unavailable; recording without audio ducking.")
+            }
         }
-        guard status == noErr, deviceID != kAudioObjectUnknown else { return nil }
-        return deviceID
+        do {
+            try engine.configure(input: key.input)
+            cachedEngines[key] = engine
+            return engine
+        } catch {
+            engine.discard()
+            throw error
+        }
     }
 
     /// Metering is calculated as input buffers arrive; retaining this method
@@ -187,7 +163,7 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
     }
 
     func deleteLastCapture() {
-        guard engine == nil, let currentURL else { return }
+        guard activeEngine == nil, let currentURL else { return }
         try? FileManager.default.removeItem(at: currentURL)
         self.currentURL = nil
     }
@@ -202,14 +178,10 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
     }
 
     private func finishCapture() -> AudioCaptureWriter.Result {
-        guard let engine, let captureWriter else { return .empty }
+        guard let activeEngine, let captureWriter else { return .empty }
 
-        engine.stop()
-        if hasInstalledTap {
-            engine.inputNode.removeTap(onBus: 0)
-            hasInstalledTap = false
-        }
-        self.engine = nil
+        activeEngine.pauseCapture()
+        self.activeEngine = nil
         self.captureWriter = nil
 
         let result = captureWriter.finish()
@@ -218,6 +190,144 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
             self.currentURL = nil
         }
         return result
+    }
+}
+
+/// A narrow internal seam around AVAudioEngine that keeps lifecycle tests
+/// deterministic without introducing an application-layer port.
+@MainActor
+protocol AudioCaptureEngine: AnyObject {
+    var inputFormat: AVAudioFormat { get }
+
+    func enableDucking() throws
+    func configure(input: AudioInputSelection) throws
+    func prepareForCapture()
+    func startCapture(writer: AudioCaptureWriter) throws
+    func pauseCapture()
+    func discard()
+}
+
+@MainActor
+protocol AudioCaptureEngineFactory: AnyObject {
+    func makeCaptureEngine() -> any AudioCaptureEngine
+}
+
+@MainActor
+final class LiveAudioCaptureEngineFactory: AudioCaptureEngineFactory {
+    func makeCaptureEngine() -> any AudioCaptureEngine {
+        LiveAudioCaptureEngine()
+    }
+}
+
+@MainActor
+final class LiveAudioCaptureEngine: AudioCaptureEngine {
+    private let engine = AVAudioEngine()
+    private let inputNode: AVAudioInputNode
+    private var hasInstalledTap = false
+
+    init() {
+        inputNode = engine.inputNode
+    }
+
+    var inputFormat: AVAudioFormat {
+        inputNode.outputFormat(forBus: 0)
+    }
+
+    func enableDucking() throws {
+        try inputNode.setVoiceProcessingEnabled(true)
+        inputNode.voiceProcessingOtherAudioDuckingConfiguration = AudioDuckingConfiguration.maximum
+    }
+
+    func configure(input: AudioInputSelection) throws {
+        guard case .device(let device) = input else { return }
+        guard let deviceID = Self.deviceID(forUID: device.uid) else {
+            throw RecorderError.inputDeviceUnavailable
+        }
+        guard let audioUnit = inputNode.audioUnit else {
+            throw RecorderError.couldNotStart
+        }
+
+        var mutableDeviceID = deviceID
+        let status = AudioUnitSetProperty(
+            audioUnit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &mutableDeviceID,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+        guard status == noErr else { throw RecorderError.audioDevice(status) }
+    }
+
+    func startCapture(writer: AudioCaptureWriter) throws {
+        inputNode.installTap(
+            onBus: 0,
+            bufferSize: 8_192,
+            format: inputFormat,
+            block: Self.makeCaptureTap(writer: writer)
+        )
+        hasInstalledTap = true
+        do {
+            engine.prepare()
+            try engine.start()
+        } catch {
+            removeTap()
+            engine.stop()
+            throw error
+        }
+    }
+
+    func prepareForCapture() {
+        engine.prepare()
+    }
+
+    func pauseCapture() {
+        engine.pause()
+        removeTap()
+    }
+
+    func discard() {
+        engine.stop()
+        removeTap()
+    }
+
+    /// AVAudioEngine invokes taps on a realtime queue, so the block must not
+    /// inherit this recorder's main-actor isolation.
+    nonisolated static func makeCaptureTap(
+        writer: AudioCaptureWriter
+    ) -> @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void {
+        { buffer, _ in
+            writer.append(buffer)
+        }
+    }
+
+    private func removeTap() {
+        guard hasInstalledTap else { return }
+        inputNode.removeTap(onBus: 0)
+        hasInstalledTap = false
+    }
+
+    private nonisolated static func deviceID(forUID uid: String) -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDeviceForUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let value = uid as CFString
+        var deviceID = kAudioObjectUnknown
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = withUnsafePointer(to: value) { pointer in
+            AudioObjectGetPropertyData(
+                AudioObjectID(kAudioObjectSystemObject),
+                &address,
+                UInt32(MemoryLayout<CFString>.size),
+                pointer,
+                &size,
+                &deviceID
+            )
+        }
+        guard status == noErr, deviceID != kAudioObjectUnknown else { return nil }
+        return deviceID
     }
 }
 
