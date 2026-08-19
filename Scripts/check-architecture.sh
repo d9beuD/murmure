@@ -6,8 +6,9 @@ repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repository_root"
 
 core_import_violations="$(
-    rg -n '^import ' Sources/EntrevoixCore --glob '*.swift' \
-        | rg -v ':import (Foundation|_Concurrency)$' \
+    find Sources/EntrevoixCore -type f -name '*.swift' -print0 \
+        | xargs -0 grep -nH -E '^import ' \
+        | grep -E -v ':import (Foundation|_Concurrency)$' \
         || true
 )"
 if [[ -n "$core_import_violations" ]]; then
@@ -16,32 +17,35 @@ if [[ -n "$core_import_violations" ]]; then
     exit 1
 fi
 
-if rg -n '(@Observable|ObservableObject|@Published)' Sources/EntrevoixCore; then
+if find Sources/EntrevoixCore -type f -name '*.swift' -print0 \
+    | xargs -0 grep -nH -E '(@Observable|ObservableObject|@Published)'; then
     echo "EntrevoixCore application services must publish snapshots, not observable UI state." >&2
     exit 1
 fi
 
 adapter_owned_ports='protocol (PermissionProviding|HotkeyHandling|LaunchAtLoginControlling|FeedbackPlaying)'
-if rg -n "$adapter_owned_ports" Sources/Entrevoix/Adapters; then
+if find Sources/Entrevoix/Adapters -type f -name '*.swift' -print0 \
+    | xargs -0 grep -nH -E "$adapter_owned_ports"; then
     echo "System-facing ports must live in EntrevoixCore/Application/Ports." >&2
     exit 1
 fi
 
 adapter_types="$(
-    rg --no-filename -o \
-        '^(?:@MainActor )?(?:private )?(?:final )?(?:class|struct|actor) [A-Z][A-Za-z0-9_]*' \
-        Sources/Entrevoix/Adapters \
-        --glob '*.swift' \
+    find Sources/Entrevoix/Adapters -type f -name '*.swift' -print0 \
+        | xargs -0 grep -hEo \
+            '^(@MainActor )?(private )?(final )?(class|struct|actor) [A-Z][A-Za-z0-9_]*' \
         | awk '{ print $NF }' \
         | sort -u \
         | paste -sd '|' -
 )"
 composition_owned_types="${adapter_types}|AppLogStore|ListeningIndicatorController|QueuedProviderAlertPresenter"
-adapter_construction="\\b(${composition_owned_types})[[:space:]]*\\("
+adapter_construction="(^|[^[:alnum:]_])(${composition_owned_types})[[:space:]]*\\("
 violations="$(
-    rg -n "$adapter_construction" Sources/Entrevoix/App Sources/Entrevoix/Presentation \
-        --glob '*.swift' \
-        --glob '!CompositionRoot.swift' \
+    find Sources/Entrevoix/App Sources/Entrevoix/Presentation \
+        -type f -name '*.swift' \
+        ! -path 'Sources/Entrevoix/App/CompositionRoot.swift' \
+        -print0 \
+        | xargs -0 grep -nH -E "$adapter_construction" \
         || true
 )"
 if [[ -n "$violations" ]]; then
