@@ -17,7 +17,7 @@ if /usr/bin/grep -Fq 'KeyboardShortcuts_KeyboardShortcuts' "$utilities_path"; th
     exit 0
 fi
 
-/usr/bin/patch --batch --silent --reject-file=/dev/null -d "$checkout_directory" -p0 -i "$patch_path"
+/usr/bin/patch --batch --silent -V none --reject-file=/dev/null -d "$checkout_directory" -p0 -i "$patch_path"
 /usr/bin/grep -Fq 'KeyboardShortcuts_KeyboardShortcuts' "$utilities_path" || {
     print -u2 "Failed to patch KeyboardShortcuts resource lookup."
     exit 1
