@@ -12,17 +12,22 @@ enum StubError: LocalizedError, LogSafeError, Sendable {
 @MainActor
 final class RecorderSpy: AudioRecording {
     var startError: (any Error)?
+    var startResult: AudioInputStartResult = .requestedInput
     var stopURL: URL?
     private(set) var startCount = 0
     private(set) var startOptions: [AudioRecordingOptions] = []
     private(set) var stopCount = 0
     private(set) var cancelCount = 0
     private(set) var deleteCount = 0
+    private(set) var startedInputs: [AudioInputSelection] = []
 
-    func start(options: AudioRecordingOptions) throws {
+    @discardableResult
+    func start(input: AudioInputSelection, options: AudioRecordingOptions) throws -> AudioInputStartResult {
         startCount += 1
+        startedInputs.append(input)
         startOptions.append(options)
         if let startError { throw startError }
+        return startResult
     }
 
     func stop() -> URL? {
@@ -48,7 +53,11 @@ final class PendingPermissionRecorder: AudioRecording {
     private(set) var startCount = 0
     private(set) var cancelCount = 0
 
-    func start(options: AudioRecordingOptions) throws { startCount += 1 }
+    @discardableResult
+    func start(input: AudioInputSelection, options: AudioRecordingOptions) throws -> AudioInputStartResult {
+        startCount += 1
+        return .requestedInput
+    }
     func stop() -> URL? { nil }
     func cancel() { cancelCount += 1 }
     func deleteLastCapture() {}

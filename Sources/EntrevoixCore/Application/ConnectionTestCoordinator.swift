@@ -86,7 +86,10 @@ public final class ConnectionTestCoordinator {
         self.sessionArbiter = sessionArbiter
     }
 
-    public func start(request: TranscriptionRequest? = nil) {
+    public func start(
+        request: TranscriptionRequest? = nil,
+        audioInput: AudioInputSelection = .systemDefault
+    ) {
         guard state.isInactive else { return }
         if let request {
             let issues = request.configuration.validationIssues(apiKey: request.apiKey)
@@ -131,7 +134,10 @@ public final class ConnectionTestCoordinator {
             }
             guard self.sessionID == sessionID else { return }
             do {
-                try self.audioRecorder.start(options: .standard)
+                let startResult = try self.audioRecorder.start(input: audioInput, options: .standard)
+                if startResult == .fellBackToSystemDefault {
+                    self.logger.log("Selected microphone unavailable; using the macOS default input.")
+                }
                 self.startedAt = self.now()
                 self.state = .recording
                 self.logger.log("Connection test recording started")

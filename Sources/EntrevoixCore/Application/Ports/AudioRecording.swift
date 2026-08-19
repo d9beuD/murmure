@@ -12,7 +12,11 @@ public struct AudioRecordingOptions: Equatable, Sendable {
 
 @MainActor
 public protocol AudioRecording: AnyObject {
-    func start(options: AudioRecordingOptions) throws
+    @discardableResult
+    func start(
+        input: AudioInputSelection,
+        options: AudioRecordingOptions
+    ) throws -> AudioInputStartResult
     func stop() -> URL?
     func cancel()
     func deleteLastCapture()

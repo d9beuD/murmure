@@ -77,6 +77,34 @@ final class DictationCoordinatorTests: XCTestCase {
         await waitUntil("recording") { context.coordinator.state == .recording }
 
         XCTAssertEqual(recorder.startOptions, [AudioRecordingOptions(duckOtherAudio: true)])
+        context.coordinator.cancelRecording()
+    }
+
+    @MainActor
+    func testRecordingForwardsTheFrozenAudioInputToTheRecorder() async {
+        let recorder = RecorderSpy()
+        let context = makeContext(recorder: recorder)
+        let input = AudioInputSelection.device(.init(uid: "usb-mic", name: "USB Microphone"))
+
+        context.coordinator.startRecording(audioInput: input)
+        await waitUntil("recording") { context.coordinator.state == .recording }
+
+        XCTAssertEqual(recorder.startedInputs, [input])
+        context.coordinator.cancelRecording()
+    }
+
+    @MainActor
+    func testAudioInputFallbackIsLoggedWithoutDeviceDetails() async {
+        let recorder = RecorderSpy()
+        recorder.startResult = .fellBackToSystemDefault
+        let context = makeContext(recorder: recorder)
+
+        context.coordinator.startRecording(audioInput: .device(.init(uid: "private-uid", name: "Private Mic")))
+        await waitUntil("recording") { context.coordinator.state == .recording }
+
+        XCTAssertTrue(context.logs.entries.contains { $0.message == "Selected microphone unavailable; using the macOS default input." })
+        XCTAssertFalse(context.logs.entries.contains { $0.message.contains("private-uid") || $0.message.contains("Private Mic") })
+        context.coordinator.cancelRecording()
     }
 
     @MainActor

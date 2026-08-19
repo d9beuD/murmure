@@ -7,6 +7,7 @@ import Observation
 final class AppStore {
     let dictationSession: DictationStore
     let connectionTestStore: ConnectionTestStore
+    let audioInput: AudioInputStore
     let preferencesModel: PreferencesStore
     let providerStore: ProviderStore
     let permissionsModel: PermissionsStore
@@ -194,6 +195,10 @@ final class AppStore {
             initialPreferences: initialPreferences
         )
         self.preferencesModel = preferencesModel
+        self.audioInput = AudioInputStore(
+            preferencesStore: preferencesModel,
+            deviceCatalog: dependencies.audioInputDevices
+        )
         self.updates = UpdateStore(preferencesModel: preferencesModel, updater: dependencies.updater)
         let providerStore = ProviderStore(
             preferencesStore: preferencesModel,

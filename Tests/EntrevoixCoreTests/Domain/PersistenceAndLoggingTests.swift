@@ -62,6 +62,8 @@ final class PersistenceAndLoggingTests: XCTestCase {
         XCTAssertEqual(preferences.dictationDictionaryPrompt, "Symfony, CapRover")
 
         preferences.sttLanguage = .french
+        let microphone = AudioInputDeviceReference(uid: "usb-microphone", name: "USB Microphone")
+        preferences.audioInputSelection = .device(microphone)
         preferences.dictationDictionary = ["Symfony", "CapRover"]
         preferences.triggerMode = .toggle
         preferences.cleanupFormat = .chatCompletions
@@ -77,6 +79,33 @@ final class PersistenceAndLoggingTests: XCTestCase {
             from: JSONEncoder().encode(preferences)
         )
         XCTAssertEqual(decoded, preferences)
+    }
+
+    func testMissingAudioInputSelectionDefaultsToMacOSSystemInput() throws {
+        let preferences = try JSONDecoder().decode(
+            AppPreferences.self,
+            from: Data("{\"schemaVersion\":12}".utf8)
+        )
+
+        XCTAssertEqual(preferences.audioInputSelection, .systemDefault)
+        XCTAssertEqual(preferences.schemaVersion, 12)
+    }
+
+    func testSchemaTwelvePreferencesMigrateToCurrentAudioInputSchema() {
+        let migrated = PreferencesMigrator.migrate(
+            AppPreferences(schemaVersion: 12),
+            localizedDefaultPrompt: AppPreferences.defaultCleanupPrompt
+        )
+
+        XCTAssertEqual(migrated.schemaVersion, AppPreferences.currentSchemaVersion)
+        XCTAssertEqual(migrated.audioInputSelection, .systemDefault)
+    }
+
+    func testAudioInputDeviceIdentityUsesStableUIDRatherThanDisplayName() {
+        XCTAssertEqual(
+            AudioInputDeviceReference(uid: "usb-mic", name: "USB Microphone"),
+            AudioInputDeviceReference(uid: "usb-mic", name: "Studio Mic")
+        )
     }
 
     func testPromptLibraryRoundTripAndEmptyLibrary() throws {
