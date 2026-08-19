@@ -55,8 +55,9 @@ struct GeneralSettingsView: View {
                 .foregroundStyle(.secondary)
             }
 
-            Section(EntrevoixLocalization.text("settings.global_shortcut", defaultValue: "Global Shortcut", locale: locale)) {
-                KeyboardShortcuts.Recorder(EntrevoixLocalization.text("field.shortcut", defaultValue: "Shortcut:", locale: locale), name: .dictation)
+            Section(EntrevoixLocalization.text("settings.global_shortcut", defaultValue: "Global Shortcuts", locale: locale)) {
+                KeyboardShortcuts.Recorder(EntrevoixLocalization.text("field.primary_shortcut", defaultValue: "Primary shortcut:", locale: locale), name: .dictation)
+                KeyboardShortcuts.Recorder(EntrevoixLocalization.text("field.secondary_shortcut", defaultValue: "Secondary shortcut (optional):", locale: locale), name: .dictationSecondary)
                 Picker(EntrevoixLocalization.text("menu.mode", defaultValue: "Mode", locale: locale), selection: Binding(
                     get: { model.mode },
                     set: { model.setMode($0) }
