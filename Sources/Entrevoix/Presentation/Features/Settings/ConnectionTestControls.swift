@@ -2,7 +2,7 @@ import EntrevoixCore
 import SwiftUI
 
 struct ConnectionTestControls: View {
-    @Environment(ConnectionTestStore.self) private var model
+    let model: ConnectionTestStore
 
     var body: some View {
         let locale = model.interfaceLocale
