@@ -1,0 +1,25 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Entrevoix</title>
+        <item>
+            <title>0.3.4-dev.1</title>
+            <pubDate>Wed, 19 Aug 2026 16:15:56 +0000</pubDate>
+            <sparkle:channel>dev</sparkle:channel>
+            <sparkle:version>9</sparkle:version>
+            <sparkle:shortVersionString>0.3.4-dev.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/entrevoix-app/entrevoix-macos/releases/download/v0.3.4-dev.1/Entrevoix-0.3.4-dev.1-macos.dmg" length="4235261" type="application/octet-stream" sparkle:edSignature="Ym3+gjbYrKIJbCrTt38by68omp+ka1klbO6QZM2h/CDrw2rpi6Sv+lHJ9l3XYyFWCLbpy+O0DlyGtE7Fa6GoCw=="/>
+        </item>
+        <item>
+            <title>0.3.3</title>
+            <pubDate>Wed, 19 Aug 2026 14:10:36 +0000</pubDate>
+            <sparkle:version>8</sparkle:version>
+            <sparkle:shortVersionString>0.3.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/entrevoix-app/entrevoix-macos/releases/download/v0.3.3/Entrevoix-0.3.3-macos.dmg" length="4104684" type="application/octet-stream" sparkle:edSignature="g/2NPcqt9W7ZY6kSqYbHMjnxtoG9omnTOxnx4EZvO+/VhJkks52byrCO6qj4IZkV84qRlSyekU/duqDgIkrJCg=="/>
+        </item>
+    </channel>
+</rss>
