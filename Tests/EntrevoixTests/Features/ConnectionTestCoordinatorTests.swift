@@ -85,6 +85,7 @@ final class ConnectionTestCoordinatorTests: XCTestCase {
         XCTAssertEqual(calls.first?.language, "fr")
         XCTAssertEqual(recorder.deleteCount, 1)
         XCTAssertEqual(events, [.recordingStarted, .recordingStopped, .succeeded])
+        XCTAssertEqual(recorder.startOptions, [.standard])
     }
 
     @MainActor

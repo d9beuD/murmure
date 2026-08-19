@@ -23,6 +23,14 @@ struct GeneralSettingsView: View {
                     set: { model.setLaunchAtLogin($0) }
                 ))
                 Toggle(EntrevoixLocalization.text("settings.play_feedback", defaultValue: "Play a sound when dictation starts and ends", locale: locale), isOn: $model.preferences.playFeedbackSounds)
+                Toggle(
+                    EntrevoixLocalization.text(
+                        "settings.duck_other_audio",
+                        defaultValue: "Reduce other apps’ volume while dictating",
+                        locale: locale
+                    ),
+                    isOn: $model.preferences.duckOtherAudioDuringDictation
+                )
                 if let launchAtLoginError = model.launchAtLoginError {
                     Label(launchAtLoginError, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)

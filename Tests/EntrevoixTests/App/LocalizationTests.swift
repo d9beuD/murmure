@@ -31,6 +31,7 @@ final class LocalizationTests: XCTestCase {
             "menu.settings",
             "settings.interface_language",
             "settings.global_shortcut",
+            "settings.duck_other_audio",
             "field.stt_language",
             "field.primary_shortcut",
             "field.secondary_shortcut",

@@ -52,9 +52,9 @@ enum CompositionRoot {
         initialPreferences: AppPreferences,
         updater: any ApplicationUpdating = SparkleUpdateService()
     ) -> AppEnvironment {
-        let audioRecorder = AudioRecorder()
-        let permissions = SystemPermissionProvider()
         let logStore = AppLogStore()
+        let audioRecorder = AudioRecorder(logger: logStore)
+        let permissions = SystemPermissionProvider()
         let transport = SafeNetworkSession()
         let codexCredentials = CodexCredentialVault()
         let speechResources = AppleSpeechResourceManager()

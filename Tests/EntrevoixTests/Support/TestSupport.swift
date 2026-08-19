@@ -15,12 +15,14 @@ final class AppRecorderSpy: AudioRecording {
     var startError: (any Error)?
     var stopURL: URL?
     private(set) var startCount = 0
+    private(set) var startOptions: [AudioRecordingOptions] = []
     private(set) var stopCount = 0
     private(set) var cancelCount = 0
     private(set) var deleteCount = 0
 
-    func start() throws {
+    func start(options: AudioRecordingOptions) throws {
         startCount += 1
+        startOptions.append(options)
         if let startError { throw startError }
     }
     func stop() -> URL? {
@@ -46,7 +48,7 @@ final class AppPendingPermissionRecorder: AudioRecording {
     private(set) var startCount = 0
     private(set) var cancelCount = 0
 
-    func start() throws { startCount += 1 }
+    func start(options: AudioRecordingOptions) throws { startCount += 1 }
     func stop() -> URL? { nil }
     func cancel() { cancelCount += 1 }
     func deleteLastCapture() {}

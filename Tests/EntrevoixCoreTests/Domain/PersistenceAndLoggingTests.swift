@@ -69,6 +69,7 @@ final class PersistenceAndLoggingTests: XCTestCase {
         preferences.outputMode = .paste
         preferences.launchAtLogin = true
         preferences.playFeedbackSounds = false
+        preferences.duckOtherAudioDuringDictation = false
         preferences.hasCompletedOnboarding = true
 
         let decoded = try JSONDecoder().decode(
@@ -104,6 +105,23 @@ final class PersistenceAndLoggingTests: XCTestCase {
         XCTAssertEqual(preferences.sttLanguage, .automatic)
         XCTAssertEqual(preferences.sttFavoriteLanguages, [.french, .english])
         XCTAssertTrue(preferences.dictationDictionary.isEmpty)
+        XCTAssertTrue(preferences.duckOtherAudioDuringDictation)
+    }
+
+    func testSchemaTwelvePreferencesEnableAudioDuckingDuringMigration() throws {
+        let legacy = try JSONDecoder().decode(
+            AppPreferences.self,
+            from: Data("{\"schemaVersion\":12}".utf8)
+        )
+
+        let migrated = PreferencesMigrator.migrate(
+            legacy,
+            localizedDefaultPrompt: AppPreferences.defaultCleanupPrompt
+        )
+
+        XCTAssertTrue(legacy.duckOtherAudioDuringDictation)
+        XCTAssertEqual(migrated.schemaVersion, AppPreferences.currentSchemaVersion)
+        XCTAssertTrue(migrated.duckOtherAudioDuringDictation)
     }
 
     func testTranscriptionLanguageCodesAndLegacyMigration() throws {
