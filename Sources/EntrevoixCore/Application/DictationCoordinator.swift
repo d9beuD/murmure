@@ -198,46 +198,107 @@ public final class DictationCoordinator {
                         self.dependencies.logger.log("Improving text locally with Apple Intelligence")
                     }
                     self.onTextCleanupStarted?()
-                    self.onEvent?(.cleanupStarted)
-                    do {
-                        let enhancedText = try await self.dependencies.cleaner.clean(text: text, request: cleanup)
-                        self.dependencies.logger.log("Received \(enhancedText.count) chars enhanced transcription")
-                        finalText = enhancedText
-                    } catch is CancellationError {
-                        throw CancellationError()
-                    } catch {
-                        self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
-                        if let unavailable = error as? ProviderUnavailableError, case .apple = cleanup.target {
-                            cleanupUnavailable = unavailable
-                        } else {
-                        switch cleanup.failurePolicy {
-                        case .useRawTranscript:
-                            self.dependencies.logger.log("Using raw transcription after cleanup error")
-                        case .stop:
+                    switch cleanup.kind {
+                    case .prompt:
+                        guard let step = cleanup.steps.first else { return }
+                        self.onEvent?(.cleanupStarted)
+                        do {
+                            let enhancedText = try await self.dependencies.cleaner.clean(
+                                text: text,
+                                request: cleanup.request(for: step)
+                            )
+                            self.dependencies.logger.log("Received \(enhancedText.count) chars enhanced transcription")
+                            finalText = enhancedText
+                        } catch is CancellationError {
+                            throw CancellationError()
+                        } catch {
+                            self.dependencies.logger.log("Error: \(safeLogMessage(for: error))")
+                            if let unavailable = error as? ProviderUnavailableError, case .apple = cleanup.target {
+                                cleanupUnavailable = unavailable
+                            } else {
+                                switch cleanup.failurePolicy {
+                                case .useRawTranscript:
+                                    self.dependencies.logger.log("Using raw transcription after cleanup error")
+                                case .stop:
+                                    guard self.activeSessionID == sessionID else { return }
+                                    self.lastTranscript = text
+                                    self.activeSessionID = nil
+                                    self.lastAudioURL = nil
+                                    self.state = .error(.cleanupFailed(message: userFacingMessage(for: error)))
+                                    self.onProcessingFinished?()
+                                    return
+                                }
+                            }
+                        }
+                    case .workflow(_, let workflowName):
+                        let workflowStartedAt = self.now()
+                        for (offset, step) in cleanup.steps.enumerated() {
+                            try Task.checkCancellation()
                             guard self.activeSessionID == sessionID else { return }
-                            self.lastTranscript = text
-                            self.activeSessionID = nil
-                            self.lastAudioURL = nil
-                            self.state = .error(.cleanupFailed(message: userFacingMessage(for: error)))
-                            self.onProcessingFinished?()
-                            return
+                            let stepNumber = offset + 1
+                            self.onEvent?(.cleanupStepStarted(current: stepNumber, total: cleanup.steps.count))
+                            let stepStartedAt = self.now()
+                            self.dependencies.logger.log(
+                                "Workflow \(workflowName) step \(stepNumber)/\(cleanup.steps.count) started (prompt \(step.promptID.uuidString): \(step.promptName))"
+                            )
+                            do {
+                                finalText = try await self.dependencies.cleaner.clean(
+                                    text: finalText,
+                                    request: cleanup.request(for: step)
+                                )
+                                guard self.activeSessionID == sessionID else { return }
+                                self.logWorkflowStep(
+                                    workflowName: workflowName,
+                                    stepNumber: stepNumber,
+                                    totalSteps: cleanup.steps.count,
+                                    prompt: step,
+                                    duration: self.now().timeIntervalSince(stepStartedAt),
+                                    error: nil
+                                )
+                            } catch is CancellationError {
+                                throw CancellationError()
+                            } catch {
+                                guard self.activeSessionID == sessionID else { return }
+                                self.logWorkflowStep(
+                                    workflowName: workflowName,
+                                    stepNumber: stepNumber,
+                                    totalSteps: cleanup.steps.count,
+                                    prompt: step,
+                                    duration: self.now().timeIntervalSince(stepStartedAt),
+                                    error: error
+                                )
+                                if let unavailable = error as? ProviderUnavailableError, case .apple = cleanup.target {
+                                    cleanupUnavailable = unavailable
+                                }
+                                self.lastTranscript = finalText
+                                self.logDelivery(of: finalText, mode: frozenRequest.outputMode)
+                                if let cleanupUnavailable {
+                                    self.onEvent?(.providerUnavailable(capability: cleanupUnavailable.capability, reason: cleanupUnavailable.reason))
+                                }
+                                self.activeSessionID = nil
+                                self.lastAudioURL = nil
+                                self.state = .error(.cleanupWorkflowFailed(
+                                    step: stepNumber,
+                                    promptName: step.promptName,
+                                    message: userFacingMessage(for: error)
+                                ))
+                                self.onProcessingFinished?()
+                                self.endSession()
+                                return
+                            }
                         }
-                        }
+                        self.dependencies.logger.log(
+                            String(
+                                format: "Workflow %@ completed in %.3f s",
+                                workflowName,
+                                self.now().timeIntervalSince(workflowStartedAt)
+                            )
+                        )
                     }
                 }
                 guard self.activeSessionID == sessionID else { return }
                 self.lastTranscript = finalText
-                let deliveryResult = self.dependencies.textDelivery.deliver(finalText, mode: frozenRequest.outputMode)
-                switch deliveryResult {
-                case .copied:
-                    self.dependencies.logger.log("Delivered transcription to clipboard")
-                case .inserted:
-                    self.dependencies.logger.log("Inserted transcription in active field")
-                case .fallbackCopied(let reason):
-                    self.dependencies.logger.log("Automatic insertion unavailable; copied to clipboard (\(reason))")
-                case .secureFieldCopied:
-                    self.dependencies.logger.log("Secure field detected; copied to clipboard")
-                }
+                self.logDelivery(of: finalText, mode: frozenRequest.outputMode)
                 if let cleanupUnavailable {
                     self.onEvent?(.providerUnavailable(capability: cleanupUnavailable.capability, reason: cleanupUnavailable.reason))
                 }
@@ -290,6 +351,40 @@ public final class DictationCoordinator {
         guard let sessionLease else { return }
         dependencies.sessionArbiter?.release(sessionLease)
         self.sessionLease = nil
+    }
+
+    private func logWorkflowStep(
+        workflowName: String,
+        stepNumber: Int,
+        totalSteps: Int,
+        prompt: CleanupStep,
+        duration: TimeInterval,
+        error: (any Error)?
+    ) {
+        let durationText = String(format: "%.3f", duration)
+        if let error {
+            dependencies.logger.log(
+                "Error: Workflow \(workflowName) step \(stepNumber)/\(totalSteps) failed after \(durationText) s (prompt \(prompt.promptID.uuidString): \(prompt.promptName)): \(safeLogMessage(for: error))"
+            )
+        } else {
+            dependencies.logger.log(
+                "Workflow \(workflowName) step \(stepNumber)/\(totalSteps) completed in \(durationText) s (prompt \(prompt.promptID.uuidString): \(prompt.promptName))"
+            )
+        }
+    }
+
+    private func logDelivery(of text: String, mode: OutputMode) {
+        let deliveryResult = dependencies.textDelivery.deliver(text, mode: mode)
+        switch deliveryResult {
+        case .copied:
+            dependencies.logger.log("Delivered transcription to clipboard")
+        case .inserted:
+            dependencies.logger.log("Inserted transcription in active field")
+        case .fallbackCopied(let reason):
+            dependencies.logger.log("Automatic insertion unavailable; copied to clipboard (\(reason))")
+        case .secureFieldCopied:
+            dependencies.logger.log("Secure field detected; copied to clipboard")
+        }
     }
 
     private func endSession() {

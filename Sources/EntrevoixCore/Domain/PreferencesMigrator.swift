@@ -27,29 +27,55 @@ public enum PreferencesMigrator {
                 )
 
             if wasLocalized {
-                migrated.name = defaultPromptName
-                migrated.systemImageName = defaultPromptIcon
-                migrated.instructions = localizedDefaultPrompt
+                migrated = CleanupPrompt(
+                    id: AppPreferences.defaultCleanupPromptID,
+                    name: defaultPromptName,
+                    systemImageName: defaultPromptIcon,
+                    instructions: localizedDefaultPrompt
+                )
             } else {
                 migrated.name = "Existing Prompt"
             }
 
             preferences.cleanupPrompts = [migrated]
-            preferences.activeCleanupPromptID = migrated.id
-        } else if let activeID = input.activeCleanupPromptID {
-            if !input.cleanupPrompts.contains(where: { $0.id == activeID }) {
-                preferences.activeCleanupPromptID = input.cleanupPrompts.first?.id
-            }
-        } else if !input.cleanupPrompts.isEmpty {
-            preferences.activeCleanupPromptID = input.cleanupPrompts.first?.id
+            preferences.activeCleanupSelection = .prompt(migrated.id)
         }
+
+        if sourceSchemaVersion < 12 {
+            if preferences.cleanupPromptMode == .localizedDefault,
+               preferences.cleanupPrompts.count == 1,
+               let existingDefault = preferences.cleanupPrompts.first,
+               existingDefault.name == defaultPromptName,
+               existingDefault.systemImageName == defaultPromptIcon {
+                preferences.cleanupPrompts = [CleanupPrompt(
+                    id: AppPreferences.defaultCleanupPromptID,
+                    name: defaultPromptName,
+                    systemImageName: defaultPromptIcon,
+                    instructions: localizedDefaultPrompt
+                )]
+                if preferences.activeCleanupSelection == .prompt(existingDefault.id) {
+                    preferences.activeCleanupSelection = .prompt(AppPreferences.defaultCleanupPromptID)
+                }
+            }
+            if preferences.activeCleanupSelection == nil, let firstPrompt = preferences.cleanupPrompts.first {
+                preferences.activeCleanupSelection = .prompt(firstPrompt.id)
+            }
+        }
+
+        preferences.normalizeCleanupSelection()
 
         if sourceSchemaVersion == AppPreferences.currentSchemaVersion,
            !input.hasCompletedOnboarding,
            input.cleanupPromptMode == .localizedDefault,
            preferences.cleanupPrompts.count == 1,
            preferences.cleanupPrompts[0].instructions == AppPreferences.defaultCleanupPrompt {
-            preferences.cleanupPrompts[0].instructions = localizedDefaultPrompt
+            preferences.cleanupPrompts = [CleanupPrompt(
+                id: AppPreferences.defaultCleanupPromptID,
+                name: defaultPromptName,
+                systemImageName: defaultPromptIcon,
+                instructions: localizedDefaultPrompt
+            )]
+            preferences.activeCleanupSelection = .prompt(AppPreferences.defaultCleanupPromptID)
         }
 
         return preferences

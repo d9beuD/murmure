@@ -169,6 +169,83 @@ final class DictationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkflowRunsEachPromptSequentiallyWithProgressAndSafeLogs() async throws {
+        let recorder = RecorderSpy()
+        recorder.stopURL = try temporaryAudioFile()
+        let cleaner = SequencedCleanerSpy(results: [.success("first result"), .success("second result")])
+        let delivery = DeliverySpy()
+        let context = makeContext(recorder: recorder, cleaner: cleaner, delivery: delivery)
+        let first = CleanupStep(promptID: UUID(), promptName: "Clean", prompt: "secret prompt one")
+        let second = CleanupStep(promptID: UUID(), promptName: "Professional", prompt: "secret prompt two")
+        let plan = workflowPlan(name: "Publish", steps: [first, second])
+        var progress: [(Int, Int)] = []
+        context.coordinator.onEvent = { event in
+            if case .cleanupStepStarted(let current, let total) = event {
+                progress.append((current, total))
+            }
+        }
+
+        await recordAndStop(context, request: testDictationRequest(cleanup: plan))
+
+        let calls = await cleaner.calls
+        XCTAssertEqual(calls.map(\.text), ["raw transcript", "first result"])
+        XCTAssertEqual(calls.map(\.prompt), ["secret prompt one", "secret prompt two"])
+        XCTAssertEqual(progress.map { "\($0.0)/\($0.1)" }, ["1/2", "2/2"])
+        XCTAssertEqual(delivery.deliveries.first?.0, "second result")
+        XCTAssertEqual(context.coordinator.state, .idle)
+        XCTAssertTrue(context.logs.entries.contains { $0.message.contains("Workflow Publish step 1/2 completed") })
+        XCTAssertTrue(context.logs.entries.contains { $0.message.contains("Workflow Publish completed") })
+        XCTAssertFalse(context.logs.entries.contains { $0.message.contains("raw transcript") || $0.message.contains("secret prompt") || $0.message.contains("first result") })
+    }
+
+    @MainActor
+    func testWorkflowFailureDeliversLastSuccessfulResultAndReportsFailingStep() async throws {
+        let recorder = RecorderSpy()
+        recorder.stopURL = try temporaryAudioFile()
+        let cleaner = SequencedCleanerSpy(results: [.success("first result"), .failure(.failure)])
+        let delivery = DeliverySpy()
+        let context = makeContext(recorder: recorder, cleaner: cleaner, delivery: delivery)
+        let plan = workflowPlan(name: "Publish", steps: [
+            CleanupStep(promptID: UUID(), promptName: "Clean", prompt: "secret prompt one"),
+            CleanupStep(promptID: UUID(), promptName: "Professional", prompt: "secret prompt two"),
+            CleanupStep(promptID: UUID(), promptName: "Never reached", prompt: "secret prompt three")
+        ])
+
+        await recordAndStop(context, request: testDictationRequest(cleanup: plan))
+
+        let calls = await cleaner.calls
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertEqual(delivery.deliveries.first?.0, "first result")
+        XCTAssertEqual(context.coordinator.lastTranscript, "first result")
+        XCTAssertEqual(
+            context.coordinator.state,
+            .error(.cleanupWorkflowFailed(step: 2, promptName: "Professional", message: "Visible failure"))
+        )
+        XCTAssertTrue(context.logs.entries.contains { $0.message.contains("Workflow Publish step 2/3 failed") })
+        XCTAssertFalse(context.logs.entries.contains { $0.message.contains("first result") || $0.message.contains("secret prompt") })
+    }
+
+    @MainActor
+    func testFirstWorkflowFailureDeliversRawTranscript() async throws {
+        let recorder = RecorderSpy()
+        recorder.stopURL = try temporaryAudioFile()
+        let cleaner = SequencedCleanerSpy(results: [.failure(.failure)])
+        let delivery = DeliverySpy()
+        let context = makeContext(recorder: recorder, cleaner: cleaner, delivery: delivery)
+        let plan = workflowPlan(name: "Publish", steps: [
+            CleanupStep(promptID: UUID(), promptName: "Clean", prompt: "secret prompt")
+        ])
+
+        await recordAndStop(context, request: testDictationRequest(cleanup: plan))
+
+        XCTAssertEqual(delivery.deliveries.first?.0, "raw transcript")
+        XCTAssertEqual(
+            context.coordinator.state,
+            .error(.cleanupWorkflowFailed(step: 1, promptName: "Clean", message: "Visible failure"))
+        )
+    }
+
+    @MainActor
     func testTranscriptionFailureIsSafeAndDeletesAudio() async throws {
         let recorder = RecorderSpy()
         let audioURL = try temporaryAudioFile()
@@ -204,6 +281,34 @@ final class DictationCoordinatorTests: XCTestCase {
         XCTAssertEqual(context.coordinator.state, .idle)
         XCTAssertTrue(delivery.deliveries.isEmpty)
         XCTAssertFalse(context.logs.entries.contains { $0.message.contains("late secret transcript") })
+    }
+
+    @MainActor
+    func testWorkflowCancellationStopsBeforeTheNextStepAndDeletesAudio() async throws {
+        let recorder = RecorderSpy()
+        let audioURL = try temporaryAudioFile()
+        recorder.stopURL = audioURL
+        let cleaner = ControlledCleaner()
+        let delivery = DeliverySpy()
+        let context = makeContext(recorder: recorder, cleaner: cleaner, delivery: delivery)
+        let plan = workflowPlan(name: "Publish", steps: [
+            CleanupStep(promptID: UUID(), promptName: "Clean", prompt: "secret prompt one"),
+            CleanupStep(promptID: UUID(), promptName: "Professional", prompt: "secret prompt two")
+        ])
+
+        context.coordinator.startRecording()
+        await waitUntil("recording") { context.coordinator.state == .recording }
+        context.clock.advance(by: 1)
+        context.coordinator.stopRecording(request: testDictationRequest(cleanup: plan))
+        await waitUntil("first workflow request") { await cleaner.callCount == 1 }
+
+        context.coordinator.cancelRecording()
+        await cleaner.succeed(with: "late intermediate result")
+        await waitUntil("audio deletion") { !FileManager.default.fileExists(atPath: audioURL.path) }
+
+        XCTAssertEqual(context.coordinator.state, .idle)
+        XCTAssertTrue(delivery.deliveries.isEmpty)
+        XCTAssertFalse(context.logs.entries.contains { $0.message.contains("late intermediate result") })
     }
 
     @MainActor
@@ -261,6 +366,31 @@ final class DictationCoordinatorTests: XCTestCase {
                 return false
             }()
         }
+    }
+
+    @MainActor
+    private func recordAndStop(_ context: Context, request: DictationRequest) async {
+        context.coordinator.startRecording()
+        await waitUntil("recording") { context.coordinator.state == .recording }
+        context.clock.advance(by: 1)
+        context.coordinator.stopRecording(request: request)
+        await waitUntil("terminal state") {
+            context.coordinator.state == .idle || {
+                if case .error = context.coordinator.state { return true }
+                return false
+            }()
+        }
+    }
+
+    private func workflowPlan(name: String, steps: [CleanupStep]) -> CleanupPlan {
+        CleanupPlan(
+            configuration: .openAIResponses,
+            apiKey: "cleanup-secret",
+            format: .responses,
+            failurePolicy: .stop,
+            kind: .workflow(id: UUID(), name: name),
+            steps: steps
+        )
     }
 
     @MainActor

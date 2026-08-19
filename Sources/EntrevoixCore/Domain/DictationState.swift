@@ -19,6 +19,7 @@ public enum DictationFailure: Equatable, Sendable {
     case sessionUnavailable
     case transcriptionFailed(message: UserFacingErrorMessage)
     case cleanupFailed(message: UserFacingErrorMessage)
+    case cleanupWorkflowFailed(step: Int, promptName: String, message: UserFacingErrorMessage)
 }
 
 public enum DictationState: Equatable, Sendable {

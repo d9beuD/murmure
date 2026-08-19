@@ -158,7 +158,11 @@ final class DictationStore {
     }
 
     private func makeRequest() -> DictationRequest? {
-        providerStore.makeDictationRequest(activeCleanupPrompt: promptLibrary.activePrompt)
+        providerStore.makeDictationRequest(
+            activeCleanupSelection: promptLibrary.activeSelection,
+            cleanupPrompts: providerStore.preferences.cleanupPrompts,
+            cleanupWorkflows: providerStore.preferences.cleanupWorkflows
+        )
     }
 
     private func handle(_ event: DictationEvent) {
@@ -184,6 +188,17 @@ final class DictationStore {
                 "dictation.improving",
                 defaultValue: "Improving text…",
                 locale: providerStore.interfaceLocale
+            ))
+        case .cleanupStepStarted(let current, let total):
+            let format = EntrevoixLocalization.text(
+                "dictation.improving_progress",
+                defaultValue: "Improving text… %lld/%lld",
+                locale: providerStore.interfaceLocale
+            )
+            listeningIndicator.update(label: String(
+                format: format,
+                locale: providerStore.interfaceLocale,
+                arguments: [current, total]
             ))
         case .providerUnavailable(let capability, let reason):
             logStore.log("Apple \(capability.rawValue) unavailable (\(reason.rawValue)).")

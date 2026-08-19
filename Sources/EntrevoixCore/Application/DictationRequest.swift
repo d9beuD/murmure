@@ -58,14 +58,71 @@ public struct CleanupRequest: Sendable {
     }
 }
 
+public struct CleanupStep: Equatable, Sendable {
+    public let promptID: UUID
+    public let promptName: String
+    public let prompt: String
+
+    public init(promptID: UUID, promptName: String, prompt: String) {
+        self.promptID = promptID
+        self.promptName = promptName
+        self.prompt = prompt
+    }
+}
+
+public enum CleanupPlanKind: Equatable, Sendable {
+    case prompt
+    case workflow(id: UUID, name: String)
+}
+
+/// A frozen cleanup configuration and its ordered prompt steps for one dictation.
+public struct CleanupPlan: Sendable {
+    public let configuration: ProviderConfiguration
+    public let apiKey: String
+    public let format: CleanupAPIFormat
+    public let failurePolicy: CleanupFailurePolicy
+    public let target: CleanupTarget
+    public let kind: CleanupPlanKind
+    public let steps: [CleanupStep]
+
+    public init(
+        configuration: ProviderConfiguration,
+        apiKey: String,
+        format: CleanupAPIFormat,
+        failurePolicy: CleanupFailurePolicy,
+        target: CleanupTarget = .remote,
+        kind: CleanupPlanKind,
+        steps: [CleanupStep]
+    ) {
+        self.configuration = configuration
+        self.apiKey = apiKey
+        self.format = format
+        self.failurePolicy = failurePolicy
+        self.target = target
+        self.kind = kind
+        self.steps = steps
+    }
+
+    public func request(for step: CleanupStep) -> CleanupRequest {
+        CleanupRequest(
+            configuration: configuration,
+            apiKey: apiKey,
+            format: format,
+            prompt: step.prompt,
+            failurePolicy: failurePolicy,
+            target: target
+        )
+    }
+}
+
 public struct DictationRequest: Sendable {
     public let transcription: TranscriptionRequest
-    public let cleanup: CleanupRequest?
+    public let cleanup: CleanupPlan?
     public let outputMode: OutputMode
 
     public init(
         transcription: TranscriptionRequest,
-        cleanup: CleanupRequest?,
+        cleanup: CleanupPlan?,
         outputMode: OutputMode
     ) {
         self.transcription = transcription

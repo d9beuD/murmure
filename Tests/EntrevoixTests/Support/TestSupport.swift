@@ -130,6 +130,32 @@ actor AppControlledCleaner: TextCleaning {
     }
 }
 
+actor AppSequencedCleaner: TextCleaning {
+    struct Call: Sendable {
+        let text: String
+        let prompt: String
+    }
+
+    private var results: [Result<String, AppStubError>]
+    private(set) var calls: [Call] = []
+
+    init(results: [Result<String, AppStubError>]) {
+        self.results = results
+    }
+
+    func clean(
+        text: String,
+        configuration: ProviderConfiguration,
+        apiKey: String,
+        format: CleanupAPIFormat,
+        prompt: String
+    ) async throws -> String {
+        calls.append(Call(text: text, prompt: prompt))
+        guard !results.isEmpty else { throw AppStubError.failure }
+        return try results.removeFirst().get()
+    }
+}
+
 struct AppCleanerStub: TextCleaning {
     func clean(
         text: String,

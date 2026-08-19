@@ -272,6 +272,32 @@ final class AppStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testDeletingPromptPrunesWorkflowReferencesAndRepairsActiveSelection() {
+        let defaultPrompt = CleanupPrompt(
+            id: AppPreferences.defaultCleanupPromptID,
+            name: "Standard",
+            systemImageName: "wand.and.stars",
+            instructions: "Default"
+        )
+        let removable = CleanupPrompt(name: "Polish", systemImageName: "sparkles", instructions: "Polish text")
+        let workflow = CleanupWorkflow(name: "Publish", promptIDs: [removable.id, removable.id])
+        let preferences = AppPreferences(
+            cleanupPrompts: [defaultPrompt, removable],
+            cleanupWorkflows: [workflow],
+            activeCleanupSelection: .workflow(workflow.id)
+        )
+        let context = makeContext(preferences: preferences)
+
+        context.model.deleteCleanupPrompt(id: removable.id)
+
+        XCTAssertEqual(context.model.preferences.cleanupWorkflows.first?.promptIDs, [])
+        XCTAssertEqual(context.model.preferences.activeCleanupSelection, .prompt(defaultPrompt.id))
+        XCTAssertEqual(context.model.activeCleanupPrompt?.id, defaultPrompt.id)
+        context.model.setActiveCleanupWorkflow(workflow.id)
+        XCTAssertEqual(context.model.preferences.activeCleanupSelection, .prompt(defaultPrompt.id))
+    }
+
+    @MainActor
     func testInvalidActivePromptReferenceIsRepairedAndPersisted() {
         var preferences = AppPreferences()
         preferences.activeCleanupPromptID = UUID()
@@ -729,6 +755,37 @@ final class AppStoreTests: XCTestCase {
         await appWaitUntil("processing completion") { context.model.state == .idle }
 
         XCTAssertEqual(context.listeningIndicator.hideCount, 1)
+    }
+
+    @MainActor
+    func testListeningIndicatorShowsWorkflowStepProgress() async throws {
+        let recorder = AppRecorderSpy()
+        recorder.stopURL = try appTemporaryFile()
+        let first = CleanupPrompt(name: "Clean", systemImageName: "sparkles", instructions: "First prompt")
+        let second = CleanupPrompt(name: "Format", systemImageName: "text.alignleft", instructions: "Second prompt")
+        let workflow = CleanupWorkflow(name: "Publish", promptIDs: [first.id, second.id])
+        let preferences = AppPreferences(
+            interfaceLanguage: .english,
+            cleanupPrompts: [first, second],
+            cleanupWorkflows: [workflow],
+            activeCleanupSelection: .workflow(workflow.id)
+        )
+        let cleaner = AppSequencedCleaner(results: [.success("first result"), .success("second result")])
+        let context = makeContext(recorder: recorder, cleaner: cleaner, preferences: preferences)
+
+        context.model.startRecording()
+        await appWaitUntil("recording") { context.model.state == .recording }
+        context.clock.advance(by: 1)
+        context.model.stopRecording()
+        await appWaitUntil("workflow completion") { context.model.state == .idle }
+
+        let calls = await cleaner.calls
+        XCTAssertEqual(calls.map(\.text), ["connection transcript", "first result"])
+        XCTAssertEqual(context.listeningIndicator.updatedLabels, [
+            "Transcribing…",
+            "Improving text… 1/2",
+            "Improving text… 2/2"
+        ])
     }
 
     @MainActor
