@@ -1,7 +1,7 @@
 import Foundation
 
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 12
+    public static let currentSchemaVersion = 13
     public static let defaultCleanupPromptID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
 
     public var schemaVersion: Int
@@ -23,6 +23,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var outputMode: OutputMode
     public var launchAtLogin: Bool
     public var playFeedbackSounds: Bool
+    public var duckOtherAudioDuringDictation: Bool
     public var updateChannel: UpdateChannel
     public var hasCompletedOnboarding: Bool
     /// One-shot, in-memory key migration instructions for a malformed schema-8
@@ -50,6 +51,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         outputMode: OutputMode = .clipboard,
         launchAtLogin: Bool = false,
         playFeedbackSounds: Bool = true,
+        duckOtherAudioDuringDictation: Bool = true,
         updateChannel: UpdateChannel = .stable,
         hasCompletedOnboarding: Bool = false
     ) {
@@ -76,6 +78,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.outputMode = outputMode
         self.launchAtLogin = launchAtLogin
         self.playFeedbackSounds = playFeedbackSounds
+        self.duckOtherAudioDuringDictation = duckOtherAudioDuringDictation
         self.updateChannel = updateChannel
         self.hasCompletedOnboarding = hasCompletedOnboarding
         self.secretMigrationCopies = [:]
@@ -205,7 +208,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         case sttLanguage, sttFavoriteLanguages, dictationDictionary, triggerMode, cleanupEnabled
         case cleanupPrompts, cleanupWorkflows, activeCleanupSelection, activeCleanupPromptID
         case cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy
-        case outputMode, launchAtLogin, playFeedbackSounds, updateChannel, hasCompletedOnboarding
+        case outputMode, launchAtLogin, playFeedbackSounds, duckOtherAudioDuringDictation, updateChannel, hasCompletedOnboarding
         // Schema 8 keys, intentionally decode-only.
         case stt, cleanupProvider, cleanupFormat
     }
@@ -260,6 +263,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .clipboard
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         playFeedbackSounds = try c.decodeIfPresent(Bool.self, forKey: .playFeedbackSounds) ?? true
+        duckOtherAudioDuringDictation = try c.decodeIfPresent(Bool.self, forKey: .duckOtherAudioDuringDictation) ?? true
         updateChannel = (try? c.decode(UpdateChannel.self, forKey: .updateChannel)) ?? .stable
         hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? (sourceVersion < 4)
         normalizeProviderReferences()
@@ -280,6 +284,7 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         try c.encode(cleanupPrompt, forKey: .cleanupPrompt); try c.encode(cleanupPromptMode, forKey: .cleanupPromptMode)
         try c.encode(cleanupFailurePolicy, forKey: .cleanupFailurePolicy); try c.encode(outputMode, forKey: .outputMode)
         try c.encode(launchAtLogin, forKey: .launchAtLogin); try c.encode(playFeedbackSounds, forKey: .playFeedbackSounds)
+        try c.encode(duckOtherAudioDuringDictation, forKey: .duckOtherAudioDuringDictation)
         try c.encode(updateChannel, forKey: .updateChannel)
         try c.encode(hasCompletedOnboarding, forKey: .hasCompletedOnboarding)
     }

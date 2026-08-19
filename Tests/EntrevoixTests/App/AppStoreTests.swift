@@ -368,6 +368,21 @@ final class AppStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testDictationFreezesTheAudioDuckingPreferenceAtCaptureStart() async {
+        let recorder = AppRecorderSpy()
+        var preferences = AppPreferences(interfaceLanguage: .english)
+        preferences.duckOtherAudioDuringDictation = false
+        let context = makeContext(recorder: recorder, preferences: preferences)
+
+        context.model.startRecording()
+        await appWaitUntil("recording") { context.model.state == .recording }
+        context.model.preferences.duckOtherAudioDuringDictation = true
+
+        XCTAssertEqual(recorder.startOptions, [AudioRecordingOptions(duckOtherAudio: false)])
+        context.model.cancelRecording()
+    }
+
+    @MainActor
     func testToggleStartsAndStopsRecording() async throws {
         let recorder = AppRecorderSpy()
         recorder.stopURL = try appTemporaryFile()

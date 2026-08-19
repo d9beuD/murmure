@@ -131,7 +131,7 @@ public final class ConnectionTestCoordinator {
             }
             guard self.sessionID == sessionID else { return }
             do {
-                try self.audioRecorder.start()
+                try self.audioRecorder.start(options: .standard)
                 self.startedAt = self.now()
                 self.state = .recording
                 self.logger.log("Connection test recording started")

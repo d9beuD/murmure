@@ -1,6 +1,7 @@
 import AVFoundation
-import Foundation
 import EntrevoixCore
+import Foundation
+import Synchronization
 
 @MainActor
 protocol AudioLevelProviding: AnyObject {
@@ -8,13 +9,25 @@ protocol AudioLevelProviding: AnyObject {
     var averagePower: Float { get }
 }
 
+/// Records a microphone session into the application's fixed PCM WAV format.
+/// The engine is created per capture because voice processing can only be
+/// enabled while it is stopped; ending the engine's I/O session restores the
+/// other applications' audio before transcription begins.
 @MainActor
 final class AudioRecorder: AudioRecording, AudioLevelProviding {
-    private var recorder: AVAudioRecorder?
+    private var engine: AVAudioEngine?
+    private var captureWriter: AudioCaptureWriter?
+    private var hasInstalledTap = false
     private(set) var currentURL: URL?
 
-    func start() throws {
-        guard recorder == nil else { return }
+    private let logger: any LogWriting
+
+    init(logger: any LogWriting) {
+        self.logger = logger
+    }
+
+    func start(options: AudioRecordingOptions) throws {
+        guard engine == nil else { return }
 
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("Entrevoix", isDirectory: true)
@@ -26,55 +39,70 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         let url = directory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("wav")
+        let newEngine = AVAudioEngine()
+        let inputNode = newEngine.inputNode
 
-        let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatLinearPCM),
-            AVSampleRateKey: 16_000,
-            AVNumberOfChannelsKey: 1,
-            AVLinearPCMBitDepthKey: 16,
-            AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsBigEndianKey: false
-        ]
+        if options.duckOtherAudio {
+            do {
+                try inputNode.setVoiceProcessingEnabled(true)
+                inputNode.voiceProcessingOtherAudioDuckingConfiguration = AudioDuckingConfiguration.maximum
+            } catch {
+                logger.log("Audio ducking unavailable; recording without audio ducking.")
+            }
+        }
 
-        let newRecorder = try AVAudioRecorder(url: url, settings: settings)
-        newRecorder.prepareToRecord()
-        newRecorder.isMeteringEnabled = true
-
-        guard newRecorder.record() else {
+        let inputFormat = inputNode.outputFormat(forBus: 0)
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
             throw RecorderError.couldNotStart
         }
 
-        recorder = newRecorder
-        currentURL = url
+        do {
+            let writer = try AudioCaptureWriter(inputFormat: inputFormat, outputURL: url)
+            inputNode.installTap(onBus: 0, bufferSize: 8_192, format: inputFormat) {
+                buffer, _ in
+                writer.append(buffer)
+            }
+            hasInstalledTap = true
+            newEngine.prepare()
+            try newEngine.start()
+            engine = newEngine
+            captureWriter = writer
+            currentURL = url
+        } catch {
+            if hasInstalledTap {
+                inputNode.removeTap(onBus: 0)
+                hasInstalledTap = false
+            }
+            newEngine.stop()
+            try? FileManager.default.removeItem(at: url)
+            throw error
+        }
     }
 
-    func updateMeters() {
-        recorder?.updateMeters()
-    }
+    /// Metering is calculated as input buffers arrive; retaining this method
+    /// preserves the listening indicator's existing abstraction.
+    func updateMeters() {}
 
     var averagePower: Float {
-        recorder?.averagePower(forChannel: 0) ?? -160
+        captureWriter?.averagePower ?? -160
     }
 
     func stop() -> URL? {
-        recorder?.stop()
-        recorder = nil
+        let result = finishCapture()
+        guard result == .success, let currentURL else { return nil }
         return currentURL
     }
 
     func cancel() {
-        recorder?.stop()
-        recorder = nil
-
+        _ = finishCapture()
         if let currentURL {
             try? FileManager.default.removeItem(at: currentURL)
         }
-
         currentURL = nil
     }
 
     func deleteLastCapture() {
-        guard let currentURL else { return }
+        guard engine == nil, let currentURL else { return }
         try? FileManager.default.removeItem(at: currentURL)
         self.currentURL = nil
     }
@@ -87,6 +115,166 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         try? FileManager.default.removeItem(at: url)
         if currentURL == url { currentURL = nil }
     }
+
+    private func finishCapture() -> AudioCaptureWriter.Result {
+        guard let engine, let captureWriter else { return .empty }
+
+        engine.stop()
+        if hasInstalledTap {
+            engine.inputNode.removeTap(onBus: 0)
+            hasInstalledTap = false
+        }
+        self.engine = nil
+        self.captureWriter = nil
+
+        let result = captureWriter.finish()
+        if result != .success, let currentURL {
+            try? FileManager.default.removeItem(at: currentURL)
+            self.currentURL = nil
+        }
+        return result
+    }
+}
+
+/// Synchronizes the realtime engine callback with the main-actor lifecycle.
+/// A mutex is necessary here because a tap callback is synchronous and cannot
+/// await actor isolation without dispatching work for every audio buffer.
+final class AudioCaptureWriter: Sendable {
+    enum Result: Equatable {
+        case success
+        case empty
+        case failed
+    }
+
+    private struct State {
+        let converter: AVAudioConverter
+        let file: AVAudioFile
+        let outputFormat: AVAudioFormat
+        var averagePower: Float = -160
+        var didWriteFrames = false
+        var didFail = false
+        var isFinished = false
+    }
+
+    private let state: Mutex<State>
+
+    init(inputFormat: AVAudioFormat, outputURL: URL) throws {
+        guard let outputFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: true
+        ), let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+            throw RecorderError.couldNotStart
+        }
+        converter.downmix = true
+
+        let file = try AVAudioFile(
+            forWriting: outputURL,
+            settings: outputFormat.settings,
+            commonFormat: .pcmFormatInt16,
+            interleaved: true
+        )
+        state = Mutex(State(converter: converter, file: file, outputFormat: outputFormat))
+    }
+
+    var averagePower: Float {
+        state.withLock { $0.averagePower }
+    }
+
+    func append(_ input: AVAudioPCMBuffer) {
+        state.withLock { state in
+            guard !state.isFinished, !state.didFail else { return }
+            state.averagePower = Self.averagePower(for: input)
+
+            let convertedFrameCount = max(
+                Int(input.frameLength),
+                Int((Double(input.frameLength) * state.outputFormat.sampleRate / input.format.sampleRate).rounded(.up)) + 32
+            )
+            guard let output = AVAudioPCMBuffer(
+                pcmFormat: state.outputFormat,
+                frameCapacity: AVAudioFrameCount(convertedFrameCount)
+            ) else {
+                state.didFail = true
+                return
+            }
+
+            let source = ConverterInputBlockSource(input)
+            var conversionError: NSError?
+            let status = state.converter.convert(to: output, error: &conversionError) { _, inputStatus in
+                source.next(into: inputStatus)
+            }
+            guard conversionError == nil, status != .error, output.frameLength > 0 else {
+                state.didFail = true
+                return
+            }
+            do {
+                try state.file.write(from: output)
+                state.didWriteFrames = true
+            } catch {
+                state.didFail = true
+            }
+        }
+    }
+
+    func finish() -> Result {
+        state.withLock { state in
+            guard !state.isFinished else {
+                return state.didFail ? .failed : (state.didWriteFrames ? .success : .empty)
+            }
+            state.isFinished = true
+            state.file.close()
+            return state.didFail ? .failed : (state.didWriteFrames ? .success : .empty)
+        }
+    }
+
+    private static func averagePower(for buffer: AVAudioPCMBuffer) -> Float {
+        guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else { return -160 }
+
+        var squaredSum: Float = 0
+        let frameCount = Int(buffer.frameLength)
+        let channelCount = Int(buffer.format.channelCount)
+        for channel in 0..<channelCount {
+            for frame in 0..<frameCount {
+                let sample = channels[channel][frame]
+                squaredSum += sample * sample
+            }
+        }
+
+        let sampleCount = Float(frameCount * channelCount)
+        guard squaredSum > 0, sampleCount > 0 else { return -160 }
+        return max(-160, 20 * log10(sqrt(squaredSum / sampleCount)))
+    }
+}
+
+/// AVAudioConverter invokes this block synchronously while `AudioCaptureWriter`
+/// holds its mutex. AVAudioPCMBuffer has no Sendable conformance, so this small
+/// wrapper documents the externally synchronized Objective-C boundary rather
+/// than leaking an unchecked conformance into the recorder itself.
+private final class ConverterInputBlockSource: @unchecked Sendable {
+    private let buffer: AVAudioPCMBuffer
+    private var hasProvidedBuffer = false
+
+    init(_ buffer: AVAudioPCMBuffer) {
+        self.buffer = buffer
+    }
+
+    func next(into status: UnsafeMutablePointer<AVAudioConverterInputStatus>) -> AVAudioBuffer? {
+        guard !hasProvidedBuffer else {
+            status.pointee = .noDataNow
+            return nil
+        }
+        hasProvidedBuffer = true
+        status.pointee = .haveData
+        return buffer
+    }
+}
+
+enum AudioDuckingConfiguration {
+    static let maximum = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
+        enableAdvancedDucking: false,
+        duckingLevel: .max
+    )
 }
 
 enum RecorderError: LocalizedError, LogSafeError, UserFacingErrorProviding {

@@ -1,8 +1,18 @@
 import Foundation
 
+public struct AudioRecordingOptions: Equatable, Sendable {
+    public let duckOtherAudio: Bool
+
+    public init(duckOtherAudio: Bool = false) {
+        self.duckOtherAudio = duckOtherAudio
+    }
+
+    public static let standard = AudioRecordingOptions()
+}
+
 @MainActor
 public protocol AudioRecording: AnyObject {
-    func start() throws
+    func start(options: AudioRecordingOptions) throws
     func stop() -> URL?
     func cancel()
     func deleteLastCapture()

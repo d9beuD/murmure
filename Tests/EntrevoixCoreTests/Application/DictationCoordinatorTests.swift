@@ -58,6 +58,28 @@ final class DictationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testFrozenRecordingOptionsArePassedToTheRecorder() async {
+        let recorder = RecorderSpy()
+        let context = makeContext(recorder: recorder)
+        let request = DictationRequest(
+            transcription: TranscriptionRequest(
+                configuration: testSTTConfiguration,
+                apiKey: "stt-secret",
+                prompt: "prompt",
+                language: "fr"
+            ),
+            cleanup: nil,
+            outputMode: .clipboard,
+            recordingOptions: AudioRecordingOptions(duckOtherAudio: true)
+        )
+
+        context.coordinator.startRecording(request: request)
+        await waitUntil("recording") { context.coordinator.state == .recording }
+
+        XCTAssertEqual(recorder.startOptions, [AudioRecordingOptions(duckOtherAudio: true)])
+    }
+
+    @MainActor
     func testShortRecordingIsCancelledWithoutTranscription() async {
         let recorder = RecorderSpy()
         let transcriber = TranscriberSpy()

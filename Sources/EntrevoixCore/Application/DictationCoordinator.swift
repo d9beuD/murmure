@@ -93,7 +93,9 @@ public final class DictationCoordinator {
             }
             guard self.activeSessionID == sessionID, self.state == .requestingPermission else { return }
             do {
-                try self.dependencies.audioRecorder.start()
+                try self.dependencies.audioRecorder.start(
+                    options: request?.recordingOptions ?? .standard
+                )
                 self.dependencies.logger.log("Recording started")
                 self.onRecordingStarted?()
                 self.onEvent?(.recordingStarted)
