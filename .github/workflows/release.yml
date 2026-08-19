@@ -170,6 +170,7 @@ jobs:
       - name: Publish cumulative Sparkle appcast
         if: ${{ !inputs.draft }}
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           ENTREVOIX_TAG: v${{ inputs.version }}
           SPARKLE_BIN_DIRECTORY: ${{ runner.temp }}/sparkle/bin
           SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
