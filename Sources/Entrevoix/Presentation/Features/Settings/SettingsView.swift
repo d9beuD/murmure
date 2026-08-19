@@ -48,6 +48,8 @@ struct SettingsView: View {
                     PromptLibraryView(model: model, state: promptNavigation) { newSelection in
                         selection = newSelection
                     }
+                case .workflows:
+                    WorkflowLibraryView(model: model)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -64,6 +66,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case dictationDictionary
     case cleanup
     case prompts
+    case workflows
 
     var id: Self { self }
 
@@ -75,6 +78,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .dictationDictionary: "character.book.closed"
         case .cleanup: "wand.and.stars"
         case .prompts: "text.badge.checkmark"
+        case .workflows: "point.3.connected.trianglepath.dotted"
         }
     }
 
@@ -86,6 +90,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .dictationDictionary: EntrevoixLocalization.text("settings.dictation_dictionary", defaultValue: "Dictation Dictionary", locale: locale)
         case .cleanup: EntrevoixLocalization.text("settings.ttt", defaultValue: "TTT Cleanup", locale: locale)
         case .prompts: EntrevoixLocalization.text("settings.prompts", defaultValue: "Prompts", locale: locale)
+        case .workflows: EntrevoixLocalization.text("settings.workflows", defaultValue: "Workflows", locale: locale)
         }
     }
 }

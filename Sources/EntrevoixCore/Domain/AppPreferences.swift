@@ -1,7 +1,7 @@
 import Foundation
 
 public struct AppPreferences: Codable, Equatable, Sendable {
-    public static let currentSchemaVersion = 11
+    public static let currentSchemaVersion = 12
     public static let defaultCleanupPromptID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
 
     public var schemaVersion: Int
@@ -15,7 +15,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     public var triggerMode: TriggerMode
     public var cleanupEnabled: Bool
     public var cleanupPrompts: [CleanupPrompt]
-    public var activeCleanupPromptID: UUID?
+    public var cleanupWorkflows: [CleanupWorkflow]
+    public var activeCleanupSelection: CleanupTransformationSelection?
     public var cleanupPrompt: String
     public var cleanupPromptMode: CleanupPromptMode
     public var cleanupFailurePolicy: CleanupFailurePolicy
@@ -42,6 +43,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         cleanupPrompt: String = AppPreferences.defaultCleanupPrompt,
         cleanupPromptMode: CleanupPromptMode = .localizedDefault,
         cleanupPrompts: [CleanupPrompt] = [CleanupPrompt(id: AppPreferences.defaultCleanupPromptID, name: "Standard", systemImageName: "wand.and.stars", instructions: AppPreferences.defaultCleanupPrompt)],
+        cleanupWorkflows: [CleanupWorkflow] = [],
+        activeCleanupSelection: CleanupTransformationSelection? = nil,
         activeCleanupPromptID: UUID? = nil,
         cleanupFailurePolicy: CleanupFailurePolicy = .useRawTranscript,
         outputMode: OutputMode = .clipboard,
@@ -63,7 +66,10 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.triggerMode = triggerMode
         self.cleanupEnabled = cleanupEnabled && selectedTTTProviderID != nil
         self.cleanupPrompts = cleanupPrompts
-        self.activeCleanupPromptID = activeCleanupPromptID ?? cleanupPrompts.first?.id
+        self.cleanupWorkflows = cleanupWorkflows
+        self.activeCleanupSelection = activeCleanupSelection
+            ?? activeCleanupPromptID.map(CleanupTransformationSelection.prompt)
+            ?? cleanupPrompts.first.map { .prompt($0.id) }
         self.cleanupPrompt = cleanupPrompt
         self.cleanupPromptMode = cleanupPromptMode
         self.cleanupFailurePolicy = cleanupFailurePolicy
@@ -74,6 +80,45 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         self.hasCompletedOnboarding = hasCompletedOnboarding
         self.secretMigrationCopies = [:]
         normalizeProviderReferences()
+    }
+
+    /// Compatibility projection for call sites that still operate on a prompt-only selection.
+    public var activeCleanupPromptID: UUID? {
+        get {
+            guard case .prompt(let id) = activeCleanupSelection else { return nil }
+            return id
+        }
+        set {
+            activeCleanupSelection = newValue.map(CleanupTransformationSelection.prompt)
+        }
+    }
+
+    public var activeCleanupWorkflowID: UUID? {
+        guard case .workflow(let id) = activeCleanupSelection else { return nil }
+        return id
+    }
+
+    public func isValidCleanupSelection(_ selection: CleanupTransformationSelection?) -> Bool {
+        guard let selection else { return false }
+        switch selection {
+        case .prompt(let id): return cleanupPrompts.contains { $0.id == id }
+        case .workflow(let id): return cleanupWorkflows.contains { $0.id == id && $0.isValid }
+        }
+    }
+
+    public func cleanupFallbackSelection() -> CleanupTransformationSelection? {
+        if cleanupPrompts.contains(where: { $0.id == Self.defaultCleanupPromptID }) {
+            return .prompt(Self.defaultCleanupPromptID)
+        }
+        return cleanupPrompts.first.map { .prompt($0.id) }
+    }
+
+    public mutating func normalizeCleanupSelection() {
+        guard let activeCleanupSelection, !isValidCleanupSelection(activeCleanupSelection) else { return }
+        self.activeCleanupSelection = cleanupFallbackSelection()
+        if self.activeCleanupSelection == nil {
+            cleanupEnabled = false
+        }
     }
 
     public static let defaultCleanupPrompt = "Clean up the transcript without changing its meaning. Correct punctuation, mistakes, and hesitations. Return only the final text."
@@ -158,7 +203,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, interfaceLanguage, providerCatalog, selectedSTTProviderID, selectedTTTProviderID
         case sttLanguage, sttFavoriteLanguages, dictationDictionary, triggerMode, cleanupEnabled
-        case cleanupPrompts, activeCleanupPromptID, cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy
+        case cleanupPrompts, cleanupWorkflows, activeCleanupSelection, activeCleanupPromptID
+        case cleanupPrompt, cleanupPromptMode, cleanupFailurePolicy
         case outputMode, launchAtLogin, playFeedbackSounds, updateChannel, hasCompletedOnboarding
         // Schema 8 keys, intentionally decode-only.
         case stt, cleanupProvider, cleanupFormat
@@ -199,11 +245,16 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         if let mode = try c.decodeIfPresent(CleanupPromptMode.self, forKey: .cleanupPromptMode) { cleanupPromptMode = mode } else { cleanupPromptMode = cleanupPrompt == Self.defaultCleanupPrompt ? .legacyDefaultPendingChoice : .custom }
         if let prompts = try c.decodeIfPresent([CleanupPrompt].self, forKey: .cleanupPrompts) {
             cleanupPrompts = prompts
-            activeCleanupPromptID = try c.decodeIfPresent(UUID.self, forKey: .activeCleanupPromptID)
         } else {
             let prompt = CleanupPrompt(name: cleanupPromptMode == .custom ? "Existing Prompt" : "Standard", systemImageName: cleanupPromptMode == .custom ? "text.badge.checkmark" : "wand.and.stars", instructions: cleanupPrompt)
             cleanupPrompts = [prompt]
-            activeCleanupPromptID = prompt.id
+        }
+        cleanupWorkflows = try c.decodeIfPresent([CleanupWorkflow].self, forKey: .cleanupWorkflows) ?? []
+        if c.contains(.activeCleanupSelection) {
+            activeCleanupSelection = try c.decodeIfPresent(CleanupTransformationSelection.self, forKey: .activeCleanupSelection)
+        } else {
+            activeCleanupSelection = (try c.decodeIfPresent(UUID.self, forKey: .activeCleanupPromptID)).map(CleanupTransformationSelection.prompt)
+                ?? cleanupPrompts.first.map { .prompt($0.id) }
         }
         cleanupFailurePolicy = try c.decodeIfPresent(CleanupFailurePolicy.self, forKey: .cleanupFailurePolicy) ?? .useRawTranscript
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .clipboard
@@ -224,7 +275,8 @@ public struct AppPreferences: Codable, Equatable, Sendable {
         try c.encode(sttLanguage, forKey: .sttLanguage); try c.encode(sttFavoriteLanguages, forKey: .sttFavoriteLanguages)
         try c.encode(dictationDictionary, forKey: .dictationDictionary); try c.encode(triggerMode, forKey: .triggerMode)
         try c.encode(cleanupEnabled, forKey: .cleanupEnabled); try c.encode(cleanupPrompts, forKey: .cleanupPrompts)
-        try c.encodeIfPresent(activeCleanupPromptID, forKey: .activeCleanupPromptID)
+        try c.encode(cleanupWorkflows, forKey: .cleanupWorkflows)
+        try c.encode(activeCleanupSelection, forKey: .activeCleanupSelection)
         try c.encode(cleanupPrompt, forKey: .cleanupPrompt); try c.encode(cleanupPromptMode, forKey: .cleanupPromptMode)
         try c.encode(cleanupFailurePolicy, forKey: .cleanupFailurePolicy); try c.encode(outputMode, forKey: .outputMode)
         try c.encode(launchAtLogin, forKey: .launchAtLogin); try c.encode(playFeedbackSounds, forKey: .playFeedbackSounds)

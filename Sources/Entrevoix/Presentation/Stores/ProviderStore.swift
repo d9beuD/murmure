@@ -230,10 +230,18 @@ final class ProviderStore {
         }
     }
 
-    func makeDictationRequest(activeCleanupPrompt: CleanupPrompt?) -> DictationRequest? {
+    func makeDictationRequest(
+        activeCleanupSelection: CleanupTransformationSelection?,
+        cleanupPrompts: [CleanupPrompt],
+        cleanupWorkflows: [CleanupWorkflow]
+    ) -> DictationRequest? {
         guard let transcription = makeTranscriptionRequest() else { return nil }
         let cleanup = preferences.cleanupEnabled
-            ? makeCleanupRequest(activeCleanupPrompt: activeCleanupPrompt)
+            ? makeCleanupPlan(
+                selection: activeCleanupSelection,
+                prompts: cleanupPrompts,
+                workflows: cleanupWorkflows
+            )
             : nil
         return DictationRequest(
             transcription: transcription,
@@ -270,37 +278,62 @@ final class ProviderStore {
         }
     }
 
-    private func makeCleanupRequest(activeCleanupPrompt: CleanupPrompt?) -> CleanupRequest? {
-        guard let activeCleanupPrompt,
+    private func makeCleanupPlan(
+        selection: CleanupTransformationSelection?,
+        prompts: [CleanupPrompt],
+        workflows: [CleanupWorkflow]
+    ) -> CleanupPlan? {
+        guard let selection,
               let entry = preferences.provider(for: preferences.selectedTTTProviderID) else { return nil }
+
+        let kind: CleanupPlanKind
+        let steps: [CleanupStep]
+        switch selection {
+        case .prompt(let id):
+            guard let prompt = prompts.first(where: { $0.id == id }) else { return nil }
+            kind = .prompt
+            steps = [CleanupStep(promptID: prompt.id, promptName: prompt.name, prompt: prompt.instructions)]
+        case .workflow(let id):
+            guard let workflow = workflows.first(where: { $0.id == id }), workflow.isValid else { return nil }
+            steps = workflow.promptIDs.compactMap { promptID in
+                guard let prompt = prompts.first(where: { $0.id == promptID }) else { return nil }
+                return CleanupStep(promptID: prompt.id, promptName: prompt.name, prompt: prompt.instructions)
+            }
+            guard steps.count == workflow.promptIDs.count else { return nil }
+            kind = .workflow(id: workflow.id, name: workflow.name)
+        }
+
         switch entry {
         case .apple:
-            return CleanupRequest(
+            return CleanupPlan(
                 configuration: .openAIResponses,
                 apiKey: "",
                 format: .responses,
-                prompt: activeCleanupPrompt.instructions,
                 failurePolicy: preferences.cleanupFailurePolicy,
-                target: .apple(localeIdentifier: preferences.sttLanguage == .automatic ? nil : preferences.sttLanguage.apiCode)
+                target: .apple(localeIdentifier: preferences.sttLanguage == .automatic ? nil : preferences.sttLanguage.apiCode),
+                kind: kind,
+                steps: steps
             )
         case .codex(let profile):
-            return CleanupRequest(
+            return CleanupPlan(
                 configuration: .codexResponses(model: profile.model),
                 apiKey: "",
                 format: .responses,
-                prompt: activeCleanupPrompt.instructions,
                 failurePolicy: preferences.cleanupFailurePolicy,
-                target: .codex
+                target: .codex,
+                kind: kind,
+                steps: steps
             )
         case .remote(let profile):
             guard let configuration = profile.configuration(for: .ttt),
                   configuration.validationIssues(apiKey: "").filter({ $0 != .missingAPIKey }).isEmpty else { return nil }
-            return CleanupRequest(
+            return CleanupPlan(
                 configuration: configuration,
                 apiKey: preferencesStore.apiKey(for: .remote(profile.id)),
                 format: profile.ttt?.format ?? .responses,
-                prompt: activeCleanupPrompt.instructions,
-                failurePolicy: preferences.cleanupFailurePolicy
+                failurePolicy: preferences.cleanupFailurePolicy,
+                kind: kind,
+                steps: steps
             )
         }
     }

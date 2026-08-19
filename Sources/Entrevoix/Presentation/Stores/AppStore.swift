@@ -61,7 +61,13 @@ final class AppStore {
         promptLibrary.activePrompt
     }
 
+    var activeCleanupWorkflow: CleanupWorkflow? {
+        promptLibrary.activeWorkflow
+    }
+
     var hasActiveCleanupPrompt: Bool { activeCleanupPrompt != nil }
+
+    var hasActiveCleanupTransformation: Bool { promptLibrary.activeSelection != nil }
 
     var cleanupPromptLibraryDiffersFromDefault: Bool {
         promptLibrary.differsFromDefault
@@ -286,6 +292,10 @@ final class AppStore {
         promptLibrary.setActive(id)
     }
 
+    func setActiveCleanupWorkflow(_ id: UUID?) {
+        promptLibrary.setActiveWorkflow(id)
+    }
+
     @discardableResult
     func saveCleanupPrompt(_ prompt: CleanupPrompt) -> CleanupPromptValidationError? {
         promptLibrary.save(prompt)
@@ -293,6 +303,15 @@ final class AppStore {
 
     func deleteCleanupPrompt(id: UUID) {
         promptLibrary.delete(id: id)
+    }
+
+    @discardableResult
+    func saveCleanupWorkflow(_ workflow: CleanupWorkflow) -> CleanupWorkflowValidationError? {
+        promptLibrary.saveWorkflow(workflow)
+    }
+
+    func deleteCleanupWorkflow(id: UUID) {
+        promptLibrary.deleteWorkflow(id: id)
     }
 
     func resetPromptLibrary() {

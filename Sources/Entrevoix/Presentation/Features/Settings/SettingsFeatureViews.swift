@@ -429,19 +429,28 @@ struct CleanupSettingsView: View {
                     }
                 }
                 Toggle(EntrevoixLocalization.text("settings.enable_cleanup", defaultValue: "Enable cleanup", locale: locale), isOn: $model.preferences.cleanupEnabled)
-                    .disabled(model.preferences.selectedTTTProviderID == nil || !model.hasActiveCleanupPrompt)
+                    .disabled(model.preferences.selectedTTTProviderID == nil || !model.hasActiveCleanupTransformation)
                 if model.preferences.cleanupEnabled {
-                    if model.preferences.cleanupPrompts.isEmpty {
-                        Label(EntrevoixLocalization.text("prompts.none_warning", defaultValue: "No prompt is available. Add or reset a prompt before enabling cleanup.", locale: locale), systemImage: "exclamationmark.triangle")
+                    if !model.hasActiveCleanupTransformation {
+                        Label(EntrevoixLocalization.text("cleanup.no_selection_warning", defaultValue: "No usable prompt or workflow is available. Add or repair one before enabling cleanup.", locale: locale), systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
                     }
-                    Picker(EntrevoixLocalization.text("prompts.active", defaultValue: "Active prompt", locale: locale), selection: Binding<UUID?>(
-                        get: { model.preferences.activeCleanupPromptID },
-                        set: { model.setActiveCleanupPrompt($0) }
+                    Picker(EntrevoixLocalization.text("cleanup.active_transformation", defaultValue: "Active transformation", locale: locale), selection: Binding<CleanupTransformationSelection?>(
+                        get: { model.promptLibrary.activeSelection },
+                        set: { model.promptLibrary.setActiveSelection($0) }
                     )) {
-                        Text(EntrevoixLocalization.text("prompts.none", defaultValue: "None", locale: locale)).tag(Optional<UUID>.none)
-                        ForEach(model.preferences.cleanupPrompts) { prompt in
-                            Label(prompt.name, systemImage: prompt.systemImageName).tag(Optional(prompt.id))
+                        Text(EntrevoixLocalization.text("prompts.none", defaultValue: "None", locale: locale)).tag(Optional<CleanupTransformationSelection>.none)
+                        Section(EntrevoixLocalization.text("menu.prompts_group", defaultValue: "Prompts", locale: locale)) {
+                            ForEach(model.preferences.cleanupPrompts) { prompt in
+                                Text(prompt.name).tag(Optional(CleanupTransformationSelection.prompt(prompt.id)))
+                            }
+                        }
+                        Section(EntrevoixLocalization.text("menu.workflows_group", defaultValue: "Workflows", locale: locale)) {
+                            ForEach(model.preferences.cleanupWorkflows) { workflow in
+                                Text(workflow.name)
+                                    .tag(Optional(CleanupTransformationSelection.workflow(workflow.id)))
+                                    .disabled(!workflow.isValid)
+                            }
                         }
                     }
                     Picker(EntrevoixLocalization.text("cleanup.on_failure", defaultValue: "On failure", locale: locale), selection: $model.preferences.cleanupFailurePolicy) {
@@ -595,18 +604,6 @@ private struct PromptListPage: View {
     var body: some View {
         let locale = model.interfaceLocale
         List {
-            Section {
-                Picker(EntrevoixLocalization.text("prompts.active", defaultValue: "Active prompt", locale: locale), selection: Binding<UUID?>(
-                    get: { model.preferences.activeCleanupPromptID },
-                    set: { model.setActiveCleanupPrompt($0) }
-                )) {
-                    Text(EntrevoixLocalization.text("prompts.none", defaultValue: "None", locale: locale)).tag(Optional<UUID>.none)
-                    ForEach(model.preferences.cleanupPrompts) { prompt in
-                        Label(prompt.name, systemImage: prompt.systemImageName).tag(Optional(prompt.id))
-                    }
-                }
-            }
-
             Section {
                 if model.preferences.cleanupPrompts.isEmpty {
                     ContentUnavailableView(

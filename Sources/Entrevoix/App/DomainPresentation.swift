@@ -153,13 +153,24 @@ extension DictationFailure {
     func localizedTitle(locale: Locale) -> String {
         switch self {
         case .microphonePermissionDenied:
-            localized("failure.microphone_denied", "Microphone access was denied. Allow Entrevoix in System Settings.", locale: locale)
+            return localized("failure.microphone_denied", "Microphone access was denied. Allow Entrevoix in System Settings.", locale: locale)
         case .recordingFailed(let message), .transcriptionFailed(let message), .cleanupFailed(let message):
-            message.localizedText(locale: locale)
+            return message.localizedText(locale: locale)
+        case .cleanupWorkflowFailed(let step, let promptName, let message):
+            let format = localized(
+                "failure.workflow_step_failed",
+                "Workflow step %lld (%@) failed. The last available result was inserted: %@",
+                locale: locale
+            )
+            return String(
+                format: format,
+                locale: locale,
+                arguments: [step, promptName, message.localizedText(locale: locale)]
+            )
         case .audioUnavailable:
-            localized("failure.no_audio", "No audio file was produced.", locale: locale)
+            return localized("failure.no_audio", "No audio file was produced.", locale: locale)
         case .sessionUnavailable:
-            localized("failure.session_not_found", "Recording session not found.", locale: locale)
+            return localized("failure.session_not_found", "Recording session not found.", locale: locale)
         }
     }
 

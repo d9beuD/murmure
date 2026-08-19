@@ -179,6 +179,54 @@ actor CleanerSpy: TextCleaning {
     }
 }
 
+actor SequencedCleanerSpy: TextCleaning {
+    private var results: [Result<String, StubError>]
+    private(set) var calls: [CleanerSpy.Call] = []
+
+    init(results: [Result<String, StubError>]) {
+        self.results = results
+    }
+
+    func clean(
+        text: String,
+        configuration: ProviderConfiguration,
+        apiKey: String,
+        format: CleanupAPIFormat,
+        prompt: String
+    ) async throws -> String {
+        calls.append(CleanerSpy.Call(
+            text: text,
+            configuration: configuration,
+            apiKey: apiKey,
+            format: format,
+            prompt: prompt
+        ))
+        guard !results.isEmpty else { throw StubError.failure }
+        return try results.removeFirst().get()
+    }
+}
+
+actor ControlledCleaner: TextCleaning {
+    private var continuation: CheckedContinuation<String, Never>?
+    private(set) var callCount = 0
+
+    func clean(
+        text: String,
+        configuration: ProviderConfiguration,
+        apiKey: String,
+        format: CleanupAPIFormat,
+        prompt: String
+    ) async throws -> String {
+        callCount += 1
+        return await withCheckedContinuation { continuation = $0 }
+    }
+
+    func succeed(with text: String) {
+        continuation?.resume(returning: text)
+        continuation = nil
+    }
+}
+
 @MainActor
 final class DeliverySpy: TextDelivering {
     var result: TextDeliveryResult = .copied
@@ -243,13 +291,27 @@ func stopCoordinator(
             prompt: "prompt",
             language: "fr"
         ),
-        cleanup: cleanupEnabled ? CleanupRequest(
+        cleanup: cleanupEnabled ? CleanupPlan(
             configuration: .openAIResponses,
             apiKey: "cleanup-secret",
             format: .responses,
-            prompt: "clean it",
-            failurePolicy: cleanupFailurePolicy
+            failurePolicy: cleanupFailurePolicy,
+            kind: .prompt,
+            steps: [CleanupStep(promptID: UUID(), promptName: "Clean", prompt: "clean it")]
         ) : nil,
         outputMode: outputMode
     ))
+}
+
+func testDictationRequest(cleanup: CleanupPlan?) -> DictationRequest {
+    DictationRequest(
+        transcription: TranscriptionRequest(
+            configuration: testSTTConfiguration,
+            apiKey: "stt-secret",
+            prompt: "prompt",
+            language: "fr"
+        ),
+        cleanup: cleanup,
+        outputMode: .clipboard
+    )
 }
