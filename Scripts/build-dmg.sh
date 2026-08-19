@@ -10,6 +10,10 @@ if [[ ! "$version" =~ '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$' ]]; then
     print -u2 "ENTREVOIX_VERSION must use the x.y.z format."
     exit 1
 fi
+if [[ ! "$build_number" =~ '^[0-9]+$' ]]; then
+    print -u2 "ENTREVOIX_BUILD_NUMBER must be an integer."
+    exit 1
+fi
 
 script_directory=${0:A:h}
 repository_directory=${script_directory:h}

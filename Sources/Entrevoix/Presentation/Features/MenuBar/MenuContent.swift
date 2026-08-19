@@ -1,11 +1,9 @@
 import AppKit
 import EntrevoixCore
-import Sparkle
 import SwiftUI
 
 struct MenuContent: View {
     @Bindable var model: AppStore
-    let updater: SPUUpdater
     let openUserFacingWindow: (String) -> Void
 
     var body: some View {
@@ -97,7 +95,7 @@ struct MenuContent: View {
         Divider()
 
         Button(EntrevoixLocalization.text("menu.check_for_updates", defaultValue: "Check for Updates…", locale: locale)) {
-            updater.checkForUpdates()
+            model.updates.checkForUpdates()
         }
 
         Button(EntrevoixLocalization.text("menu.quit", defaultValue: "Quit", locale: locale)) {

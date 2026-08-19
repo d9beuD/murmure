@@ -17,6 +17,7 @@ struct AppStoreDependencies {
     let feedback: any FeedbackPlaying
     let listeningIndicator: any ListeningIndicatorPresenting
     let permissions: any PermissionProviding
+    let updater: any ApplicationUpdating
     let logStore: AppLogStore
     let now: () -> Date
 
@@ -35,15 +36,23 @@ struct AppStoreDependencies {
         feedback: any FeedbackPlaying,
         listeningIndicator: any ListeningIndicatorPresenting,
         permissions: any PermissionProviding,
+        updater: any ApplicationUpdating = UnavailableApplicationUpdater(),
         logStore: AppLogStore,
         now: @escaping () -> Date
     ) {
         self.coordinator = coordinator; self.connectionTest = connectionTest; self.textDelivery = textDelivery
         self.preferencesStore = preferencesStore; self.keychain = keychain; self.codexCredentials = codexCredentials; self.codexAuthenticator = codexAuthenticator; self.modelCatalog = modelCatalog; self.providerAlerts = providerAlerts
         self.hotkeys = hotkeys; self.launchAtLogin = launchAtLogin; self.feedback = feedback
-        self.listeningIndicator = listeningIndicator; self.permissions = permissions; self.logStore = logStore
+        self.listeningIndicator = listeningIndicator; self.permissions = permissions; self.updater = updater; self.logStore = logStore
         self.now = now
     }
+}
+
+@MainActor
+private final class UnavailableApplicationUpdater: ApplicationUpdating {
+    func start(channel: UpdateChannel) {}
+    func setChannel(_ channel: UpdateChannel) {}
+    func checkForUpdates() {}
 }
 
 private actor UnavailableCodexCredentialsStore: CodexCredentialsStoring, CodexAccessTokenProviding {

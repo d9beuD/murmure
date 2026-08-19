@@ -30,6 +30,31 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            Section(EntrevoixLocalization.text("settings.updates", defaultValue: "Updates", locale: locale)) {
+                Picker(EntrevoixLocalization.text("settings.update_channel", defaultValue: "Update channel", locale: locale), selection: Binding(
+                    get: { model.updates.selectedChannel },
+                    set: { model.updates.requestChannel($0) }
+                )) {
+                    ForEach(UpdateChannel.allCases) { channel in
+                        VStack(alignment: .leading) {
+                            Text(channel.title(locale: locale))
+                            Text(channel.description(locale: locale))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .tag(channel)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+                Text(EntrevoixLocalization.text(
+                    "settings.update_channel_hint",
+                    defaultValue: "Stable updates are always included. Returning to Stable never downgrades an installed version.",
+                    locale: locale
+                ))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
             Section(EntrevoixLocalization.text("settings.global_shortcut", defaultValue: "Global Shortcut", locale: locale)) {
                 KeyboardShortcuts.Recorder(EntrevoixLocalization.text("field.shortcut", defaultValue: "Shortcut:", locale: locale), name: .dictation)
                 Picker(EntrevoixLocalization.text("menu.mode", defaultValue: "Mode", locale: locale), selection: Binding(
@@ -57,6 +82,50 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .alert(
+            updateConfirmationTitle(locale: locale),
+            isPresented: Binding(
+                get: { model.updates.isConfirmationPresented },
+                set: { isPresented in
+                    if !isPresented { model.updates.cancelPendingChannelChange() }
+                }
+            )
+        ) {
+            Button(updateConfirmationAction(locale: locale)) {
+                model.updates.confirmPendingChannelChange()
+            }
+            Button(EntrevoixLocalization.text("action.cancel", defaultValue: "Cancel", locale: locale), role: .cancel) {
+                model.updates.cancelPendingChannelChange()
+            }
+        } message: {
+            Text(EntrevoixLocalization.text(
+                "updates.channel.confirmation_message",
+                defaultValue: "Pre-release updates may be less stable. Returning to Stable will not downgrade an already installed version.",
+                locale: locale
+            ))
+        }
+    }
+
+    private func updateConfirmationTitle(locale: Locale) -> String {
+        switch model.updates.pendingChannel {
+        case .releaseCandidate:
+            EntrevoixLocalization.text("updates.channel.confirm_rc", defaultValue: "Use Release Candidate updates?", locale: locale)
+        case .development:
+            EntrevoixLocalization.text("updates.channel.confirm_dev", defaultValue: "Use Development updates?", locale: locale)
+        case .stable, .none:
+            EntrevoixLocalization.text("updates.channel.confirm", defaultValue: "Change update channel?", locale: locale)
+        }
+    }
+
+    private func updateConfirmationAction(locale: Locale) -> String {
+        switch model.updates.pendingChannel {
+        case .releaseCandidate:
+            EntrevoixLocalization.text("updates.channel.use_rc", defaultValue: "Use Release Candidate", locale: locale)
+        case .development:
+            EntrevoixLocalization.text("updates.channel.use_dev", defaultValue: "Use Development", locale: locale)
+        case .stable, .none:
+            EntrevoixLocalization.text("updates.channel.confirm_action", defaultValue: "Change Channel", locale: locale)
+        }
     }
 }
 

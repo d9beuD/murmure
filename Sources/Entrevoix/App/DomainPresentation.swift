@@ -65,6 +65,30 @@ extension TriggerMode {
     var title: String { title(locale: .english) }
 }
 
+extension UpdateChannel {
+    func title(locale: Locale) -> String {
+        switch self {
+        case .stable:
+            localized("updates.channel.stable", "Stable", locale: locale)
+        case .releaseCandidate:
+            localized("updates.channel.rc", "Release Candidate", locale: locale)
+        case .development:
+            localized("updates.channel.dev", "Development", locale: locale)
+        }
+    }
+
+    func description(locale: Locale) -> String {
+        switch self {
+        case .stable:
+            localized("updates.channel.stable.description", "Recommended for everyday use.", locale: locale)
+        case .releaseCandidate:
+            localized("updates.channel.rc.description", "Early access to versions nearing release.", locale: locale)
+        case .development:
+            localized("updates.channel.dev.description", "The newest builds, with a higher risk of regressions.", locale: locale)
+        }
+    }
+}
+
 extension UserFacingErrorMessage {
     func localizedText(locale: Locale) -> String {
         switch self {
