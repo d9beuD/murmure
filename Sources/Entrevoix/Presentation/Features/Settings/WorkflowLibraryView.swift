@@ -171,14 +171,6 @@ private struct WorkflowEditorPage: View {
         }
         .navigationTitle(isExisting ? EntrevoixLocalization.text("workflows.edit_title", defaultValue: "Edit Workflow", locale: locale) : EntrevoixLocalization.text("workflows.new_title", defaultValue: "New Workflow", locale: locale))
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    navigation.path.removeLast()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .accessibilityLabel(EntrevoixLocalization.text("action.back", defaultValue: "Back", locale: locale))
-                }
-            }
             ToolbarItem(placement: .primaryAction) {
                 Button(EntrevoixLocalization.text("action.save", defaultValue: "Save", locale: locale)) {
                     guard navigation.save(model: model) else { return }
