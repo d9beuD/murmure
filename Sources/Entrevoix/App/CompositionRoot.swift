@@ -52,6 +52,7 @@ enum CompositionRoot {
         initialPreferences: AppPreferences,
         updater: any ApplicationUpdating = SparkleUpdateService()
     ) -> AppEnvironment {
+        let audioInputDevices = CoreAudioInputDeviceCatalog()
         let logStore = AppLogStore()
         let audioRecorder = AudioRecorder(logger: logStore)
         let permissions = SystemPermissionProvider()
@@ -111,6 +112,7 @@ enum CompositionRoot {
                 logger: logStore
             ),
             permissions: permissions,
+            audioInputDevices: audioInputDevices,
             updater: updater,
             logStore: logStore,
             now: Date.init

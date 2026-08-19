@@ -21,6 +21,7 @@ public final class DictationCoordinator {
     private var recordingWatchdog: Task<Void, Never>?
     private var recordingStartedAt: Date?
     private var frozenRequest: DictationRequest?
+    private var frozenAudioInput: AudioInputSelection = .systemDefault
     private let now: () -> Date
     private let sleep: (Duration) async throws -> Void
 
@@ -56,7 +57,10 @@ public final class DictationCoordinator {
         self.sleep = sleep
     }
 
-    public func startRecording(request: DictationRequest? = nil) {
+    public func startRecording(
+        request: DictationRequest? = nil,
+        audioInput: AudioInputSelection = .systemDefault
+    ) {
         guard state == .idle else { return }
         if let sessionArbiter = dependencies.sessionArbiter {
             guard let lease = sessionArbiter.acquire(.dictation) else { return }
@@ -66,6 +70,7 @@ public final class DictationCoordinator {
         let sessionID = UUID()
         activeSessionID = sessionID
         frozenRequest = request
+        frozenAudioInput = audioInput
         state = .requestingPermission
         permissionTask = Task { [weak self] in
             guard let self else { return }
@@ -93,9 +98,13 @@ public final class DictationCoordinator {
             }
             guard self.activeSessionID == sessionID, self.state == .requestingPermission else { return }
             do {
-                try self.dependencies.audioRecorder.start(
+                let startResult = try self.dependencies.audioRecorder.start(
+                    input: self.frozenAudioInput,
                     options: request?.recordingOptions ?? .standard
                 )
+                if startResult == .fellBackToSystemDefault {
+                    self.dependencies.logger.log("Selected microphone unavailable; using the macOS default input.")
+                }
                 self.dependencies.logger.log("Recording started")
                 self.onRecordingStarted?()
                 self.onEvent?(.recordingStarted)
@@ -339,6 +348,7 @@ public final class DictationCoordinator {
         recordingStartedAt = nil
         dependencies.audioRecorder.cancel()
         frozenRequest = nil
+        frozenAudioInput = .systemDefault
         lastAudioURL = nil
         state = .idle
         endSession()

@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 import EntrevoixCore
 import Foundation
 import Synchronization
@@ -26,8 +27,12 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         self.logger = logger
     }
 
-    func start(options: AudioRecordingOptions) throws {
-        guard engine == nil else { return }
+    @discardableResult
+    func start(
+        input: AudioInputSelection,
+        options: AudioRecordingOptions
+    ) throws -> AudioInputStartResult {
+        guard engine == nil else { return .requestedInput }
 
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("Entrevoix", isDirectory: true)
@@ -39,6 +44,27 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         let url = directory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("wav")
+        switch input {
+        case .systemDefault:
+            try startCapture(at: url, deviceUID: nil, options: options)
+            return .requestedInput
+        case .device(let device):
+            do {
+                try startCapture(at: url, deviceUID: device.uid, options: options)
+                return .requestedInput
+            } catch {
+                try? FileManager.default.removeItem(at: url)
+                try startCapture(at: url, deviceUID: nil, options: options)
+                return .fellBackToSystemDefault
+            }
+        }
+    }
+
+    private func startCapture(
+        at url: URL,
+        deviceUID: String?,
+        options: AudioRecordingOptions
+    ) throws {
         let newEngine = AVAudioEngine()
         let inputNode = newEngine.inputNode
 
@@ -49,6 +75,10 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
             } catch {
                 logger.log("Audio ducking unavailable; recording without audio ducking.")
             }
+        }
+
+        if let deviceUID {
+            try setInputDevice(uid: deviceUID, on: inputNode)
         }
 
         let inputFormat = inputNode.outputFormat(forBus: 0)
@@ -77,6 +107,49 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
             try? FileManager.default.removeItem(at: url)
             throw error
         }
+    }
+
+    private func setInputDevice(uid: String, on inputNode: AVAudioInputNode) throws {
+        guard let deviceID = Self.deviceID(forUID: uid) else {
+            throw RecorderError.inputDeviceUnavailable
+        }
+        guard let audioUnit = inputNode.audioUnit else {
+            throw RecorderError.couldNotStart
+        }
+
+        var mutableDeviceID = deviceID
+        let status = AudioUnitSetProperty(
+            audioUnit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &mutableDeviceID,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+        guard status == noErr else { throw RecorderError.audioDevice(status) }
+    }
+
+    private nonisolated static func deviceID(forUID uid: String) -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDeviceForUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let value = uid as CFString
+        var deviceID = kAudioObjectUnknown
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = withUnsafePointer(to: value) { pointer in
+            AudioObjectGetPropertyData(
+                AudioObjectID(kAudioObjectSystemObject),
+                &address,
+                UInt32(MemoryLayout<CFString>.size),
+                pointer,
+                &size,
+                &deviceID
+            )
+        }
+        guard status == noErr, deviceID != kAudioObjectUnknown else { return nil }
+        return deviceID
     }
 
     /// Metering is calculated as input buffers arrive; retaining this method
@@ -279,6 +352,8 @@ enum AudioDuckingConfiguration {
 
 enum RecorderError: LocalizedError, LogSafeError, UserFacingErrorProviding {
     case couldNotStart
+    case inputDeviceUnavailable
+    case audioDevice(OSStatus)
 
     var errorDescription: String? {
         "Could not start recording. Check microphone permission."
@@ -288,5 +363,12 @@ enum RecorderError: LocalizedError, LogSafeError, UserFacingErrorProviding {
         .recordingCouldNotStart
     }
 
-    var logMessage: String { "Could not start recording." }
+    var logMessage: String {
+        switch self {
+        case .couldNotStart, .inputDeviceUnavailable:
+            "Could not start recording."
+        case .audioDevice(let status):
+            "Core Audio input selection failed (OSStatus \(status))."
+        }
+    }
 }

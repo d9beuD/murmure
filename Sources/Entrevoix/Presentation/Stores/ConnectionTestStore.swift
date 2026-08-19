@@ -41,7 +41,10 @@ final class ConnectionTestStore {
     func start() {
         guard canStart(), state.isInactive,
               let request = providerStore.makeTranscriptionRequest() else { return }
-        coordinator.start(request: request)
+        coordinator.start(
+            request: request,
+            audioInput: providerStore.preferences.audioInputSelection
+        )
     }
 
     func finish() {

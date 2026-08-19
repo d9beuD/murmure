@@ -48,6 +48,28 @@ final class ConnectionTestCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testConnectionTestForwardsSelectedAudioInputAndLogsFallback() async {
+        let recorder = AppRecorderSpy()
+        recorder.startResult = .fellBackToSystemDefault
+        let logStore = AppLogStore()
+        let model = ConnectionTestCoordinator(
+            audioRecorder: recorder,
+            microphonePermission: PermissionSpy(),
+            transcriber: AppTranscriberSpy(),
+            logger: logStore,
+            now: Date.init
+        )
+        let input = AudioInputSelection.device(.init(uid: "usb-mic", name: "USB Microphone"))
+
+        model.start(audioInput: input)
+        await appWaitUntil("recording") { model.state == .recording }
+
+        XCTAssertEqual(recorder.startedInputs, [input])
+        XCTAssertTrue(logStore.entries.contains { $0.message == "Selected microphone unavailable; using the macOS default input." })
+        model.cancel()
+    }
+
+    @MainActor
     func testSuccessfulConnectionForwardsRequestAndCleansCapture() async throws {
         let recorder = AppRecorderSpy()
         let audioURL = try appTemporaryFile()

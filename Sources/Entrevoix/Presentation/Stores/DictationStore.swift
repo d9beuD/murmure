@@ -117,7 +117,10 @@ final class DictationStore {
             logStore.log("Error: no usable STT provider is selected.")
             return
         }
-        coordinator.startRecording(request: request)
+        coordinator.startRecording(
+            request: request,
+            audioInput: providerStore.preferences.audioInputSelection
+        )
     }
 
     func stopRecording() {

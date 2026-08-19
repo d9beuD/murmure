@@ -38,6 +38,41 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            Section(EntrevoixLocalization.text("settings.audio_input", defaultValue: "Audio Input", locale: locale)) {
+                Picker(
+                    EntrevoixLocalization.text("field.audio_input", defaultValue: "Microphone", locale: locale),
+                    selection: Binding(
+                        get: { model.audioInput.selection },
+                        set: { model.audioInput.setSelection($0) }
+                    )
+                ) {
+                    Text(systemDefaultInputTitle(locale: locale))
+                        .tag(AudioInputSelection.systemDefault)
+                    ForEach(model.audioInput.devices) { device in
+                        Text(device.name)
+                            .tag(AudioInputSelection.device(device))
+                    }
+                    if let unavailableDevice = model.audioInput.unavailableSelection {
+                        Text(unavailableInputTitle(unavailableDevice.name, locale: locale))
+                            .tag(AudioInputSelection.device(unavailableDevice))
+                    }
+                }
+                .pickerStyle(.menu)
+
+                if model.audioInput.unavailableSelection != nil {
+                    Label(
+                        EntrevoixLocalization.text(
+                            "audio_input.unavailable_warning",
+                            defaultValue: "Entrevoix will use the macOS default microphone until this device reconnects.",
+                            locale: locale
+                        ),
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+                }
+            }
+
             Section(EntrevoixLocalization.text("settings.updates", defaultValue: "Updates", locale: locale)) {
                 Picker(EntrevoixLocalization.text("settings.update_channel", defaultValue: "Update channel", locale: locale), selection: Binding(
                     get: { model.updates.selectedChannel },
@@ -135,6 +170,31 @@ struct GeneralSettingsView: View {
         case .stable, .none:
             EntrevoixLocalization.text("updates.channel.confirm_action", defaultValue: "Change Channel", locale: locale)
         }
+    }
+
+    private func systemDefaultInputTitle(locale: Locale) -> String {
+        guard let device = model.audioInput.defaultDevice else {
+            return EntrevoixLocalization.text(
+                "audio_input.system_default",
+                defaultValue: "macOS Default Microphone",
+                locale: locale
+            )
+        }
+        let format = EntrevoixLocalization.text(
+            "audio_input.system_default_named",
+            defaultValue: "macOS Default Microphone (%@)",
+            locale: locale
+        )
+        return String(format: format, locale: locale, arguments: [device.name])
+    }
+
+    private func unavailableInputTitle(_ name: String, locale: Locale) -> String {
+        let format = EntrevoixLocalization.text(
+            "audio_input.unavailable",
+            defaultValue: "%@ (Unavailable)",
+            locale: locale
+        )
+        return String(format: format, locale: locale, arguments: [name])
     }
 }
 
