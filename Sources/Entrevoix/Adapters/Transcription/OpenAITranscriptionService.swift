@@ -59,8 +59,10 @@ struct OpenAITranscriptionService: SpeechTranscribing {
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw TranscriptionError.http(statusCode: httpResponse.statusCode, message: errorMessage(from: data))
         }
-        if let result = try? JSONDecoder().decode(TranscriptionResponse.self, from: data), !result.text.isEmpty {
-            return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let result = try? JSONDecoder().decode(TranscriptionResponse.self, from: data) {
+            let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { throw TranscriptionError.emptyResult }
+            return text
         }
         let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !text.isEmpty else { throw TranscriptionError.emptyResult }
