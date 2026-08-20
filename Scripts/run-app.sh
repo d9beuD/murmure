@@ -130,8 +130,9 @@ fi
     --entitlements "$repository_directory/Configuration/Entrevoix.entitlements" \
     "$application_path"
 "$repository_directory/Scripts/verify-app-bundle.sh" "$application_path"
-if [[ "${ENTREVOIX_SKIP_OPEN:-0}" != "1" ]]; then
+if [[ "${ENTREVOIX_SKIP_OPEN:-0}" == "1" ]]; then
+    print "Assembled Entrevoix without launching it: $application_path"
+else
     /usr/bin/open "$application_path"
+    print "Entrevoix launched from $application_path"
 fi
-
-print "Entrevoix launched from $application_path"
