@@ -3,15 +3,20 @@ import SwiftUI
 
 struct ProvidersSettingsView: View {
     @Environment(ProviderStore.self) private var model
-    @Binding var selection: ProviderIdentifier?
-    @Binding var newRemoteProviderKind: RemoteProviderKind?
+    @State private var selection: ProviderIdentifier?
     @State private var draft: RemoteProviderProfile?
     @State private var draftKey = ""
     @State private var validation: [ProviderValidationIssue] = []
     @State private var showDeleteConfirmation = false
 
     var body: some View {
-        detail
+        HStack(spacing: 0) {
+            ProviderCatalogView(selection: $selection, onNewRemoteProvider: begin)
+                .frame(width: 220)
+            Divider()
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
         .onChange(of: selection) { _, id in
             if id == .codex { draft = nil; return }
             guard let profile = model.preferences.remoteProfile(for: id) else {
@@ -19,11 +24,6 @@ struct ProvidersSettingsView: View {
                 return
             }
             begin(profile)
-        }
-        .onChange(of: newRemoteProviderKind) { _, kind in
-            guard let kind else { return }
-            begin(model.newRemoteProvider(kind: kind))
-            newRemoteProviderKind = nil
         }
         .alert(text("provider.remove_title", "Remove provider?"), isPresented: $showDeleteConfirmation) {
             Button(text("action.remove", "Remove"), role: .destructive) {
@@ -92,7 +92,7 @@ struct ProvidersSettingsView: View {
 struct ProviderCatalogView: View {
     @Environment(ProviderStore.self) private var model
     @Binding var selection: ProviderIdentifier?
-    @Binding var newRemoteProviderKind: RemoteProviderKind?
+    let onNewRemoteProvider: (RemoteProviderProfile) -> Void
 
     var body: some View {
         List(selection: $selection) {
@@ -102,7 +102,6 @@ struct ProviderCatalogView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         .toolbar {
             ToolbarItem {
                 Menu {
@@ -110,8 +109,8 @@ struct ProviderCatalogView: View {
                         .disabled(model.preferences.providerCatalog.contains { $0.id == .apple })
                     Button(model.providerName(.codex(CodexProviderProfile()))) { model.addCodexProvider(); selection = .codex }
                         .disabled(model.preferences.providerCatalog.contains { $0.id == .codex })
-                    Button(text("provider.openai", "OpenAI")) { newRemoteProviderKind = .openAI }
-                    Button(text("provider.openai_compatible", "OpenAI-compatible")) { newRemoteProviderKind = .openAICompatible }
+                    Button(text("provider.openai", "OpenAI")) { onNewRemoteProvider(model.newRemoteProvider(kind: .openAI)) }
+                    Button(text("provider.openai_compatible", "OpenAI-compatible")) { onNewRemoteProvider(model.newRemoteProvider(kind: .openAICompatible)) }
                 } label: {
                     Label(text("provider.add", "Add provider"), systemImage: "plus")
                 }

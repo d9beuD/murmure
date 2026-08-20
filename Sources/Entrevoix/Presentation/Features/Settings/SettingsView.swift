@@ -4,22 +4,9 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var model: AppStore
     @State private var selection: SettingsSection? = .general
-    @State private var providerSelection: ProviderIdentifier?
-    @State private var newRemoteProviderKind: RemoteProviderKind?
     @State private var promptNavigation = PromptLibraryNavigationState()
 
     var body: some View {
-        Group {
-            if selection == .providers {
-                providersSplitView
-            } else {
-                settingsSplitView
-            }
-        }
-        .frame(minWidth: 760, idealWidth: 920, minHeight: 520, idealHeight: 700)
-    }
-
-    private var settingsSplitView: some View {
         NavigationSplitView {
             settingsSidebar
         } detail: {
@@ -27,17 +14,7 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
-    }
-
-    private var providersSplitView: some View {
-        NavigationSplitView {
-            settingsSidebar
-        } content: {
-            ProviderCatalogView(selection: $providerSelection, newRemoteProviderKind: $newRemoteProviderKind)
-        } detail: {
-            ProvidersSettingsView(selection: $providerSelection, newRemoteProviderKind: $newRemoteProviderKind)
-        }
-        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 760, idealWidth: 920, minHeight: 520, idealHeight: 700)
     }
 
     private var settingsSidebar: some View {
@@ -75,7 +52,7 @@ struct SettingsView: View {
         case .general:
             GeneralSettingsView(model: model)
         case .providers:
-            EmptyView()
+            ProvidersSettingsView()
         case .stt:
             STTSettingsView(model: model)
         case .dictationDictionary:
