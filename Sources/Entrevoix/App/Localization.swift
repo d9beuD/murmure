@@ -35,6 +35,10 @@ enum EntrevoixLocalization {
         return localizedBundle.localizedString(forKey: key, value: defaultValue, table: nil)
     }
 
+    static func resourceURL(forResource name: String, withExtension fileExtension: String) -> URL? {
+        resourceBundle().url(forResource: name, withExtension: fileExtension)
+    }
+
     private static func bundle(for locale: Locale) -> Bundle {
         let resourceBundle = resourceBundle()
         let identifier = locale.identifier.replacingOccurrences(of: "_", with: "-")
@@ -122,7 +126,7 @@ enum EntrevoixLocalization {
     }
 
     static func sourceCatalogData() -> Data? {
-        guard let url = Bundle.module.url(forResource: "Localizable", withExtension: "xcstrings") else { return nil }
+        guard let url = resourceURL(forResource: "Localizable", withExtension: "xcstrings") else { return nil }
         return try? Data(contentsOf: url)
     }
 }

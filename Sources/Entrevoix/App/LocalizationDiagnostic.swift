@@ -19,6 +19,11 @@ enum LocalizationDiagnostic {
             exit(64)
         }
 
+        guard EntrevoixLocalization.resourceURL(forResource: "openai-blossom-black", withExtension: "webp") != nil else {
+            fputs("Missing OpenAI provider icon resource.\n", stderr)
+            exit(1)
+        }
+
         let locale = EntrevoixLocalization.locale(for: language)
         let values = [
             ("locale", locale.identifier),

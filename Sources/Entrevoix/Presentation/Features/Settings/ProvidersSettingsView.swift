@@ -331,7 +331,7 @@ private struct ProviderIcon: View {
 
     private var openAIImage: NSImage? {
         let resource = colorScheme == .dark ? "openai-blossom-white" : "openai-blossom-black"
-        guard let url = Bundle.module.url(forResource: resource, withExtension: "webp") else { return nil }
+        guard let url = EntrevoixLocalization.resourceURL(forResource: resource, withExtension: "webp") else { return nil }
         return NSImage(contentsOf: url)
     }
 
