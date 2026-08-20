@@ -3,39 +3,27 @@ import SwiftUI
 
 struct ProvidersSettingsView: View {
     @Environment(ProviderStore.self) private var model
-    @State private var selection: ProviderIdentifier?
+    @Binding var selection: ProviderIdentifier?
+    @Binding var newRemoteProviderKind: RemoteProviderKind?
     @State private var draft: RemoteProviderProfile?
     @State private var draftKey = ""
     @State private var validation: [ProviderValidationIssue] = []
     @State private var showDeleteConfirmation = false
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $selection) {
-                ForEach(model.providersSortedForDisplay) { entry in
-                    Label(model.providerName(entry), systemImage: icon(for: entry))
-                        .tag(Optional(entry.id))
-                }
-            }
-            .toolbar {
-                ToolbarItem {
-                    Menu {
-                        Button(model.providerName(.apple)) { model.addAppleProvider(); selection = .apple }
-                            .disabled(model.preferences.providerCatalog.contains { $0.id == .apple })
-                        Button(model.providerName(.codex(CodexProviderProfile()))) { model.addCodexProvider(); selection = .codex }
-                            .disabled(model.preferences.providerCatalog.contains { $0.id == .codex })
-                        Button(text("provider.openai", "OpenAI")) { begin(model.newRemoteProvider(kind: .openAI)) }
-                        Button(text("provider.openai_compatible", "OpenAI-compatible")) { begin(model.newRemoteProvider(kind: .openAICompatible)) }
-                    } label: { Label(text("provider.add", "Add provider"), systemImage: "plus") }
-                }
-            }
-        } detail: {
-            detail
-        }
+        detail
         .onChange(of: selection) { _, id in
             if id == .codex { draft = nil; return }
-            guard let profile = model.preferences.remoteProfile(for: id) else { draft = nil; return }
+            guard let profile = model.preferences.remoteProfile(for: id) else {
+                if id?.remoteID != draft?.id { draft = nil }
+                return
+            }
             begin(profile)
+        }
+        .onChange(of: newRemoteProviderKind) { _, kind in
+            guard let kind else { return }
+            begin(model.newRemoteProvider(kind: kind))
+            newRemoteProviderKind = nil
         }
         .alert(text("provider.remove_title", "Remove provider?"), isPresented: $showDeleteConfirmation) {
             Button(text("action.remove", "Remove"), role: .destructive) {
@@ -94,6 +82,41 @@ struct ProvidersSettingsView: View {
     private func cancel() {
         if let selection, model.preferences.provider(for: selection) == nil { self.selection = nil }
         draft = nil; validation = []
+    }
+
+    private func text(_ key: String, _ fallback: String) -> String {
+        EntrevoixLocalization.text(key, defaultValue: fallback, locale: model.interfaceLocale)
+    }
+}
+
+struct ProviderCatalogView: View {
+    @Environment(ProviderStore.self) private var model
+    @Binding var selection: ProviderIdentifier?
+    @Binding var newRemoteProviderKind: RemoteProviderKind?
+
+    var body: some View {
+        List(selection: $selection) {
+            ForEach(model.providersSortedForDisplay) { entry in
+                Label(model.providerName(entry), systemImage: icon(for: entry))
+                    .tag(Optional(entry.id))
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
+        .toolbar {
+            ToolbarItem {
+                Menu {
+                    Button(model.providerName(.apple)) { model.addAppleProvider(); selection = .apple }
+                        .disabled(model.preferences.providerCatalog.contains { $0.id == .apple })
+                    Button(model.providerName(.codex(CodexProviderProfile()))) { model.addCodexProvider(); selection = .codex }
+                        .disabled(model.preferences.providerCatalog.contains { $0.id == .codex })
+                    Button(text("provider.openai", "OpenAI")) { newRemoteProviderKind = .openAI }
+                    Button(text("provider.openai_compatible", "OpenAI-compatible")) { newRemoteProviderKind = .openAICompatible }
+                } label: {
+                    Label(text("provider.add", "Add provider"), systemImage: "plus")
+                }
+            }
+        }
     }
 
     private func icon(for entry: ProviderCatalogEntry) -> String {
