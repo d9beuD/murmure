@@ -155,8 +155,15 @@ struct ProviderCatalogView: View {
                         Text(text("provider.configured_title", "Configured providers"))
                             .font(.headline)
 
-                        ForEach(model.providersSortedForDisplay) { entry in
-                            ProviderSummaryCard(entry: entry, onConfigure: { onConfigure(entry) })
+                        let providers = model.providersSortedForDisplay
+                        VStack(spacing: 0) {
+                            ForEach(providers.indices, id: \.self) { index in
+                                let entry = providers[index]
+                                ProviderSummaryCard(entry: entry, onConfigure: { onConfigure(entry) })
+                                if index < providers.index(before: providers.endIndex) {
+                                    Divider()
+                                }
+                            }
                         }
                     }
                 }
