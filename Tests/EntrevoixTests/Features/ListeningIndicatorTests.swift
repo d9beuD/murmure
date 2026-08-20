@@ -2,6 +2,34 @@ import XCTest
 @testable import Entrevoix
 
 final class ListeningIndicatorTests: XCTestCase {
+    @MainActor
+    func testCancelledPositionPollingCannotRevealHiddenIndicator() async {
+        let sleeper = ControlledIndicatorSleep()
+        let controller = ListeningIndicatorController(
+            positionProvider: ListeningIndicatorPositionProvider(anchor: {
+                ListeningIndicatorAnchor(
+                    point: .zero,
+                    source: .accessibilityPermissionMissing
+                )
+            }),
+            audioLevelProvider: IndicatorAudioLevelSpy(),
+            logger: AppLogStore(),
+            positionPollingSleep: { duration in try await sleeper.sleep(for: duration) }
+        )
+
+        controller.show(label: "Listening…")
+        await waitUntilPollingIsSuspended(sleeper)
+        XCTAssertTrue(controller.isPanelVisible)
+
+        controller.hide()
+        XCTAssertFalse(controller.isPanelVisible)
+
+        sleeper.resume()
+        await Task.yield()
+
+        XCTAssertFalse(controller.isPanelVisible)
+    }
+
     func testNormalizesAndClipsDecibelRange() {
         XCTAssertEqual(
             ListeningIndicatorAudioLevelSmoother.normalizedLevel(from: -100),
@@ -53,5 +81,42 @@ final class ListeningIndicatorTests: XCTestCase {
         smoother.reset()
 
         XCTAssertEqual(smoother.level, 0, accuracy: 0.0001)
+    }
+
+    @MainActor
+    private func waitUntilPollingIsSuspended(
+        _ sleeper: ControlledIndicatorSleep,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        for _ in 0 ..< 100 {
+            if sleeper.isSuspended { return }
+            await Task.yield()
+        }
+        XCTFail("Timed out waiting for the position polling task.", file: file, line: line)
+    }
+}
+
+@MainActor
+private final class IndicatorAudioLevelSpy: AudioLevelProviding {
+    func updateMeters() {}
+    var averagePower: Float { -160 }
+}
+
+@MainActor
+private final class ControlledIndicatorSleep {
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    var isSuspended: Bool { continuation != nil }
+
+    func sleep(for duration: Duration) async throws {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
     }
 }
