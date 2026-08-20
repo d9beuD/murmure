@@ -119,17 +119,14 @@ public struct DictationRequest: Sendable {
     public let transcription: TranscriptionRequest
     public let cleanup: CleanupPlan?
     public let outputMode: OutputMode
-    public let recordingOptions: AudioRecordingOptions
 
     public init(
         transcription: TranscriptionRequest,
         cleanup: CleanupPlan?,
-        outputMode: OutputMode,
-        recordingOptions: AudioRecordingOptions = .standard
+        outputMode: OutputMode
     ) {
         self.transcription = transcription
         self.cleanup = cleanup
         self.outputMode = outputMode
-        self.recordingOptions = recordingOptions
     }
 }

@@ -246,10 +246,7 @@ final class ProviderStore {
         return DictationRequest(
             transcription: transcription,
             cleanup: cleanup,
-            outputMode: preferences.outputMode,
-            recordingOptions: AudioRecordingOptions(
-                duckOtherAudio: preferences.duckOtherAudioDuringDictation
-            )
+            outputMode: preferences.outputMode
         )
     }
 

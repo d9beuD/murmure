@@ -5,27 +5,14 @@ import XCTest
 
 @MainActor
 final class AudioRecorderTests: XCTestCase {
-    func testPrewarmedDuckingEngineIsReusedAcrossDictations() throws {
+    func testCaptureEngineIsReusedWithoutVoiceProcessing() throws {
         let engine = AudioCaptureEngineSpy()
         let factory = AudioCaptureEngineFactorySpy(engines: [engine])
         let recorder = AudioRecorder(logger: AppLogStore(), captureEngineFactory: factory)
 
-        recorder.prewarmDucking()
-
-        XCTAssertEqual(factory.makeCount, 1)
-        XCTAssertEqual(engine.enableDuckingCount, 1)
-        XCTAssertEqual(engine.configuredInputs, [.systemDefault])
-        XCTAssertEqual(engine.prepareForCaptureCount, 1)
-
-        try recorder.start(
-            input: .systemDefault,
-            options: AudioRecordingOptions(duckOtherAudio: true)
-        )
+        try recorder.start(input: .systemDefault)
         recorder.cancel()
-        try recorder.start(
-            input: .systemDefault,
-            options: AudioRecordingOptions(duckOtherAudio: true)
-        )
+        try recorder.start(input: .systemDefault)
         recorder.cancel()
 
         XCTAssertEqual(factory.makeCount, 1)
@@ -34,47 +21,20 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertEqual(engine.discardCount, 0)
     }
 
-    func testStandardAndDuckingCapturesUseSeparateCachedEngines() throws {
-        let standardEngine = AudioCaptureEngineSpy()
-        let duckingEngine = AudioCaptureEngineSpy()
-        let factory = AudioCaptureEngineFactorySpy(engines: [standardEngine, duckingEngine])
-        let recorder = AudioRecorder(logger: AppLogStore(), captureEngineFactory: factory)
-
-        try recorder.start(input: .systemDefault, options: .standard)
-        recorder.cancel()
-        recorder.prewarmDucking()
-        try recorder.start(
-            input: .systemDefault,
-            options: AudioRecordingOptions(duckOtherAudio: true)
-        )
-        recorder.cancel()
-        try recorder.start(input: .systemDefault, options: .standard)
-        recorder.cancel()
-
-        XCTAssertEqual(factory.makeCount, 2)
-        XCTAssertEqual(standardEngine.enableDuckingCount, 0)
-        XCTAssertEqual(standardEngine.startCaptureCount, 2)
-        XCTAssertEqual(duckingEngine.enableDuckingCount, 1)
-        XCTAssertEqual(duckingEngine.startCaptureCount, 1)
-    }
-
-    func testPrewarmingSelectedInputReusesItsDuckingEngine() throws {
-        let engine = AudioCaptureEngineSpy()
-        let factory = AudioCaptureEngineFactorySpy(engines: [engine])
+    func testSelectedInputUsesItsOwnCaptureEngine() throws {
+        let systemEngine = AudioCaptureEngineSpy()
+        let selectedEngine = AudioCaptureEngineSpy()
+        let factory = AudioCaptureEngineFactorySpy(engines: [systemEngine, selectedEngine])
         let recorder = AudioRecorder(logger: AppLogStore(), captureEngineFactory: factory)
         let selectedInput = AudioInputDeviceReference(uid: "external-mic", name: "External microphone")
 
-        recorder.prewarmDucking(input: .device(selectedInput))
-        try recorder.start(
-            input: .device(selectedInput),
-            options: AudioRecordingOptions(duckOtherAudio: true)
-        )
+        try recorder.start(input: .systemDefault)
         recorder.cancel()
-
-        XCTAssertEqual(factory.makeCount, 1)
-        XCTAssertEqual(engine.configuredInputs, [.device(selectedInput)])
-        XCTAssertEqual(engine.enableDuckingCount, 1)
-        XCTAssertEqual(engine.startCaptureCount, 1)
+        try recorder.start(input: .device(selectedInput))
+        recorder.cancel()
+        XCTAssertEqual(factory.makeCount, 2)
+        XCTAssertEqual(systemEngine.configuredInputs, [.systemDefault])
+        XCTAssertEqual(selectedEngine.configuredInputs, [.device(selectedInput)])
     }
 
     func testUnavailableSelectedInputDiscardsItsEngineAndFallsBackToSystemDefault() throws {
@@ -84,7 +44,7 @@ final class AudioRecorderTests: XCTestCase {
         let recorder = AudioRecorder(logger: AppLogStore(), captureEngineFactory: factory)
         let selectedInput = AudioInputDeviceReference(uid: "missing-device", name: "Missing microphone")
 
-        let result = try recorder.start(input: .device(selectedInput), options: .standard)
+        let result = try recorder.start(input: .device(selectedInput))
         recorder.cancel()
 
         XCTAssertEqual(result, .fellBackToSystemDefault)
@@ -94,43 +54,18 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertEqual(fallbackEngine.startCaptureCount, 1)
     }
 
-    func testDuckingPrewarmFailureFallsBackWithoutBlockingCapture() throws {
-        let engine = AudioCaptureEngineSpy(enableDuckingError: AppStubError.failure)
-        let factory = AudioCaptureEngineFactorySpy(engines: [engine])
-        let recorder = AudioRecorder(logger: AppLogStore(), captureEngineFactory: factory)
-
-        recorder.prewarmDucking()
-        try recorder.start(
-            input: .systemDefault,
-            options: AudioRecordingOptions(duckOtherAudio: true)
-        )
-        recorder.cancel()
-
-        XCTAssertEqual(factory.makeCount, 1)
-        XCTAssertEqual(engine.enableDuckingCount, 1)
-        XCTAssertEqual(engine.startCaptureCount, 1)
-    }
-
     func testFailedCaptureEvictsTheCachedEngineBeforeRetrying() throws {
         let failedEngine = AudioCaptureEngineSpy(startCaptureError: AppStubError.failure)
         let replacementEngine = AudioCaptureEngineSpy()
         let factory = AudioCaptureEngineFactorySpy(engines: [failedEngine, replacementEngine])
         let recorder = AudioRecorder(logger: AppLogStore(), captureEngineFactory: factory)
 
-        recorder.prewarmDucking()
-        XCTAssertThrowsError(try recorder.start(
-            input: .systemDefault,
-            options: AudioRecordingOptions(duckOtherAudio: true)
-        ))
-        try recorder.start(
-            input: .systemDefault,
-            options: AudioRecordingOptions(duckOtherAudio: true)
-        )
+        XCTAssertThrowsError(try recorder.start(input: .systemDefault))
+        try recorder.start(input: .systemDefault)
         recorder.cancel()
 
         XCTAssertEqual(failedEngine.discardCount, 1)
         XCTAssertEqual(factory.makeCount, 2)
-        XCTAssertEqual(replacementEngine.enableDuckingCount, 1)
         XCTAssertEqual(replacementEngine.startCaptureCount, 1)
     }
 
@@ -240,10 +175,6 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertGreaterThan(maximum, 0.01)
     }
 
-    func testMaximumDuckingIsContinuous() {
-        XCTAssertFalse(AudioDuckingConfiguration.maximum.enableAdvancedDucking.boolValue)
-        XCTAssertEqual(AudioDuckingConfiguration.maximum.duckingLevel, .max)
-    }
 }
 
 @MainActor
@@ -267,13 +198,10 @@ private final class AudioCaptureEngineFactorySpy: AudioCaptureEngineFactory {
 @MainActor
 private final class AudioCaptureEngineSpy: AudioCaptureEngine {
     let inputFormat: AVAudioFormat
-    let enableDuckingError: (any Error)?
     let configureError: (any Error)?
     let startCaptureError: (any Error)?
 
-    private(set) var enableDuckingCount = 0
     private(set) var configuredInputs: [AudioInputSelection] = []
-    private(set) var prepareForCaptureCount = 0
     private(set) var startCaptureCount = 0
     private(set) var pauseCaptureCount = 0
     private(set) var discardCount = 0
@@ -285,28 +213,17 @@ private final class AudioCaptureEngineSpy: AudioCaptureEngine {
             channels: 1,
             interleaved: false
         ),
-        enableDuckingError: (any Error)? = nil,
         configureError: (any Error)? = nil,
         startCaptureError: (any Error)? = nil
     ) {
         self.inputFormat = inputFormat ?? AVAudioFormat()
-        self.enableDuckingError = enableDuckingError
         self.configureError = configureError
         self.startCaptureError = startCaptureError
-    }
-
-    func enableDucking() throws {
-        enableDuckingCount += 1
-        if let enableDuckingError { throw enableDuckingError }
     }
 
     func configure(input: AudioInputSelection) throws {
         configuredInputs.append(input)
         if let configureError { throw configureError }
-    }
-
-    func prepareForCapture() {
-        prepareForCaptureCount += 1
     }
 
     func startCapture(writer: AudioCaptureWriter) throws {

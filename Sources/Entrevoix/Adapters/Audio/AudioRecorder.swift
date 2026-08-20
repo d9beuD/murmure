@@ -11,13 +11,10 @@ protocol AudioLevelProviding: AnyObject {
 }
 
 /// Records microphone sessions into the application's fixed PCM WAV format.
-/// Ducking engines are configured once, then paused between captures so their
-/// Voice Processing graph stays warm while the audio hardware is released.
 @MainActor
 final class AudioRecorder: AudioRecording, AudioLevelProviding {
     private struct CaptureEngineKey: Hashable {
         let input: AudioInputSelection
-        let duckOtherAudio: Bool
     }
 
     private var cachedEngines: [CaptureEngineKey: any AudioCaptureEngine] = [:]
@@ -36,24 +33,8 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         self.captureEngineFactory = captureEngineFactory
     }
 
-    /// Configures the current ducking path while the app is launching so the
-    /// first shortcut does not pay Voice Processing's setup cost.
-    func prewarmDucking(input: AudioInputSelection = .systemDefault) {
-        let key = CaptureEngineKey(input: input, duckOtherAudio: true)
-        guard cachedEngines[key] == nil else { return }
-        do {
-            let engine = try captureEngine(for: key)
-            engine.prepareForCapture()
-        } catch {
-            logger.log("Audio ducking prewarm unavailable; it will be retried when recording starts.")
-        }
-    }
-
     @discardableResult
-    func start(
-        input: AudioInputSelection,
-        options: AudioRecordingOptions
-    ) throws -> AudioInputStartResult {
+    func start(input: AudioInputSelection) throws -> AudioInputStartResult {
         guard activeEngine == nil else { return .requestedInput }
 
         let directory = FileManager.default.temporaryDirectory
@@ -70,21 +51,21 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         case .systemDefault:
             try startCapture(
                 at: url,
-                key: CaptureEngineKey(input: .systemDefault, duckOtherAudio: options.duckOtherAudio)
+                key: CaptureEngineKey(input: .systemDefault)
             )
             return .requestedInput
         case .device(let device):
             do {
                 try startCapture(
                     at: url,
-                    key: CaptureEngineKey(input: .device(device), duckOtherAudio: options.duckOtherAudio)
+                    key: CaptureEngineKey(input: .device(device))
                 )
                 return .requestedInput
             } catch {
                 try? FileManager.default.removeItem(at: url)
                 try startCapture(
                     at: url,
-                    key: CaptureEngineKey(input: .systemDefault, duckOtherAudio: options.duckOtherAudio)
+                    key: CaptureEngineKey(input: .systemDefault)
                 )
                 return .fellBackToSystemDefault
             }
@@ -123,13 +104,6 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         }
 
         let engine = captureEngineFactory.makeCaptureEngine()
-        if key.duckOtherAudio {
-            do {
-                try engine.enableDucking()
-            } catch {
-                logger.log("Audio ducking unavailable; recording without audio ducking.")
-            }
-        }
         do {
             try engine.configure(input: key.input)
             cachedEngines[key] = engine
@@ -199,9 +173,7 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
 protocol AudioCaptureEngine: AnyObject {
     var inputFormat: AVAudioFormat { get }
 
-    func enableDucking() throws
     func configure(input: AudioInputSelection) throws
-    func prepareForCapture()
     func startCapture(writer: AudioCaptureWriter) throws
     func pauseCapture()
     func discard()
@@ -231,11 +203,6 @@ final class LiveAudioCaptureEngine: AudioCaptureEngine {
 
     var inputFormat: AVAudioFormat {
         inputNode.outputFormat(forBus: 0)
-    }
-
-    func enableDucking() throws {
-        try inputNode.setVoiceProcessingEnabled(true)
-        inputNode.voiceProcessingOtherAudioDuckingConfiguration = AudioDuckingConfiguration.maximum
     }
 
     func configure(input: AudioInputSelection) throws {
@@ -275,10 +242,6 @@ final class LiveAudioCaptureEngine: AudioCaptureEngine {
             engine.stop()
             throw error
         }
-    }
-
-    func prepareForCapture() {
-        engine.prepare()
     }
 
     func pauseCapture() {
@@ -511,12 +474,6 @@ private final class ConverterInputBlockSource: @unchecked Sendable {
     }
 }
 
-enum AudioDuckingConfiguration {
-    static let maximum = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
-        enableAdvancedDucking: false,
-        duckingLevel: .max
-    )
-}
 
 enum RecorderError: LocalizedError, LogSafeError, UserFacingErrorProviding {
     case couldNotStart
