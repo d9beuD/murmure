@@ -165,9 +165,9 @@ struct ProviderCatalogView: View {
                         .font(.headline)
 
                     LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 180, maximum: 260), spacing: 12)],
+                        columns: [GridItem(.adaptive(minimum: 180, maximum: 260), spacing: 0)],
                         alignment: .leading,
-                        spacing: 12
+                        spacing: 0
                     ) {
                         if !model.preferences.providerCatalog.contains(where: { $0.id == .apple }) {
                             ProviderAddCard(
@@ -255,6 +255,7 @@ private struct ProviderAddCard: View {
     let title: String
     let systemImage: String
     let action: () -> Void
+    @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
@@ -269,9 +270,13 @@ private struct ProviderAddCard: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(
+                isHovering ? Color.accentColor.opacity(0.05) : Color(nsColor: .controlBackgroundColor),
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
         }
         .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
         .accessibilityLabel(Text(title))
     }
 }
