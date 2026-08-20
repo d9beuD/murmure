@@ -1,3 +1,4 @@
+import AppKit
 import EntrevoixCore
 import SwiftUI
 
@@ -172,25 +173,25 @@ struct ProviderCatalogView: View {
                         if !model.preferences.providerCatalog.contains(where: { $0.id == .apple }) {
                             ProviderAddCard(
                                 title: model.providerName(.apple),
-                                systemImage: "apple.logo",
+                                icon: .system("apple.logo"),
                                 action: onAddApple
                             )
                         }
                         if !model.preferences.providerCatalog.contains(where: { $0.id == .codex }) {
                             ProviderAddCard(
                                 title: model.providerName(.codex(CodexProviderProfile())),
-                                systemImage: "cpu",
+                                icon: .openAI,
                                 action: onAddCodex
                             )
                         }
                         ProviderAddCard(
                             title: text("provider.openai", "OpenAI"),
-                            systemImage: "circle.grid.2x2",
+                            icon: .openAI,
                             action: { onAddRemote(model.newRemoteProvider(kind: .openAI)) }
                         )
                         ProviderAddCard(
                             title: text("provider.openai_compatible", "OpenAI-compatible"),
-                            systemImage: "network",
+                            icon: .system("network"),
                             action: { onAddRemote(model.newRemoteProvider(kind: .openAICompatible)) }
                         )
                     }
@@ -212,7 +213,7 @@ private struct ProviderSummaryCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ProviderIcon(systemImage: icon(for: entry))
+            ProviderIcon(icon: icon(for: entry))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.providerName(entry))
@@ -238,11 +239,11 @@ private struct ProviderSummaryCard: View {
         return values.joined(separator: " · ")
     }
 
-    private func icon(for entry: ProviderCatalogEntry) -> String {
+    private func icon(for entry: ProviderCatalogEntry) -> ProviderIcon.Kind {
         switch entry {
-        case .apple: "apple.logo"
-        case .codex: "cpu"
-        case .remote(let profile): profile.kind == .openAI ? "circle.grid.2x2" : "network"
+        case .apple: .system("apple.logo")
+        case .codex: .openAI
+        case .remote(let profile): profile.kind == .openAI ? .openAI : .system("network")
         }
     }
 
@@ -253,14 +254,14 @@ private struct ProviderSummaryCard: View {
 
 private struct ProviderAddCard: View {
     let title: String
-    let systemImage: String
+    let icon: ProviderIcon.Kind
     let action: () -> Void
     @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                ProviderIcon(systemImage: systemImage)
+                ProviderIcon(icon: icon)
                 Text(title)
                     .lineLimit(1)
                 Spacer(minLength: 4)
@@ -282,14 +283,50 @@ private struct ProviderAddCard: View {
 }
 
 private struct ProviderIcon: View {
-    let systemImage: String
+    enum Kind {
+        case openAI
+        case system(String)
+    }
+
+    @Environment(\.colorScheme) private var colorScheme
+    let icon: Kind
 
     var body: some View {
-        Image(systemName: systemImage)
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(Color.accentColor)
+        Group {
+            switch icon {
+            case .openAI:
+                if let image = openAIImage {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 30, height: 30)
+                } else {
+                    Image(systemName: "circle.grid.2x2")
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(Color.accentColor)
+                }
+            case .system(let systemImage):
+                Image(systemName: systemImage)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
             .frame(width: 28, height: 28)
-            .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(backgroundColor, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    private var openAIImage: NSImage? {
+        let resource = colorScheme == .dark ? "openai-blossom-white" : "openai-blossom-black"
+        guard let url = Bundle.module.url(forResource: resource, withExtension: "webp") else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
+    private var backgroundColor: Color {
+        if case .openAI = icon {
+            return Color(nsColor: .controlBackgroundColor)
+        }
+        return Color.accentColor.opacity(0.14)
     }
 }
 
