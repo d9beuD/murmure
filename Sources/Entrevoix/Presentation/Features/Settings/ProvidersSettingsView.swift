@@ -320,6 +320,12 @@ private struct ProviderIcon: View {
         }
             .frame(width: 28, height: 28)
             .background(backgroundColor, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay {
+                if case .openAI = icon {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 
