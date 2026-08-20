@@ -204,6 +204,16 @@ final class OpenAITranscriptionServiceTests: XCTestCase {
             try await self.transcribe(audioURL: audioURL, transport: empty)
         }
 
+        let emptyJSON = HTTPStub { request in
+            response(
+                url: request.url!,
+                data: Data(#"{"text":"","language":null,"duration":0.15664196014404297,"segments":[{"text":"","language":"None","start":0.0,"end":2.559625}]}"#.utf8)
+            )
+        }
+        await assertTranscriptionError(.emptyResult) {
+            try await self.transcribe(audioURL: audioURL, transport: emptyJSON)
+        }
+
         let http = HTTPStub { request in
             response(url: request.url!, status: 401, data: Data("{\"error\":{\"message\":\"provider secret\"}}".utf8))
         }

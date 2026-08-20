@@ -11,13 +11,10 @@ protocol AudioLevelProviding: AnyObject {
 }
 
 /// Records microphone sessions into the application's fixed PCM WAV format.
-/// Ducking engines are configured once, then paused between captures so their
-/// Voice Processing graph stays warm while the audio hardware is released.
 @MainActor
 final class AudioRecorder: AudioRecording, AudioLevelProviding {
     private struct CaptureEngineKey: Hashable {
         let input: AudioInputSelection
-        let duckOtherAudio: Bool
     }
 
     private var cachedEngines: [CaptureEngineKey: any AudioCaptureEngine] = [:]
@@ -36,24 +33,8 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         self.captureEngineFactory = captureEngineFactory
     }
 
-    /// Configures the current ducking path while the app is launching so the
-    /// first shortcut does not pay Voice Processing's setup cost.
-    func prewarmDucking(input: AudioInputSelection = .systemDefault) {
-        let key = CaptureEngineKey(input: input, duckOtherAudio: true)
-        guard cachedEngines[key] == nil else { return }
-        do {
-            let engine = try captureEngine(for: key)
-            engine.prepareForCapture()
-        } catch {
-            logger.log("Audio ducking prewarm unavailable; it will be retried when recording starts.")
-        }
-    }
-
     @discardableResult
-    func start(
-        input: AudioInputSelection,
-        options: AudioRecordingOptions
-    ) throws -> AudioInputStartResult {
+    func start(input: AudioInputSelection) throws -> AudioInputStartResult {
         guard activeEngine == nil else { return .requestedInput }
 
         let directory = FileManager.default.temporaryDirectory
@@ -70,21 +51,21 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         case .systemDefault:
             try startCapture(
                 at: url,
-                key: CaptureEngineKey(input: .systemDefault, duckOtherAudio: options.duckOtherAudio)
+                key: CaptureEngineKey(input: .systemDefault)
             )
             return .requestedInput
         case .device(let device):
             do {
                 try startCapture(
                     at: url,
-                    key: CaptureEngineKey(input: .device(device), duckOtherAudio: options.duckOtherAudio)
+                    key: CaptureEngineKey(input: .device(device))
                 )
                 return .requestedInput
             } catch {
                 try? FileManager.default.removeItem(at: url)
                 try startCapture(
                     at: url,
-                    key: CaptureEngineKey(input: .systemDefault, duckOtherAudio: options.duckOtherAudio)
+                    key: CaptureEngineKey(input: .systemDefault)
                 )
                 return .fellBackToSystemDefault
             }
@@ -123,13 +104,6 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
         }
 
         let engine = captureEngineFactory.makeCaptureEngine()
-        if key.duckOtherAudio {
-            do {
-                try engine.enableDucking()
-            } catch {
-                logger.log("Audio ducking unavailable; recording without audio ducking.")
-            }
-        }
         do {
             try engine.configure(input: key.input)
             cachedEngines[key] = engine
@@ -199,9 +173,7 @@ final class AudioRecorder: AudioRecording, AudioLevelProviding {
 protocol AudioCaptureEngine: AnyObject {
     var inputFormat: AVAudioFormat { get }
 
-    func enableDucking() throws
     func configure(input: AudioInputSelection) throws
-    func prepareForCapture()
     func startCapture(writer: AudioCaptureWriter) throws
     func pauseCapture()
     func discard()
@@ -231,11 +203,6 @@ final class LiveAudioCaptureEngine: AudioCaptureEngine {
 
     var inputFormat: AVAudioFormat {
         inputNode.outputFormat(forBus: 0)
-    }
-
-    func enableDucking() throws {
-        try inputNode.setVoiceProcessingEnabled(true)
-        inputNode.voiceProcessingOtherAudioDuckingConfiguration = AudioDuckingConfiguration.maximum
     }
 
     func configure(input: AudioInputSelection) throws {
@@ -275,10 +242,6 @@ final class LiveAudioCaptureEngine: AudioCaptureEngine {
             engine.stop()
             throw error
         }
-    }
-
-    func prepareForCapture() {
-        engine.prepare()
     }
 
     func pauseCapture() {
@@ -343,6 +306,7 @@ final class AudioCaptureWriter: Sendable {
 
     private struct State {
         let converter: AVAudioConverter
+        let converterInputFormat: AVAudioFormat
         let file: AVAudioFile
         let outputFormat: AVAudioFormat
         var averagePower: Float = -160
@@ -354,15 +318,19 @@ final class AudioCaptureWriter: Sendable {
     private let state: Mutex<State>
 
     init(inputFormat: AVAudioFormat, outputURL: URL) throws {
-        guard let outputFormat = AVAudioFormat(
+        guard let converterInputFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: inputFormat.sampleRate,
+            channels: 1,
+            interleaved: false
+        ), let outputFormat = AVAudioFormat(
             commonFormat: .pcmFormatInt16,
             sampleRate: 16_000,
             channels: 1,
             interleaved: true
-        ), let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+        ), let converter = AVAudioConverter(from: converterInputFormat, to: outputFormat) else {
             throw RecorderError.couldNotStart
         }
-        converter.downmix = true
 
         let file = try AVAudioFile(
             forWriting: outputURL,
@@ -370,7 +338,12 @@ final class AudioCaptureWriter: Sendable {
             commonFormat: .pcmFormatInt16,
             interleaved: true
         )
-        state = Mutex(State(converter: converter, file: file, outputFormat: outputFormat))
+        state = Mutex(State(
+            converter: converter,
+            converterInputFormat: converterInputFormat,
+            file: file,
+            outputFormat: outputFormat
+        ))
     }
 
     var averagePower: Float {
@@ -382,9 +355,17 @@ final class AudioCaptureWriter: Sendable {
             guard !state.isFinished, !state.didFail else { return }
             state.averagePower = Self.averagePower(for: input)
 
+            guard let monoInput = Self.downmixToMono(
+                input,
+                format: state.converterInputFormat
+            ) else {
+                state.didFail = true
+                return
+            }
+
             let convertedFrameCount = max(
-                Int(input.frameLength),
-                Int((Double(input.frameLength) * state.outputFormat.sampleRate / input.format.sampleRate).rounded(.up)) + 32
+                Int(monoInput.frameLength),
+                Int((Double(monoInput.frameLength) * state.outputFormat.sampleRate / monoInput.format.sampleRate).rounded(.up)) + 32
             )
             guard let output = AVAudioPCMBuffer(
                 pcmFormat: state.outputFormat,
@@ -394,7 +375,7 @@ final class AudioCaptureWriter: Sendable {
                 return
             }
 
-            let source = ConverterInputBlockSource(input)
+            let source = ConverterInputBlockSource(monoInput)
             var conversionError: NSError?
             let status = state.converter.convert(to: output, error: &conversionError) { _, inputStatus in
                 source.next(into: inputStatus)
@@ -421,6 +402,34 @@ final class AudioCaptureWriter: Sendable {
             state.file.close()
             return state.didFail ? .failed : (state.didWriteFrames ? .success : .empty)
         }
+    }
+
+    private static func downmixToMono(
+        _ input: AVAudioPCMBuffer,
+        format: AVAudioFormat
+    ) -> AVAudioPCMBuffer? {
+        guard input.frameLength > 0,
+              let inputChannels = input.floatChannelData,
+              let output = AVAudioPCMBuffer(
+                  pcmFormat: format,
+                  frameCapacity: input.frameLength
+              ),
+              let outputSamples = output.floatChannelData?.pointee else {
+            return nil
+        }
+
+        output.frameLength = input.frameLength
+        let frameCount = Int(input.frameLength)
+        let channelCount = Int(input.format.channelCount)
+        let scale = 1 / Float(channelCount)
+        for frame in 0..<frameCount {
+            var mixedSample: Float = 0
+            for channel in 0..<channelCount {
+                mixedSample += inputChannels[channel][frame]
+            }
+            outputSamples[frame] = mixedSample * scale
+        }
+        return output
     }
 
     private static func averagePower(for buffer: AVAudioPCMBuffer) -> Float {
@@ -465,12 +474,6 @@ private final class ConverterInputBlockSource: @unchecked Sendable {
     }
 }
 
-enum AudioDuckingConfiguration {
-    static let maximum = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
-        enableAdvancedDucking: false,
-        duckingLevel: .max
-    )
-}
 
 enum RecorderError: LocalizedError, LogSafeError, UserFacingErrorProviding {
     case couldNotStart

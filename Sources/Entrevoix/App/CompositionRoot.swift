@@ -55,7 +55,6 @@ enum CompositionRoot {
         let audioInputDevices = CoreAudioInputDeviceCatalog()
         let logStore = AppLogStore()
         let audioRecorder = AudioRecorder(logger: logStore)
-        audioRecorder.prewarmDucking(input: initialPreferences.audioInputSelection)
         let permissions = SystemPermissionProvider()
         let transport = SafeNetworkSession()
         let codexCredentials = CodexCredentialVault()

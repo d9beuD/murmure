@@ -134,7 +134,7 @@ public final class ConnectionTestCoordinator {
             }
             guard self.sessionID == sessionID else { return }
             do {
-                let startResult = try self.audioRecorder.start(input: audioInput, options: .standard)
+                let startResult = try self.audioRecorder.start(input: audioInput)
                 if startResult == .fellBackToSystemDefault {
                     self.logger.log("Selected microphone unavailable; using the macOS default input.")
                 }

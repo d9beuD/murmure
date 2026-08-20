@@ -215,4 +215,5 @@ final class DictationStore {
         guard providerStore.preferences.playFeedbackSounds else { return }
         soundFeedback.play(event)
     }
+
 }

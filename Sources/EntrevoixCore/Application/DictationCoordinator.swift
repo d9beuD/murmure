@@ -98,10 +98,7 @@ public final class DictationCoordinator {
             }
             guard self.activeSessionID == sessionID, self.state == .requestingPermission else { return }
             do {
-                let startResult = try self.dependencies.audioRecorder.start(
-                    input: self.frozenAudioInput,
-                    options: request?.recordingOptions ?? .standard
-                )
+                let startResult = try self.dependencies.audioRecorder.start(input: self.frozenAudioInput)
                 if startResult == .fellBackToSystemDefault {
                     self.dependencies.logger.log("Selected microphone unavailable; using the macOS default input.")
                 }
