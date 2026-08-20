@@ -4,58 +4,91 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var model: AppStore
     @State private var selection: SettingsSection? = .general
+    @State private var providerSelection: ProviderIdentifier?
+    @State private var newRemoteProviderKind: RemoteProviderKind?
     @State private var promptNavigation = PromptLibraryNavigationState()
 
     var body: some View {
+        Group {
+            if selection == .providers {
+                providersSplitView
+            } else {
+                settingsSplitView
+            }
+        }
+        .frame(minWidth: 760, idealWidth: 920, minHeight: 520, idealHeight: 700)
+    }
+
+    private var settingsSplitView: some View {
         NavigationSplitView {
-            List(selection: Binding(
-                get: { selection },
-                set: { newSelection in
-                    guard newSelection != selection else { return }
-                    if selection == .prompts, newSelection != .prompts, promptNavigation.isDirty {
-                        promptNavigation.pendingAction = .leaveSettings(newSelection)
-                        promptNavigation.showUnsavedConfirmation = true
-                    } else {
-                        selection = newSelection
-                        if newSelection != .prompts {
-                            promptNavigation.discard()
-                            promptNavigation.path.removeAll()
-                        }
-                    }
-                }
-            )) {
-                ForEach(SettingsSection.allCases) { section in
-                    Label(section.title(locale: model.interfaceLocale), systemImage: section.systemImageName)
-                        .tag(section)
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
+            settingsSidebar
         } detail: {
-            Group {
-                switch selection ?? .general {
-                case .general:
-                    GeneralSettingsView(model: model)
-                case .providers:
-                    ProvidersSettingsView()
-                case .stt:
-                    STTSettingsView(model: model)
-                case .dictationDictionary:
-                    DictationDictionaryView(model: model)
-                case .cleanup:
-                    CleanupSettingsView(model: model)
-                case .prompts:
-                    PromptLibraryView(model: model, state: promptNavigation) { newSelection in
-                        selection = newSelection
-                    }
-                case .workflows:
-                    WorkflowLibraryView(model: model)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            settingsDetail
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 760, idealWidth: 920, minHeight: 520, idealHeight: 700)
+    }
+
+    private var providersSplitView: some View {
+        NavigationSplitView {
+            settingsSidebar
+        } content: {
+            ProviderCatalogView(selection: $providerSelection, newRemoteProviderKind: $newRemoteProviderKind)
+        } detail: {
+            ProvidersSettingsView(selection: $providerSelection, newRemoteProviderKind: $newRemoteProviderKind)
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
+    private var settingsSidebar: some View {
+        List(selection: settingsSelection) {
+            ForEach(SettingsSection.allCases) { section in
+                Label(section.title(locale: model.interfaceLocale), systemImage: section.systemImageName)
+                    .tag(section)
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
+    }
+
+    private var settingsSelection: Binding<SettingsSection?> {
+        Binding(
+            get: { selection },
+            set: { newSelection in
+                guard newSelection != selection else { return }
+                if selection == .prompts, newSelection != .prompts, promptNavigation.isDirty {
+                    promptNavigation.pendingAction = .leaveSettings(newSelection)
+                    promptNavigation.showUnsavedConfirmation = true
+                } else {
+                    selection = newSelection
+                    if newSelection != .prompts {
+                        promptNavigation.discard()
+                        promptNavigation.path.removeAll()
+                    }
+                }
+            }
+        )
+    }
+
+    @ViewBuilder private var settingsDetail: some View {
+        switch selection ?? .general {
+        case .general:
+            GeneralSettingsView(model: model)
+        case .providers:
+            EmptyView()
+        case .stt:
+            STTSettingsView(model: model)
+        case .dictationDictionary:
+            DictationDictionaryView(model: model)
+        case .cleanup:
+            CleanupSettingsView(model: model)
+        case .prompts:
+            PromptLibraryView(model: model, state: promptNavigation) { newSelection in
+                selection = newSelection
+            }
+        case .workflows:
+            WorkflowLibraryView(model: model)
+        }
     }
 }
 
