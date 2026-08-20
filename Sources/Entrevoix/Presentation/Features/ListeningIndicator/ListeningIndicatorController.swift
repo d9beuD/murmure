@@ -11,6 +11,8 @@ protocol ListeningIndicatorPresenting: AnyObject {
 
 @MainActor
 final class ListeningIndicatorController: ListeningIndicatorPresenting {
+    typealias Sleep = (Duration) async throws -> Void
+
     private static let minimumPanelSize = NSSize(width: 128, height: 40)
     private static let maximumPanelWidth: CGFloat = 320
     private static let panelHorizontalPadding: CGFloat = 24
@@ -21,11 +23,13 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
     private let positionProvider: ListeningIndicatorPositionProvider
     private let audioLevelProvider: any AudioLevelProviding
     private let logger: any LogWriting
+    private let positionPollingSleep: Sleep
     private let positionTracker: ListeningIndicatorPositionTracker
     private let audioMonitor: ListeningIndicatorAudioMonitor
     private var panel: NSPanel?
     private var hostingView: NSHostingView<ListeningIndicatorView>?
     private var positionTrackingTask: Task<Void, Never>?
+    private var positionTrackingSessionID: UUID?
     private var audioLevelTask: Task<Void, Never>?
     private var audioLevelSessionID: UUID?
     private var audioLevelSmoother = ListeningIndicatorAudioLevelSmoother()
@@ -36,22 +40,26 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
     private var lastAnchor: ListeningIndicatorAnchor?
     private var pendingInitialAnchor: ListeningIndicatorAnchor?
     private var unresolvedInitialSampleCount = 0
-    private var isPanelVisible = false
+    private(set) var isPanelVisible = false
 
     init(
         positionProvider: ListeningIndicatorPositionProvider = ListeningIndicatorPositionProvider(),
         audioLevelProvider: any AudioLevelProviding,
-        logger: any LogWriting
+        logger: any LogWriting,
+        positionPollingSleep: @escaping Sleep = { try await Task.sleep(for: $0) }
     ) {
         self.positionProvider = positionProvider
         self.audioLevelProvider = audioLevelProvider
         self.logger = logger
+        self.positionPollingSleep = positionPollingSleep
         self.positionTracker = ListeningIndicatorPositionTracker(provider: positionProvider, logger: logger)
         self.audioMonitor = ListeningIndicatorAudioMonitor(provider: audioLevelProvider)
     }
 
     func show(label: String) {
         positionTrackingTask?.cancel()
+        let positionTrackingSessionID = UUID()
+        self.positionTrackingSessionID = positionTrackingSessionID
         audioLevelTask?.cancel()
         audioLevelTask = nil
         audioMonitor.stop()
@@ -77,14 +85,19 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
         panel.orderOut(nil)
         updatePosition()
 
+        let sleep = positionPollingSleep
         positionTrackingTask = Task { [weak self] in
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(for: .milliseconds(150))
+                    try await sleep(.milliseconds(150))
                 } catch {
                     return
                 }
-                self?.updatePosition()
+                guard !Task.isCancelled,
+                      let self,
+                      self.positionTrackingSessionID == positionTrackingSessionID
+                else { return }
+                self.updatePosition()
             }
         }
     }
@@ -92,6 +105,7 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
     func hide() {
         positionTrackingTask?.cancel()
         positionTrackingTask = nil
+        positionTrackingSessionID = nil
         audioLevelTask?.cancel()
         audioLevelTask = nil
         audioLevelSessionID = nil
@@ -272,13 +286,24 @@ final class ListeningIndicatorController: ListeningIndicatorPresenting {
 
 @MainActor
 struct ListeningIndicatorPositionProvider {
-    let resolver: FocusedTextElementResolver
+    private let resolver: FocusedTextElementResolver?
+    private let anchorOverride: (@MainActor () -> ListeningIndicatorAnchor)?
 
     init(resolver: FocusedTextElementResolver = .shared) {
         self.resolver = resolver
+        anchorOverride = nil
+    }
+
+    init(anchor: @escaping @MainActor () -> ListeningIndicatorAnchor) {
+        resolver = nil
+        anchorOverride = anchor
     }
 
     func anchor() -> ListeningIndicatorAnchor {
+        if let anchorOverride { return anchorOverride() }
+        guard let resolver else {
+            preconditionFailure("ListeningIndicatorPositionProvider requires an anchor source.")
+        }
         guard resolver.client.isTrusted() else {
             return ListeningIndicatorAnchor(
                 point: NSEvent.mouseLocation,
