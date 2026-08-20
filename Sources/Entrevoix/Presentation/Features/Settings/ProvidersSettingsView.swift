@@ -4,18 +4,34 @@ import SwiftUI
 struct ProvidersSettingsView: View {
     @Environment(ProviderStore.self) private var model
     @State private var selection: ProviderIdentifier?
+    @State private var isShowingCatalog = true
     @State private var draft: RemoteProviderProfile?
     @State private var draftKey = ""
     @State private var validation: [ProviderValidationIssue] = []
     @State private var showDeleteConfirmation = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            ProviderCatalogView(selection: $selection, onNewRemoteProvider: begin)
-                .frame(width: 220)
-            Divider()
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Group {
+            if isShowingCatalog {
+                ProviderCatalogView(
+                    onConfigure: configure,
+                    onAddApple: addApple,
+                    onAddCodex: addCodex,
+                    onAddRemote: begin
+                )
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    Button(action: showCatalog) {
+                        Label(text("provider.back_to_catalog", "All providers"), systemImage: "chevron.left")
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+
+                    detail
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
         }
         .onChange(of: selection) { _, id in
             if id == .codex { draft = nil; return }
@@ -68,6 +84,37 @@ struct ProvidersSettingsView: View {
         draftKey = model.apiKey(for: .remote(profile.id))
         validation = []
         selection = .remote(profile.id)
+        isShowingCatalog = false
+    }
+
+    private func configure(_ entry: ProviderCatalogEntry) {
+        switch entry {
+        case .remote(let profile):
+            begin(profile)
+        case .apple, .codex:
+            selection = entry.id
+            draft = nil
+            validation = []
+            isShowingCatalog = false
+        }
+    }
+
+    private func addApple() {
+        model.addAppleProvider()
+        configure(.apple)
+    }
+
+    private func addCodex() {
+        model.addCodexProvider()
+        configure(.codex(CodexProviderProfile()))
+    }
+
+    private func showCatalog() {
+        selection = nil
+        draft = nil
+        draftKey = ""
+        validation = []
+        isShowingCatalog = true
     }
 
     private func binding(for profile: RemoteProviderProfile) -> Binding<RemoteProviderProfile> {
@@ -77,11 +124,11 @@ struct ProvidersSettingsView: View {
     private func save() {
         guard let draft else { return }
         validation = model.saveRemoteProvider(draft, apiKey: draftKey)
+        if validation.isEmpty { showCatalog() }
     }
 
     private func cancel() {
-        if let selection, model.preferences.provider(for: selection) == nil { self.selection = nil }
-        draft = nil; validation = []
+        showCatalog()
     }
 
     private func text(_ key: String, _ fallback: String) -> String {
@@ -91,31 +138,104 @@ struct ProvidersSettingsView: View {
 
 struct ProviderCatalogView: View {
     @Environment(ProviderStore.self) private var model
-    @Binding var selection: ProviderIdentifier?
-    let onNewRemoteProvider: (RemoteProviderProfile) -> Void
+    let onConfigure: (ProviderCatalogEntry) -> Void
+    let onAddApple: () -> Void
+    let onAddCodex: () -> Void
+    let onAddRemote: (RemoteProviderProfile) -> Void
 
     var body: some View {
-        List(selection: $selection) {
-            ForEach(model.providersSortedForDisplay) { entry in
-                Label(model.providerName(entry), systemImage: icon(for: entry))
-                    .tag(Optional(entry.id))
-            }
-        }
-        .listStyle(.sidebar)
-        .toolbar {
-            ToolbarItem {
-                Menu {
-                    Button(model.providerName(.apple)) { model.addAppleProvider(); selection = .apple }
-                        .disabled(model.preferences.providerCatalog.contains { $0.id == .apple })
-                    Button(model.providerName(.codex(CodexProviderProfile()))) { model.addCodexProvider(); selection = .codex }
-                        .disabled(model.preferences.providerCatalog.contains { $0.id == .codex })
-                    Button(text("provider.openai", "OpenAI")) { onNewRemoteProvider(model.newRemoteProvider(kind: .openAI)) }
-                    Button(text("provider.openai_compatible", "OpenAI-compatible")) { onNewRemoteProvider(model.newRemoteProvider(kind: .openAICompatible)) }
-                } label: {
-                    Label(text("provider.add", "Add provider"), systemImage: "plus")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text(text("settings.providers", "Providers"))
+                    .font(.title2.weight(.semibold))
+
+                if !model.providersSortedForDisplay.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(text("provider.configured_title", "Configured providers"))
+                            .font(.headline)
+
+                        ForEach(model.providersSortedForDisplay) { entry in
+                            ProviderSummaryCard(entry: entry, onConfigure: { onConfigure(entry) })
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(text("provider.add_another", "Add a provider"))
+                        .font(.headline)
+
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 180, maximum: 260), spacing: 12)],
+                        alignment: .leading,
+                        spacing: 12
+                    ) {
+                        if !model.preferences.providerCatalog.contains(where: { $0.id == .apple }) {
+                            ProviderAddCard(
+                                title: model.providerName(.apple),
+                                systemImage: "apple.logo",
+                                action: onAddApple
+                            )
+                        }
+                        if !model.preferences.providerCatalog.contains(where: { $0.id == .codex }) {
+                            ProviderAddCard(
+                                title: model.providerName(.codex(CodexProviderProfile())),
+                                systemImage: "cpu",
+                                action: onAddCodex
+                            )
+                        }
+                        ProviderAddCard(
+                            title: text("provider.openai", "OpenAI"),
+                            systemImage: "circle.grid.2x2",
+                            action: { onAddRemote(model.newRemoteProvider(kind: .openAI)) }
+                        )
+                        ProviderAddCard(
+                            title: text("provider.openai_compatible", "OpenAI-compatible"),
+                            systemImage: "network",
+                            action: { onAddRemote(model.newRemoteProvider(kind: .openAICompatible)) }
+                        )
+                    }
                 }
             }
         }
+        .contentMargins(24, for: .scrollContent)
+    }
+
+    private func text(_ key: String, _ fallback: String) -> String {
+        EntrevoixLocalization.text(key, defaultValue: fallback, locale: model.interfaceLocale)
+    }
+}
+
+private struct ProviderSummaryCard: View {
+    @Environment(ProviderStore.self) private var model
+    let entry: ProviderCatalogEntry
+    let onConfigure: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ProviderIcon(systemImage: icon(for: entry))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.providerName(entry))
+                    .fontWeight(.semibold)
+                Text(capabilities(for: entry))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            Button(text("action.configure", "Configure"), action: onConfigure)
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func capabilities(for entry: ProviderCatalogEntry) -> String {
+        var values: [String] = []
+        if entry.supportsSTT { values.append(text("provider.speech_to_text", "Speech to text")) }
+        if entry.supportsTTT { values.append(text("provider.text_cleanup", "Text cleanup")) }
+        return values.joined(separator: " · ")
     }
 
     private func icon(for entry: ProviderCatalogEntry) -> String {
@@ -128,6 +248,43 @@ struct ProviderCatalogView: View {
 
     private func text(_ key: String, _ fallback: String) -> String {
         EntrevoixLocalization.text(key, defaultValue: fallback, locale: model.interfaceLocale)
+    }
+}
+
+private struct ProviderAddCard: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                ProviderIcon(systemImage: systemImage)
+                Text(title)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Image(systemName: "plus")
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(title))
+    }
+}
+
+private struct ProviderIcon: View {
+    let systemImage: String
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(Color.accentColor)
+            .frame(width: 28, height: 28)
+            .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 }
 
